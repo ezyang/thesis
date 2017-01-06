@@ -8,7 +8,7 @@ give a full semantics, since that would involve formalizing all of
 Haskell as implemented by GHC, but we will informally explain the
 operation of the judgments we assume are given to us.
 
-\subsection{Preliminaries}
+\section{Preliminaries}
 
 \paragraph{The context}  There is a bit of accounting to do:
 
@@ -63,7 +63,7 @@ functorial; here are the important cases:
 \]
 \end{definition}
 
-\subsection{Assumed Haskell judgments}
+\section{Assumed Haskell judgments}
 
 \begin{figure}
 \begin{centering}
@@ -99,7 +99,7 @@ defined entity specification is a subtype of another specification.
 Generally, this is simply equality, except that any type is a subtype
 of a same-kinded abstract type (\verb|data A| with no constructors.)
 
-\subsection{Type lookup and export/signature matching}
+\section{Type lookup and export/signature matching}
 
 We now define the mutually recursive judgments for \emph{type lookup}
 (Figure~\ref{fig:ty-instantiate}) and \emph{export/signature matching}
@@ -477,7 +477,7 @@ the export specification of the type $\tau$.}
 \label{fig:unit-ty-rules}
 \end{figure}
 
-\subsection{Typechecking a mixed component}
+\section{Typechecking a mixed component}
 
 The rest of the typechecking process (Figure~\ref{fig:unit-ty-rules})
 involves processing each declaration of a \unit{} in order, modifying

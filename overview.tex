@@ -209,7 +209,7 @@ simplified version of the final example from the tour (Figure~\ref{fig:composing
 % \end{figure}
 
 
-\subsection{Dependency resolution to a \ccomp{}}
+\section{Dependency resolution to a \ccomp{}}
 
 The first step in
 processing a source component is \emph{dependency resolution},
@@ -246,7 +246,7 @@ mentioned in \verb|build-depends| that is not mentioned in
 
 \input{diagram-page}
 
-\subsection{Mixin linking to a \unit{}}
+\section{Mixin linking to a \unit{}}
 \label{sec:overview-mixin}
 
 The next step is \emph{mixin linking}, which 
@@ -324,7 +324,7 @@ it too follows straightforwardly from the wiring diagram.  In particular,
 the dependency requirements that are to be merged for signature \modname{A}
 are from \cidl{p} and \cidl{q}, as is evident from the diagram.
 
-\subsection{Ordering a \unit{}}
+\section{Ordering a \unit{}}
 
 There is a minor step which must be done before typechecking a
 \unit{}: we must \emph{order} the declarations of a \unit{} since declarations in the
@@ -366,7 +366,7 @@ signatures.  We can define a topological ordering on declarations in a
 A dependency cycle indicates mutual recursion and is not allowed by GHC.
 (In principle, other compilers might be more permissive.)
 
-\subsection{Typechecking a \unit{}}
+\section{Typechecking a \unit{}}
 \label{sec:overview-compiler}
 
 
@@ -593,7 +593,7 @@ module name.  Alternately, just read it off the diagram!
 %   property does hold.
 
 
-\subsection{Instantiation and compilation}
+\section{Instantiation and compilation}
 \label{sec:overview-instantiate}
 
 Typechecking is all very well and good, but what about

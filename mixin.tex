@@ -9,7 +9,7 @@ two shapes, and $\textsf{rnthin}()$, which thins and renames the input
 and output ports of a shape; then, we say how to mixin link a
 \ccomp{}.
 
-\subsection{Preliminaries}
+\section{Preliminaries}
 
 \begin{definition}[Module substitutions]  \normalfont{} A module substitution of
 the form $S ::= \overline{\subst{m}{M}}$ can be applied to a semantic object $x$
@@ -81,7 +81,7 @@ $\lctxpair{\{\prov{B}{\MOD{p}{\subst{A}{\hv{C}}}{B}}\}}{\hv{A}}$ is ill-formed.
 A well-formed shape is not necessarily well-typed.
 \end{definition}
 
-\subsection{Linking component shapes}
+\section{Linking component shapes}
 
 %   \[
 %   \begin{array}{lcl}
@@ -148,7 +148,7 @@ The proof of associativity relies critically on the fact that it is a failure
 to link two component shapes which provide the same module name, even if the
 provided module identities happen to be the same.
 
-\subsection{Thinning and renaming component shapes}
+\section{Thinning and renaming component shapes}
 
 %   There is an interesting counterexample showing that linking is not
 %   associative:
@@ -205,7 +205,7 @@ If $\lctx$ is well-formed, for all total $r_R$ and partial $r_P$,
 $\Frename{r_R}{\lctx}{r_P}$ is well-formed.
 \end{lemma}
 
-\subsection{Component mixin linking}
+\section{Component mixin linking}
 
 \begin{figure}
 
@@ -301,7 +301,7 @@ $\Theta$ upfront to compute $P$; however it's easy to see that $P$ is
 only used for the module identities assigned to module declarations, and
 thus does not actually affect the final requirements of a component.
 
-\subsection{Auxiliary definitions}
+\section{Auxiliary definitions}
 
 \begin{definition}[Interpretation of thinning and renaming] \normalfont{}
 \label{def:getrns}

@@ -9,7 +9,7 @@ familiarity with Backpack or Cabal; however, we will pay close attention
 to aspects of the design which facilitate the split of \Backpack{}
 across the package manager and compiler.
 
-\subsection{The current state of affairs}
+\section{The current state of affairs}
 
 A \emph{package} is the unit of distribution, versioning, and sharing,
 and a \emph{package manager} allows developers to reuse code
@@ -89,7 +89,7 @@ module name.}
 \label{fig:programming-against-interface}
 \end{figure}
 
-\subsection{Programming against an interface}
+\section{Programming against an interface}
 
 The \verb|build-depends|
 constraints have the limitation of committing to a specific
@@ -156,7 +156,7 @@ its requirements. This process is managed by
 Cabal to avoid unnecessary recompilation, similarly to how Cabal
 avoids recompiling dependencies that are already installed.
 
-\subsection{Reusing libraries with different instantiations}
+\section{Reusing libraries with different instantiations}
 
 \begin{figure}
 \includegraphics{diagrams/reusing-packages-functors.pdf}
@@ -211,7 +211,7 @@ defined the types in question.  Now, the two \verb|DbConn|s come from
 distinct \verb|db-dsl|s which have different wiring diagrams;
 thus, they are distinct types in Haskell.
 
-\subsection{Composing libraries with requirements}
+\section{Composing libraries with requirements}
 
 \begin{figure}
 \includegraphics{diagrams/composing-requirements.pdf}

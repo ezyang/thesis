@@ -20,7 +20,7 @@ Backpack.  In the following subsections, we spend some time
 explaining implementation-induced constraints on the design of a
 module system for Haskell.
 
-\subsection{Respect the compilation / package manager boundary}
+\section{Respect the compilation / package manager boundary}
 
 Traditionally, the way most users build programs in Haskell is not by
 invoking the compiler (GHC) directly, but invoking a package manager
@@ -42,7 +42,7 @@ in its semantics: shaping is a process that should be carried out
 by the package manager, but it requires fairly detailed knowledge
 about Haskell source code.
 
-\subsection{Optimizing against dependencies}
+\section{Optimizing against dependencies}
 \label{sec:optimizing}
 
 Today, the compiled interfaces of Haskell modules can record the source
@@ -65,7 +65,7 @@ against its implementation; we can assume that when this linking occurs,
 the compiler is going to re-compile (and re-typecheck!) the combined
 entity.  The original Backpack design was completely oblivious to this fact.
 
-\subsection{Instantiate packages, not modules}
+\section{Instantiate packages, not modules}
 \label{sec:instantiate-pkgs}
 
 In the traditional Cabal model, dependencies declared for a package
@@ -85,7 +85,7 @@ that each declaration should be considered a module.}  Furthermore, you
 could not tell what the requirements of a module were without inspecting
 the import graph.
 
-\subsection{Incremental compilation}
+\section{Incremental compilation}
 
 When we make a change to Haskell source code, GHC only needs to recompile
 any source code which may have (transitively) imported this source:
@@ -106,7 +106,7 @@ pass and solve the recompilation problem in one fell swoop.
 % It is simple to dodge this bullet, however: shaping is only necessary in
 % the presence of mutual recursion.
 
-\subsection{Migration}
+\section{Migration}
 
 There is already a large amount of code published in the Haskell
 ecosystem, and it would be unreasonable to expect everyone to switch

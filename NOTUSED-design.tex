@@ -30,7 +30,7 @@ because the sections they should point to don't exist yet}
 %   one leads to a number of interesting constraints on the design
 %   and implementation of Backpack, which we will discuss in this section.
 
-\subsection{Optimizing against dependencies}
+\section{Optimizing against dependencies}
 \label{sec:optimizing}
 
 \Red{For example, maybe can drop this section now.}
@@ -50,7 +50,7 @@ what I commented on) in the ``problem'' section. If that section becomes more
 about the diff between POPL backpack and ICFP backpack, then this bit here
 seems clearer and better positioned.}
 
-\subsection{Applicativity and the installed package database}
+\section{Applicativity and the installed package database}
 
 Suppose that you want to combine \verb|myapp| with another application
 which also uses \verb|mylib|:
@@ -87,7 +87,7 @@ instantiated globally (since they must be shared.)  In fact, we can
 do better: we can use an \emph{installed package database} to share
 these instantiation across all builds.
 
-\subsection{Instantiate packages, not modules}
+\section{Instantiate packages, not modules}
 \label{sec:instantiate-pkgs}
 
 In the traditional Cabal model, dependencies declared for \verb|mylib|
@@ -107,7 +107,7 @@ that each declaration should be considered a module.}  Furthermore, you
 could not tell what the requirements of a module were without inspecting
 the import graph.
 
-\subsection{Distinguish between packages and components}
+\section{Distinguish between packages and components}
 
 In both traditional Cabal and Backpack, there are two primary
 motivations behind packages.  First, the package is how code is
@@ -144,7 +144,7 @@ use the term \emph{component},  as it is the appropriate level of
 granularity, and the problem packages solve (distribution) is out of
 scope for this paper.
 
-\subsection{Incremental compilation}
+\section{Incremental compilation}
 
 When we make a change to Haskell source code, GHC avoids recompiling
 any modules which did not depend on that source code: an obviously
@@ -157,7 +157,7 @@ what's in the POPL system (eg shaping) and what's in the present system.}
 % It is simple to dodge this bullet, however: shaping is only necessary in
 % the presence of mutual recursion.
 
-\subsection{Migration}
+\section{Migration}
 
 There is already a large amount of code published in the Haskell
 ecosystem, and it would be unreasonable to expect everyone to switch
