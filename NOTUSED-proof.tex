@@ -1,0 +1,367 @@
+%!TEX root = paper.tex
+\section{Pre-shaping}
+
+
+\begin{figure}
+\[
+\begin{array}{@{}l}
+  % pre syntax
+  \begin{array}{rcll}
+    \preshape   &::=& \lctxpair{\preprovs}{\prereqs}
+      & \mbox{Component pre-shape} \\
+    \preprovs  &::=& \overline{m}
+      & \quad\mbox{Pre-provides set} \\
+    \prereqs   &::=& \overline{m}
+      & \quad\mbox{Pre-requires set} \\
+    % \pre\Delta &::=& \overline{p \triangleright \preshape}
+    %   & \mbox{Component pre-shape context}\\
+  \end{array} \\
+  \\
+  
+
+  % reqs
+  \begin{array}{l}
+    \Freqs{\Scomponent{p}{\overlinei{I_i}}{\overlinej{D_j}}} \;\;=\;\; \prereqs \\
+    \qquad\text{where}\quad
+      \left\{\begin{array}{c@{\;=\;}l}
+        \overlinei{\preshape_i}  & \FpreshapeI{\overlinei{I_i}} \\
+        \overlinej{\preshape'_j} & \Fpreshape{\overlinej{D_j}} \\
+        \lctxpair{\_}{\prereqs}  & \Fprelink{\overlinei{\preshape_i}, \overlinej{\preshape'_j}} \\
+      \end{array}\right. \\
+  \end{array} \\
+  \\
+
+  % preshape(I)
+  \begin{array}{l}
+    \FpreshapeI{\Sinclude{p}{r_P}{r_R}} \\%{\texttt{include:}\: p\: (r_P)\: \texttt{requires}\: (r_R)} \\
+    \qquad =\; \Fprerename{r_P}{\;\Fpreshape{\Delta(p)}}{\;r_R} \\
+  \end{array} \\
+  \\
+
+  % preshape(L) ...
+  \begin{array}{l@{\;\;=\;\;}l}
+    \Fpreshape{\lctxpair{\provs}{\reqs}}
+    & \lctxpair{\Fpreshape{\provs}}{\Fpreshape{\reqs}} \\
+    \Fpreshape{\overline{m \mapsto M}} & \overline{m} \\
+    \Fpreshape{\overline{m}} & \overline{m} \\
+  \end{array} \\
+  \\
+
+  % preshape(D)
+  \begin{array}{l@{\quad=\quad}l}
+    \Fpreshape{\Sexposed{m}{\_}}%{\texttt{exposed-module:}~ m = \_}
+    & \lctxpair{m}{\varnothing} \\
+    \Fpreshape{\Sother{m}{\_}}%{\texttt{other-module:}~ m = \_}
+    & \lctxpair{m}{\varnothing} \\
+    \Fpreshape{\Srequired{m}{\_}}%{\texttt{required-signature:}~ m = \_}
+    & \lctxpair{\varnothing}{m} \\
+    \Fpreshape{\Sreexported{\_}{\_}}%{\texttt{reexported-module:}~ \_ ~\texttt{as}~ \_}
+    & \lctxpair{\varnothing}{\varnothing} \\
+  \end{array} \\
+  \\
+
+  % merge(Ls) and rename(r,L,r)
+  \begin{array}{l@{\;\;=\;\;}l}
+    \Fprelink{\overlinei{\lctxpair{\preP_i}{\preR_i}}}
+    & \left\langle
+        \left(\biguplus_i \preP_i\right)
+        ~;\,
+        \left(\bigcup_i \preR_i\right)
+          -
+          \left(\biguplus_i \preP_i\right)
+      \right\rangle \\
+    % \FprelinkTwo{\lctxpair{\preprovs}{\prereqs}}{\lctxpair{\preprovs'}{\prereqs'}}
+    % & \lctxpair{\preprovs \uplus \preprovs'}{(\prereqs \cup \prereqs') - (\preprovs \uplus \preprovs')} \\
+    \Fprerename{r_P}{\lctxpair{\preprovs}{\prereqs}}{r_R}
+    & \lctxpair{r_P(\preprovs)}{r_R(\prereqs)} \\
+  \end{array} \\
+
+\end{array}
+\]
+
+\caption{\Red{Todo: This needs to be updated for syntax changes.} Algorithmic determination of component requirements via pre-shaping.
+$r(\preP)$ denotes the image of the renaming $r$ treated as a function
+on the set $\preP$.}
+\label{fig:pre-shaping}
+\end{figure}
+
+
+\section{Proofs}
+
+\subsection{Definitions}
+
+First, we define the language of instantiated components which can be
+compiled.  An instantiated component is simply a \unit{} equipped
+with a closed substution:
+%
+\[
+  \I{icomp} ::= \UsynUnit{p}{S}{\overline{\mdecl}} \qquad \text{Instantiated component} \\
+\]
+%
+Compilation takes place in a different context than typechecking:
+while in typechecking the \emph{component typing context} records
+the uninstantiated types for components, the \emph{compilation typing context}
+records only fully instantiated components, which have no free
+module or name variables.
+%
+\[
+  \Ictx ::= \overline{P : \Sigma} \qquad \text{Compilation typing context}
+\]
+%
+An $\Ictx$ is well-formed if every $P$ mentioned within it is in $\Ictx$.
+We maintain the following relationship between $\Gamma$ and $\Ictx$:
+
+\begin{definition}
+A compilation typing context $\Ictx$ is a concretization of a
+typing context $\Gamma$, if for all $p[S] : \Sigma \in \Ictx$
+and any choice of $\Delta$ and $p_0 \neq p$, it is the case that
+$\Gamma; \cdot; \Delta; \Up_0 \vdash p[S] : \Sigma$; i.e., every instantiated component type in $\Ictx$ must be consistent with the type computed in context $\Gamma$.
+\end{definition}
+%
+The local context $\Delta$ and import context $\impctx$ remain the same, but we will distinguish the substituted variants that occur during compilation with
+subscripts: $\IDelta, \Impctx$.  These will have the following
+relationship:
+
+\begin{definition}
+A local context $\IDelta = \Sigma_R; \Sigma_P$ is a concretization of
+$\Delta$ under substitution
+$S$ in context $\Gamma$ for component $p_0$, if
+given $\Gamma; \cdot; (\Sigma_R; \Sigma_P); p_0 \vdash S : \Sigma_R \induces \USn$
+then $\IDelta = \substww{\Delta}{S}{\USn}$
+\end{definition}
+
+\begin{definition}
+An import context $\Impctx$ is a concretization of $\impctx$ under substitution
+$S$ if $\Impctx = \substw{\impctx}{S}$.
+\end{definition}
+
+Now, we must define the judgments for compilation against the compilation
+typing context.  Some of these judgments are identical to those for
+typechecking, modulo $\Gamma$ versus $\Gamma_c$ and the omission
+of $\Theta$ (we are always closed); the main differences
+are highlighted in gray. \\
+
+\fbox{$\Ictx \Idash \UP : \Sigma$}
+\begin{greybox}
+\[
+\frac{
+\UP : \Sigma \in \Ictx
+}{
+\Ictx \Idash \UP : \Sigma
+}
+\]
+\end{greybox}
+
+\fbox{$\Ictx; \IDelta; P_0 \Idash M : \tau$}
+\[
+\frac{
+P \neq P_0 \qquad
+\Ictx \Idash P : \Sigma \qquad
+m : \tau \in \Sigma
+}{
+\Ictx; \IDelta; P_0 \Idash \Mod{P}{m} : \tau
+}
+\]
+\[
+\frac{
+m : \tau \in \IDelta
+}{
+\Ictx; \IDelta; P_0 \Idash \Mod{P_0}{m} : \tau
+}
+\]
+\\
+
+\fbox{$\Ictx; \IDelta; P \Idash \UN :: \Uty$}
+\[
+\frac{
+\Ictx; \IDelta; P \Idash M : \tau \qquad
+n :: \Uty \in \tau
+}{
+\Ictx; \IDelta; P \Idash M.n :: \Uty
+}
+\]
+
+As before, we assume appropriate Haskell judgments: \\
+
+\fbox{$\Ictx; \IDelta; \Impctx; M \Idash \Uhsbody : \tau$}
+
+\begin{greybox}
+\fbox{$\Ictx; \IDelta; \Impctx; P_0; M \Idash \Uhssig : \tau$}
+\end{greybox}
+
+Notably, the judgment for a signature takes in a full module identity
+$M$ identifying what the implementing module is.  To compile a
+signature, we simply look up $\Ictx; \IDelta; P_0 \Idash M : \tau$ and
+thin the export list according to the declarations in the signature.
+
+Declaration rules: \\
+
+%   \begin{theorem}
+%   If $\Gamma; \Delta; P_0 \vdash P : \Sigma$ and $\Ictx$ is a concretization
+%   of $\Gamma$, then $\Ictx; \Delta; P_0 \Idash P : \Sigma$.
+%   \end{theorem}
+%   \begin{proof}
+%   \end{proof}
+
+\fbox{$\shctx; \Ictx; P_0 \Idash \Ideclst{\IDelta}{\Impctx} \quad \overline{\Uudecl} \quad \Ideclst{\IDelta'}{\Impctx'}$}
+\[
+\frac{
+\Ictx; \IDelta; \Impctx; \Mod{P_0}{m} \Idash \Uhsbody : \tau
+}{
+\shctx; \Ictx; P_0 \Idash \Ideclst{\Sigma_R; \Sigma_P}{\Impctx} \UsynMod{m}{\Uhsbody} \Ideclst{\Sigma_R; (\Sigma_P, m : \tau)}{\Impctx}
+}
+\]
+\begin{greybox}
+\[%
+\frac{
+\IGamma; \IDelta; \Impctx; p_0[S]; S(m) \Idash \Uhssig : \tau
+}{
+\shctx; \IGamma; p_0[S] \Idash \Ideclst{\Sigma_R; \Sigma_P}{\Impctx} \UsynSig{m}{\Uhssig} \Ideclst{(\Sigma_R, m : \tau); \Sigma_P}{\Impctx}
+}
+\]
+\[
+\frac{
+\begin{array}{c}
+p \haspr \lctx \in \shctx \qquad
+\lctxpair{\provs}{\reqs} = \substw{\substw{\lctx}{S}}{S_0} \qquad
+r = \overline{m \mapsto m'} \\
+\reqs \subseteq \textsf{dom}(\IDelta) \qquad
+\IGamma \vdash \substw{p[S]}{S_0} : \Sigma
+\end{array}
+}{
+\shctx; \IGamma; p_0[S_0] \Idash \Ideclst{\IDelta}{\Impctx} \UsynDep{p[S]}{r} \Ideclst{\IDelta}{\Impctx,  \overline{m \mapsto \provs(m')}}
+}
+\]
+\end{greybox}
+
+In fact, the rule for handling dependencies is a generalization
+of the type-checking rule: in the case of type checking $S_0$ is
+always the identity substitution.\\
+
+\fbox{$\shctx; \IGamma \Idash \Uunit : \Sigma$}
+\[
+\frac{
+\shctx; \IGamma; p[S] \Idash \{ \cdot, \cdot \} \quad \overline{\Uudecl} \quad \{ (\Sigma_R; \Sigma_P) ; \Impctx \}
+}{
+\begin{array}{l}
+\shctx; \IGamma \Idash \UsynUnit{p}{S}{\overline{\Uudecl}} : \Sigma_P
+\end{array}
+}
+\]\\
+
+\fbox{$\shctx; \IGamma \Idash \mprog$}
+\[
+\frac{
+\begin{array}{c}
+\shctx; \IGamma \Idash \UsynUnit{p}{S}{\overline{\Uudecl}} : \Sigma \\
+\shctx; \IGamma, (p[S] : \Sigma) \Idash \mprog \\
+\end{array}
+}{
+\shctx; \IGamma \Idash \UsynUnit{p}{S}{\overline{\Uudecl}}; \mprog
+}
+\]
+\[
+\shctx; \IGamma \Idash \cdot
+\]
+
+\subsection{Theorem}
+
+We now prove the invariance of typing under substitution.
+
+\begin{definition}
+We define the invariant $\Gamma; \IGamma; p \vdash \Delta, \impctx \invariant_S \IDelta, \Impctx$ as:
+\begin{enumerate}
+\item $\IGamma$ is a concretization of $\Gamma$,
+\item $\IDelta$ is a concretization of $\Delta$ under substitution $S$ in context $\Gamma$ for package $p$,
+\item $\Impctx$ is a concretization of $\impctx$ under substitution $S$, and
+\item (Completeness.) For every $m \mapsto \Mod{P}{m'} \in \impctx$, $\substw{\UP}{S}$ is in $\IGamma$.
+\end{enumerate}
+\end{definition}
+
+\begin{axiom}[Invariance of Haskell module typing under substitution]
+Given $\Delta = \Sigma_R; \Sigma_P$, and:
+\begin{enumerate}
+\item $\Gamma; \Theta; \Delta; \impctx; p_0; m \vdash \Uhsbody : \tau$,
+\item $\Gamma; \cdot; \Delta; p_0 \vdash S : \Sigma_R \induces \USn$, and
+\item The invariant $\Gamma; \IGamma; p_0 \vdash \Delta, \impctx \invariant_S \IDelta, \Impctx$ holds,
+\end{enumerate}
+Then $\IGamma; \IDelta; \Impctx; p_0[S] \Idash \Uhsbody : \substww{\tau}{S}{\USn}$.
+\end{axiom}
+
+\begin{axiom}[Invariance of Haskell signature typing under substitution]
+Given $\Delta = \Sigma_R; \Sigma_P$, and:
+\begin{enumerate}
+\item $\Gamma; \Theta; \Delta; \impctx; p_0; m \vdash \Uhssig : \tau$,
+\item $\Gamma; \cdot; \Delta; p_0 \vdash S : \Sigma_R  \induces \USn$, and
+\item The invariant $\Gamma; \IGamma; p_0 \vdash \Delta, \impctx \invariant_S \IDelta, \Impctx$ holds,
+\end{enumerate}
+Then $\IGamma; \IDelta; \Impctx; p_0[S]; S(m) \Idash \Uhssig : \substww{\tau}{S}{\USn}$.
+\end{axiom}
+
+\begin{theorem}[Invariance of declaration typing under substitution]
+\label{thm:mdecl}
+Given an $\mdecl$ and a substitution $S$, with $\Delta = \Sigma_R; \Sigma_P$ given:
+\begin{enumerate}
+\item $\shctx; \Gamma; p_0 \vdash \{ \Theta; \Delta; \impctx \} ~ \mdecl ~ \{ \Theta'; \Delta'; \impctx' \}$,
+\item $\Gamma; \cdot; \Delta; p_0 \vdash S : \Sigma_R \induces \USn$,
+\item The invariant $\Gamma; \IGamma; p_0 \vdash \Delta, \impctx \invariant_S \IDelta, \Impctx$ holds,
+\item When $\mdecl = \UsynDep{P}{r}$, then $\substw{P}{S}$ is in $\IGamma$, and
+\item If $p[S] \in \IGamma$, with $p : \lctx \in \shctx$, for every $m \mapsto \Mod{P}{m'} \in \substw{\lctx}{S}$, $P$ is in $\IGamma$.
+\end{enumerate}
+Then:
+\begin{itemize}
+\item $\shctx; \IGamma; p_0[S] \Idash \{ \IDelta; \Impctx \} ~ \mdecl ~ \{ \IDelta'; \Impctx' \}$, and
+\item The invariant is preserved: $\Gamma; \IGamma \vdash \Delta', \impctx' \invariant_S \IDelta', \Impctx'$.
+\end{itemize}
+\end{theorem}
+\begin{proof}
+By case analysis on (1):
+\begin{itemize}
+\item $\UsynMod{m}{\Uhsbody}$:
+    \begin{itemize}
+        \item Progress $\shctx; \IGamma; p[S] \vdash \{ \IDelta; \Impctx \} ~ \mdecl ~ \{ \IDelta'; \Impctx' \}$:
+        \begin{itemize}
+          \item Show $\Ictx; \IDelta; \Impctx; \Mod{p[S]}{m} \Idash \Uhsbody : \tau$ using axiom:
+          \begin{itemize}
+            \item $\Gamma; \Theta; \Delta; \impctx; p_0; m \vdash \Uhsbody : \tau$ by (1).
+            \item $\Gamma; \cdot; \Delta; p_0 \vdash S : \Sigma_R \induces \USn$ by (2).
+            \item The invariant holds by (3).
+          \end{itemize}
+
+        \end{itemize}
+        \item Preservation: add $m : \substww{\tau}{S}{\USn}$ (from axiom) to $\Sigma_P$, by distributivity of substitution.
+    \end{itemize}
+    \item $\UsynSig{m}{\Uhssig}$: similar to module case.
+    \item $\UsynDep{P}{r}$:
+    \begin{itemize}
+        \item Progress: immediate, premise $\IGamma \vdash \substw{P}{S} : \Sigma$
+            holds by (4).
+        \item Preservation: add $\overline{m_i \mapsto \substw{\provs}{S}(m'_i)}$ to $\Impctx$.  Concretization is immediate; completeness holds by (5).
+    \end{itemize}
+\end{itemize}
+\end{proof}
+
+\begin{theorem}[Invariance of component typing under substitution]
+Given an $\mcomp = \UsynUnit{p}{\overline{m}}{\overline{mdecl}}$ and a substitution $S$, given:
+\begin{enumerate}
+\item $\shctx; \Gamma \vdash \mcomp : \Xi$,
+\item $\Gamma, p : \Xi \vdash p[S] : \Sigma$,
+\item $\IGamma$ is a concretization of $\Gamma$,
+\item For every $\UsynDep{P}{r}$, $\substw{P}{S}$ is in $\IGamma$, and
+\item If $p[S] \in \IGamma$, with $p : \lctx \in \shctx$, for every $m \mapsto \Mod{P}{m'} \in \substw{\lctx}{S}$, $P$ is in $\IGamma$.
+\end{enumerate}
+Then $\shctx; \IGamma \Idash \UsynUnit{p}{S}{\overline{mdecl}} : \Sigma$
+\end{theorem}
+\begin{proof}
+Proof by induction on (1), repeatedly applying
+Theorem~\ref{thm:mdecl} and observing the invariant is preserved.
+\end{proof}
+
+%   \begin{theorem}
+%   For an $\mprog$ which instantiates to an $\iprog$, if $\shctx; \cdot \vdash \mprog$,
+%   then $\shctx; \cdot \vdash \iprog$.
+%   \end{theorem}
+%   \begin{proof}
+%   The inductive structure here is tricky, but if we do induction on the instantiation
+%   tree the desired result should hold.
+%   \end{proof}

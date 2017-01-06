@@ -1,0 +1,396 @@
+%!TEX root = paper.tex
+\usepackage[T1]{fontenc} % for tt curly braces
+\usepackage{etoolbox} % for various programming stuff
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{relsize}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{fancyvrb}
+\usepackage{float}
+\usepackage{stringstrings}
+\usepackage{stmaryrd}
+\usepackage{verbatimbox}
+\usepackage{alltt}
+\usepackage{multicol}
+\usepackage[nooneline,bf]{subfigure}
+% \usepackage[labelformat=simple]{subcaption}
+% \renewcommand\thesubfigure{(\alph{subfigure})}
+\usepackage{mdframed}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{xspace}
+
+\newmdenv[
+    hidealllines=true,
+    backgroundcolor=black!20,
+    skipbelow=\baselineskip,
+    skipabove=\baselineskip
+]{greybox}
+
+\newcommand{\ie}{\emph{i.e.},\xspace}
+\newcommand{\eg}{\emph{e.g.},~}
+\newcommand{\etal}{\emph{et al.}}
+
+\theoremstyle{definition}
+\newtheorem{axiom}{Axiom}
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+\newtheorem{lemma}{Lemma}
+
+\newcommand{\I}[1]{\ensuremath{\mathit{#1}}}
+\newcommand{\cL}{{\calL}}
+\newcommand{\Red}[1]{{\color{red} #1}}
+\newcommand{\Blue}[1]{{\color{blue} #1}}
+\newcommand{\Updated}[1]{\colorbox{red}{Updated! #1}}
+
+% \newcommand{\Backpack}{\texttt{i}Backpack}%
+\newcommand{\OldBackpack}{Backpack'14}%
+\newcommand{\Backpack}{Backpack'16}%
+\newcommand{\Ccomp}{Resolved component}%
+\newcommand{\ccomp}{resolved component}%
+\newcommand{\Unit}{Mixed component}%
+\newcommand{\unit}{mixed component}%
+\newcommand{\Iunit}{Instantiated component}%
+\newcommand{\iunit}{instantiated component}%
+\newcommand{\cid}{component identifier}%
+\newcommand{\Cid}{Component identifier}%
+\newcommand{\uid}{instantiated component identifier}%
+\newcommand{\Uid}{Instantiated component identifier}%
+\newcommand{\ir}{linked intermediate representation}
+\newcommand{\Ir}{Linked intermediate representation}
+
+% macros for unit syntax and semantic objects
+% ------------------------------
+% metavars
+\newcommand{\Up}{p}
+\newcommand{\UP}{P}
+\newcommand{\Un}{n}
+\newcommand{\UN}{N}
+\newcommand{\UNs}{\mathit{Ns}}
+\newcommand{\USn}{\mathit{Sn}}
+\newcommand{\Ureqs}{\mathit{mreqs}}
+\newcommand{\Uunit}{\mathit{mcomp}}
+\newcommand{\mprog}{\mathit{mprog}}
+\newcommand{\mcomp}{\mathit{mcomp}}
+%\newcommand{\Uudecls}{\mathit{ldecls}}
+\newcommand{\Uudecl}{\mathit{mdecl}}
+\newcommand{\mdecl}{\mathit{mdecl}}
+\newcommand{\mdecls}{\mathit{mdecls}}
+\newcommand{\marg}{\mathit{marg}}
+\newcommand{\Uhsexps}{\mathit{hsexps}}
+\newcommand{\Uhsbody}{\mathit{hsbody}}
+\newcommand{\Uhssig}{\mathit{hssig}}
+\newcommand{\Uunitty}{\Xi}
+\newcommand{\Uty}{\mathit{ty}}
+\newcommand{\Utys}{\mathit{tys}}
+\newcommand{\Umatch}{\mathit{sub}}
+% syntax
+\newcommand{\UsynUnitH}[2]{\ensuremath{\mathsf{component}~#1~#2}}
+\newcommand{\UsynUnit}[3]{\ensuremath{\UsynUnitH{#1}{#2}~\{#3\}}}
+\newcommand{\UsynLet}[2]{\ensuremath{\mathsf{let}~\modnameif{#1} = #2}}
+\newcommand{\UsynLetMod}[3]{\ensuremath{\mathsf{let}~\modnameif{#1} = \Mod{#2}{#3}}}
+\newcommand{\UsynMod}[2]{\ensuremath{\mathsf{module}~\modnameif{#1}~\{#2\}}}
+\newcommand{\UsynSig}[2]{\ensuremath{\mathsf{signature}~\modnameif{#1}~\{#2\}}}
+\newcommand{\UsynESig}[2]{\ensuremath{\mathsf{esignature}~\modnameif{#1}~\{#2\}}}
+\newcommand{\UsynSigWith}[3]{\ensuremath{\mathsf{signature}~\modnameif{#1}~\{#2\}~\textsf{with}~#3}}
+\newcommand{\UsynDep}[2]{\ensuremath{\mathsf{dependency}~#1~(#2)}}
+\newcommand{\UsynDepEmpty}[1]{\ensuremath{\mathsf{dependency}~#1}}
+% semantic objects
+\newcommand{\UobjIface}{\mathsf{iface}}
+\newcommand{\UobjTau}[2]{\ensuremath{\UobjIface\:(#1)~\{#2\}}}
+\newcommand{\UobjUnitTy}[4]{\ensuremath{\forall~#1.\, \forall~#2 .\, #3 \rightarrow #4}}
+\newcommand{\UobjUnitTyN}[3]{\ensuremath{\forall~#1 .\, #2 \rightarrow #3}}
+% ------------------------------
+
+
+
+\newcommand{\doubleplus}{\ensuremath{\mathbin{+\mkern-8mu+}}}
+\newcommand{\scomp}[2]{\ensuremath{#2 \circ #1}}
+
+\newcommand{\modname}[1]{\ensuremath{\mathtt{#1}}}%
+\newcommand{\modnameif}[1]{%
+  % make the argument a modname if it is not a macro (invocation)
+  % and if it is capitalized
+  \ifdefmacro{#1}%
+    {#1}%
+    {%
+      \testcapitalized{#1}
+      \ifcapitalized 
+        \modname{#1}
+      \else
+        #1
+      \fi%
+    }%
+  % % make the argument a modname if it is not a (primed) "m" or "n" metavar
+  % \ifboolexpr{ test {\ifstrequal{#1}{m}} or %
+  %              test {\ifstrequal{#1}{m'}} or %
+  %              test {\ifstrequal{#1}{m''}} or %
+  %              test {\ifstrequal{#1}{n}} or %
+  %              test {\ifstrequal{#1}{n'}} or %
+  %              test {\ifstrequal{#1}{n''}} }%
+  %   {#1}
+  %   {\modname{#1}}
+}
+
+
+\newcommand{\hole}[1]{\ensuremath{#1}}%
+% \newcommand{\holevar}[1]{\ensuremath{\colorbox{Apricot}{\ensuremath{#1}}}}%
+% \newcommand{\holevar}[1]{\ensuremath{\colorbox{Apricot}{\ensuremath{\modnameif{#1}}}}}
+\newcommand{\holevar}[1]{\ensuremath{\langle\modnameif{#1}\rangle}}
+\newcommand{\nholevar}[1]{\ensuremath{\{\modnameif{#1}\}}}
+\newcommand{\hv}[1]{\holevar{#1}}
+\newcommand{\nhv}[1]{\nholevar{#1}}
+
+\newcommand{\cidl}[1]{\ensuremath{\mbox{\texttt{#1}}}}%
+\newcommand{\cidlif}[1]{
+  % make the argument a component ID if it is not a (primed) "p" or "q" metavar
+  % NOTE: sometimes "p" is used as a literal! in such cases, use \cidl instead
+  \ifdefmacro{#1}%
+    {#1}%
+    {%
+      \ifboolexpr{ test {\ifstrequal{#1}{p}} or %
+                   test {\ifstrequal{#1}{p'}} or %
+                   test {\ifstrequal{#1}{p''}} or %
+                   test {\ifstrequal{#1}{q}} or %
+                   test {\ifstrequal{#1}{q'}} or %
+                   test {\ifstrequal{#1}{q''}} }%
+        {#1}
+        {\cidl{#1}}%
+    }
+}
+\newcommand{\icid}[2]{\cidlif{#1}[#2]}
+\newcommand{\uidl}[2]{%
+  \ensuremath{
+    \cidl{#1}%
+    [%
+      % if subst is non-empty, allow line break after open paren
+      \ifstrempty{#2}{}{\allowbreak}%
+      #2
+    ]%
+  }}
+
+% \newcommand{\Mod}[2]{\ensuremath{#1\!:\!#2}}%
+\newcommand{\modcolon}{\hspace{.1ex}{:}\hspace{.15ex}}
+\newcommand{\Mod}[2]{\ensuremath{#1\modcolon\modnameif{#2}}}%
+\newcommand{\MOD}[3]{\ensuremath{\icid{\cidl{#1}}{#2}\modcolon\modnameif{#3}}}%
+\newcommand{\subst}[2]{\ensuremath{\modnameif{#1} \mathop{=}\allowbreak #2}}
+\newcommand{\substMod}[3]{\subst{#1}{\Mod{#2}{#3}}}
+\newcommand{\substMOD}[4]{\subst{#1}{\MOD{#2}{#3}{#4}}}
+\newcommand{\substHole}[1]{\subst{#1}{\holevar{#1}}}
+\newcommand{\substw}[2]{#1\llbracket#2\rrbracket}
+\newcommand{\substww}[3]{#1\llbracket#2\rrbracket\llbracket#3\rrbracket}
+\newcommand{\prov}[2]{\ensuremath{\modnameif{#1} \,\mapsto\,\allowbreak #2}}
+\newcommand{\provMod}[3]{\prov{#1}{\Mod{#2}{#3}}}
+\newcommand{\provMOD}[4]{\prov{#1}{\MOD{#2}{#3}{#4}}}
+\newcommand{\provHole}[1]{\prov{#1}{\holevar{#1}}}
+\newcommand{\rename}[2]{\ensuremath{\modnameif{#1} \mapsto \modnameif{#2}}}
+
+
+% now render unit IDs like
+%   \uidl{mylib-3.0-aaa}{
+%     \subst{m}{M},                                         % m and M are metavars
+%     \substMod{Database}{\uidl{mysql-1.0-ccc}{}}{MySQL}    % Database, mysql..., MySQL are rendered
+%    }
+
+
+\newcommand{\haspr}{\:\triangleright\:}
+\newcommand{\shapeis}{\triangleright}
+%\newcommand{\lctx}{\mathcal{L}}
+\newcommand{\lctx}{{\tilde{\Xi}}}
+%\newcommand{\provs}{\mathcal{L}_\textsf{prov}}
+%\newcommand{\provs}{{\tilde{\Sigma}}_\textsf{P}}
+\newcommand{\provs}{{\tilde{\Sigma}}}
+\newcommand{\impctx}{\mathcal{L}}
+%\newcommand{\reqs}{{\tilde{\Sigma}}_\textsf{R}}
+\newcommand{\reqs}{\Theta}
+\newcommand{\pre}[1]{\tilde{#1}}
+\newcommand{\preprovs}{\mathbb{P}}
+\newcommand{\prereqs}{\mathbb{R}}
+\newcommand{\preshape}{\mathbb{L}}
+\newcommand{\Reqs}{\mathcal{R}}
+\newcommand{\preP}{\preprovs}
+\newcommand{\preR}{\prereqs}
+\newcommand{\preL}{\preshape}
+\newcommand{\shctx}{\tilde{\Gamma}}
+%\newcommand{\lctxpair}[2]{\langle #1 \,;\, #2 \rangle}
+\newcommand{\lctxpair}[2]{\forall #2.\, #1}
+%\newcommand{\lctxpair}[2]{\lctxpairx{#1}{#2}}
+\newcommand{\lctxpairx}[2]{\forall #2.\, \{ #1 \}}
+%\newcommand{\lctxpairx}[2]{\begin{pmatrix}
+%\textsf{requires:}& #2 \\
+%\textsf{provides:}& #1 \\
+%\end{pmatrix}}
+\newcommand{\lctxpairex}[2]{\{#2\} &\rightarrow& \{#1\}}
+\newcommand{\lift}[1]{\uparrow\!#1}
+\newcommand{\shnull}{}
+%\newcommand{\shnull}{\cdot}
+%\newcommand{\shape}{\tilde{\Xi}}
+
+% curly braces
+% \newcommand{\lcb}{{\tt {\char 123}}}
+% \newcommand{\rcb}{{\tt {\char 125}}}
+\newcommand{\wrapcb}[1]{\texttt{\textbraceleft} #1 \texttt{\textbraceright}}
+
+% S stands for "source", but these are not the true source declarations.
+
+\newcommand{\Scomp}{\I{rcomp}}
+\newcommand{\Sincl}{\I{rincl}}
+\newcommand{\Sdecl}{\I{rdecl}}
+\newcommand{\Scomponent}[2]{\texttt{component}~ #1 ~ \wrapcb{#2}}
+\newcommand{\Sinclude}[2]{\texttt{backpack-include:}~ #1 ~#2}
+\newcommand{\Sincludespec}[3]{\texttt{backpack-include:}~ #1 ~[\texttt{(}#2\texttt{)}]~[\texttt{requires}~ \texttt{(}#3\texttt{)}]}
+\newcommand{\Slparen}{\texttt{(}}
+\newcommand{\Srparen}{\texttt{)}}
+\newcommand{\Sexposed}[2]{\texttt{exposed-module:}~ \modnameif{#1} ~\{ #2 \}}
+\newcommand{\Sother}[2]{\texttt{other-module:}~ \modnameif{#1} ~\{ #2 \}}
+\newcommand{\Srequired}[2]{\texttt{required-signature:}~ \modnameif{#1} ~\{ #2 \}}
+\newcommand{\Sreexported}[2]{\texttt{reexported-module:}~ \modnameif{#1} ~\texttt{as}~ \modnameif{#2}}
+\newcommand{\Sas}[2]{\modnameif{#1} \;\texttt{as}\; \modnameif{#2}}
+\newcommand{\Scom}{\texttt{,}\,}
+
+% macros for helper functions
+\newcommand{\Freqs}[2][\Delta]{\ensuremath{\mathsf{reqnames}_{#1}(#2)}}
+\newcommand{\Fpreshape}[1]{\ensuremath{\mathsf{preshape}(#1)}}
+\newcommand{\FpreshapeI}[2][\Delta]{\ensuremath{\mathsf{preshape}_{#1}(#2)}}
+\newcommand{\Fprelink}[1]{\ensuremath{\mathsf{merge}(#1)}}
+\newcommand{\FprelinkTwo}[2]{\ensuremath{\mathsf{merge}(#1; #2)}}
+\newcommand{\Flink}[1]{\ensuremath{\mathsf{link}(#1)}}
+\newcommand{\Fsource}[1]{\ensuremath{\mathsf{source}(#1)}}
+\newcommand{\Flet}[1]{\ensuremath{\mathsf{bind}(#1)}}
+\newcommand{\Fprerename}[3]{\ensuremath{\mathsf{rnthin}(#1; #2; #3)}}
+\newcommand{\Frename}[3]{\ensuremath{\mathsf{rnthin}(#1; #2; #3)}}
+\newcommand{\Fprovs}[1]{\ensuremath{\mathsf{provs}(#1)}}
+\newcommand{\Fdom}[1]{\ensuremath{\mathsf{dom}(#1)}}
+\newcommand{\Fexports}[1]{\ensuremath{\mathsf{exps}(#1)}}
+\newcommand{\Ftrim}[2]{\ensuremath{\mathsf{trim}_{#1}(#2)}}
+\newcommand{\Ffnv}[1]{\ensuremath{\mathsf{fnv}(#1)}}
+
+% notational convenience
+\newcommand{\overlinei}[1]{\overline{#1}^i}
+\newcommand{\overlinej}[1]{\overline{#1}^j}
+\newcommand{\overlinek}[1]{\overline{#1}^k}
+\newcommand{\overlinel}[1]{\overline{#1}^l}
+
+
+
+\renewcommand{\topfraction}{.85}
+\renewcommand{\bottomfraction}{.7}
+\renewcommand{\textfraction}{.1}
+\renewcommand{\floatpagefraction}{.9}
+\renewcommand{\dbltopfraction}{.9}
+\renewcommand{\dblfloatpagefraction}{.9}
+\setcounter{topnumber}{9}
+\setcounter{bottomnumber}{9}
+\setcounter{totalnumber}{20}
+\setcounter{dbltopnumber}{9}
+
+
+\newcommand{\Edward}[1]{\textcolor{Red}{\bf[EZY: #1]}}
+\newcommand{\Scott}[1]{\textcolor{Plum}{\bf[SK: #1]}}
+\newcommand{\Derek}[1]{\textcolor{Blue}{\bf[DD: #1]}}
+\newcommand{\Simon}[1]{\textcolor{RedOrange}{\bf[SPJ: #1]}}
+\newcommand{\simon}[1]{\Simon{#1}}
+
+% macros for examples
+
+\newcommand{\uidArraysA}{%
+  \uidl{arrays-a}{\holevar{Prelude}}%
+}
+\newcommand{\uidArraysB}{%
+  \uidl{arrays-b}{\holevar{Prelude}}%
+}
+\newcommand{\uidStructures}{%
+  \uidl{structures}{\holevar{Prelude}, \holevar{Array}}%
+}
+\newcommand{\uidStructuresA}{%
+  \uidl{structures}{\holevar{Prelude},
+                    \Mod{\uidArraysA}{Array}}%
+}
+\newcommand{\uidStructuresB}{%
+  \uidl{structures}{\holevar{Prelude},
+                    \Mod{\uidArraysB}{Array}}%
+}
+
+\newcommand{\Tmatch}[3]{#1 <:_{#2} #3}
+\newcommand{\Tsubg}[3]{\{#1\} \quad #2 \quad \{ #3 \}}
+\newcommand{\Tsub}[5]{\{#1\} \quad \Tmatch{#2}{#3}{#4} \quad \{ #5 \}}
+
+
+\newcommand{\highlight}[1]{%
+  \colorbox{yellow!50}{$\displaystyle#1$}}
+
+\newcommand{\KP}{\mathsf{P}}
+\newcommand{\KM}{\mathsf{M}}
+
+\newcommand{\RP}{\mathbb{P}}
+\newcommand{\RM}{\mathbb{M}}
+\newcommand{\RN}{\mathbb{N}}
+
+\newcommand{\RT}{T}
+\newcommand{\RE}{E}
+
+\newcommand{\row}{\textsf{row}}
+\newcommand{\rowty}[1]{\llparenthesis{}\,#1\,\rrparenthesis{}}
+\newcommand{\record}[1]{\textsf{record}~#1}
+
+
+\newcommand{\elab}[1]{\ensuremath{\leadsto{} #1}}
+
+
+\newcommand{\CK}{\mathcal{K}}
+\newcommand{\CT}{\mathcal{T}}
+
+\newcommand{\Ictx}{\Gamma_c}
+\newcommand{\IGamma}{\Gamma_c}
+\newcommand{\IDelta}{\Delta_c}
+\newcommand{\Idash}{\vdash_c}
+\newcommand{\Impctx}{\impctx_c}
+\newcommand{\iprog}{\I{iprog}}
+\newcommand{\invariant}{\prec}
+
+\newcommand{\tDelta}{\tilde{\Delta}}
+\newcommand{\Quant}{\Theta}
+\newcommand{\induces}{\Rightarrow}
+% \newcommand{\declst}[3]{\begin{Bmatrix}#1\\#2\\#3\end{Bmatrix}}
+\newcommand{\declst}[3]{\begin{Bmatrix}#2\\#3\end{Bmatrix}}
+\newcommand{\Ideclst}[2]{\begin{Bmatrix}#1\\#2\end{Bmatrix}}
+%\newcommand{\hsubis}{\rightarrow_S}
+%\newcommand{\nhsubis}{\rightarrow_{\USn}}
+
+
+\newcommand{\JMatch}[6]%
+  [\Gamma; \Theta; \theta; \Delta; \Up_0]%
+  {\ensuremath{#1 \vdash #2 : \forall #3.\, \forall #4.\, #5 \induces #6}}
+
+\newcommand{\JReqType}[4]%
+  % [\Gamma; \Up_0; \Theta; \theta; \Delta]%
+  [\Gamma; \Theta; \theta; \Delta; \Up_0]%
+  {\ensuremath{#1 \vdash #2 \,@\, #3 : #4}}
+
+\newcommand{\thetaOR}{\hat\theta}
+\newcommand{\SigmaOR}{\hat\Sigma}
+
+% Alter some LaTeX defaults for better treatment of figures:
+    % See p.105 of "TeX Unbound" for suggested values.
+    % See pp. 199-200 of Lamport's "LaTeX" book for details.
+    %   General parameters, for ALL pages:
+    \renewcommand{\topfraction}{0.9}	% max fraction of floats at top
+    \renewcommand{\bottomfraction}{0.8}	% max fraction of floats at bottom
+    %   Parameters for TEXT pages (not float pages):
+    \setcounter{topnumber}{2}
+    \setcounter{bottomnumber}{2}
+    \setcounter{totalnumber}{4}     % 2 may work better
+    \setcounter{dbltopnumber}{2}    % for 2-column pages
+    \renewcommand{\dbltopfraction}{0.9}	% fit big float above 2-col. text
+    \renewcommand{\textfraction}{0.07}	% allow minimal text w. figs
+    %   Parameters for FLOAT pages (not text pages):
+    \renewcommand{\floatpagefraction}{0.7}	% require fuller float pages
+	% N.B.: floatpagefraction MUST be less than topfraction !!
+    \renewcommand{\dblfloatpagefraction}{0.7}	% require fuller float pages
+
+	% remember to use [htp] or [htpb] for placement

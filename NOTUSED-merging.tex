@@ -1,0 +1,1153 @@
+\documentclass{article}
+
+\usepackage{mdframed}
+
+\include{macros}
+
+\begin{document}
+
+\special{papersize=8.5in,11in}
+\setlength{\pdfpageheight}{\paperheight}
+\setlength{\pdfpagewidth}{\paperwidth}
+
+\title{F-ing Backpack}
+
+\maketitle
+
+\noindent
+
+In this section, I present an F-ing style semantics for Backpack on an
+extremely small subset of the Haskell language (no type classes, no
+recursion, post renaming).  This semantics demonstrates that Backpack
+can be interpreted as a module system of \emph{applicative functors},
+and subsequently, its semantics can be defined via an elaboration to
+System F$\omega$.
+
+Our elaboration is on a tremendously simplified version of Haskell,
+so simplified, indeed, that one might wonder, ``What is the point?''
+Nor is the elaboration at all reflective of our actual implementation
+of typechecking in GHC proper.
+
+To this, I offer the following justifications:
+
+\begin{itemize}
+
+\item It serves as a sound declarative specification of how Backpack in
+    GHC Haskell should behave, when only the features supported in our
+    subset our used.  As an elaboration to a well-known target calculus,
+    it does not require any complex metatheory and can be easily compared
+    to other ML module systems.  The semantic objects of the elaboration
+    also allow us to develop some metatheory about \emph{signature merging}.
+
+\item Our language is very simple, and could be used as a tutorial introduction
+    to F-ing style elaborations with applicative functors.
+    Our formalization does not substantially differ from the one
+    presented in F-ing modules, but Backpack does not have generative
+    functors, allowing us to remove one of the devices used in the
+    F-ing paper to support generative and applicative functors simultaneously.
+
+\item GHC Haskell is an extremely complex language, which has never
+    been formalized in its entirety, never mind formalizing it with
+    Backpack.  A line must be drawn somewhere, and a language with
+    abstract types, type synonyms and function declarations is a fine
+    place to start.
+
+\item Even if it were possible to formalize all of GHC Haskell, we would
+    unable to provide a compositional elaboration of the resulting language,
+    as certain popular features in Haskell (open type families, in particular)
+    are inherently non-compositional.  Perhaps this indicates a failure
+    of judgment in language design, but the assumption that instances
+    are globally unique has been a convenient one, which is baked
+    into much of the code that has been written in Haskell.
+
+\end{itemize}
+
+\section{Explicitly typed, renamed Backpack}
+
+In this section, we describe an explicitly typed,
+renamed version of Backpack which we call ``Explicit Backpack'':
+
+\begin{itemize}
+    \item It is \emph{explicitly typed}, in that all components are
+    annotated with a complete, fully merged signature for each of
+    its requirements (unlike \textsf{signature} declarations in
+    regular Backpack, which simply add to the inferred requirements
+    of a component), and
+    \item It is \emph{renamed}, meaning that source-level names like
+    \texttt{x} and \texttt{T} have been resolved to their actual
+    definition sites.  In renamed code, there is no need for \texttt{import}
+    statements, export lists
+    or \textsf{dependency} declarations: instead, names refer directly
+    to entities defined in the context.\footnote{Technically, we also
+    need the capacity to assert that a dependency is well-typed, to
+    handle instantiations from mixin linking which don't show up in
+    the renamed code.  However, this is an easy extension to the
+    module language, and for simplicity we don't include it for now.}
+\end{itemize}
+
+\noindent
+Effectively, it is a very small module system which only supports
+\emph{applicative functors} (no sealing, no hierarchical modules, no
+\textsf{include} statement, no higher-order functors).
+
+\subsection{Syntax}
+
+\paragraph{Components}
+The top level construct in Explicit Backpack is a \emph{component},
+i.e., an applicative functor:
+
+\begin{figure}[H]
+\[
+\begin{array}{rcll}
+\I{rprog} &::=& \overline{p = \I{rcomp}} \\
+\I{rcomp} &::=& \lambda [ \I{rsigs} ].\, \{ \I{rmods} \} & \mbox{Component} \\
+\\
+\I{rsigs} &::=& \overline{m : \{ \I{rsig} \}} & \mbox{Signature bindings} \\
+\I{rsig}  &::=& \overline{\I{rsigd}} & \mbox{Signature} \\
+\I{rsigd}  &::=& \mathbf{data}~n & \mbox{Signature declaration} \\
+           & | & \mathbf{data}~n = n_c~\{ n_d :: T \} \\
+           & | & \mathbf{type}~n = T \\
+           & | & n :: \RT \\
+\\
+\I{rmods} &::=& \overline{m = \{ \I{rmod} \}} & \\
+\I{rmod} &::=& \overline{\I{rmodd}} & \mbox{Module} \\
+\I{rmodd} &::=& \mathbf{type}~n = T & \mbox{Module declaration} \\
+          & | & \mathbf{data}~n = n_c~\{ n_d :: T \} \\
+          & | & n = \RE \\
+\end{array}
+\]
+\caption{Syntax for renamed components}
+\end{figure}
+
+\noindent
+A component is a sequence of signatures (constituting the arguments
+of the functor), and then a sequence of modules defined by the component
+(the body of the functor.)  Signature and module bindings bring modules
+into scope, which can be referred to in expressions $E$ and types $T$;
+additionally, we may \emph{instantiate} a component (functor application)
+in order to get modules from an external component.
+
+\paragraph{What happened to the algebraic data types?}
+For simplicity, in this formalization we consider \emph{restricted
+algebraic data types}: those which could be equivalently have been
+written as \textbf{newtype}s.  We don't consider \emph{full} algebraic
+data types, as they would have to be encoded into $\mathrm{F}_\omega$
+(or the calculus extended with explicit support for them, as is the case
+for System Fc).  This is besides the point of this F-ing semantics, so
+we don't attempt to handle it.  Similarly, we don't bother
+defining pattern matching on restricted ADTs: we just assume they
+are defined by a constructor and destructor.
+
+Why are restricted data types sufficient?  Really, we don't
+care about \emph{algebraic} data types, but the fact that
+$\mathbf{data}$ declarations in Haskell are \emph{generative},
+a problem we must tackle in this semantics.
+
+\paragraph{What happened to export lists?}
+In ordinary Haskell, users write import and export lists to help
+guide the renaming process.  After renaming, imports and exports
+are no longer necessary and can be dropped from the renamed intermediate
+representation.  This can be most clearly seen by the following example:
+
+\begin{verbatim}
+    module M(x) where
+        data T = MkT { unMkT :: Int }
+        x = MkT 2
+\end{verbatim}
+%
+This is a \emph{valid} module.  Furthermore, \verb|M.x| is a valid
+identifier, despite \verb|T| being ``unmentionable''.  In actuality,
+after renaming \verb|T| is part of the module type for \verb|M|, just
+like \verb|x|; it is only the case that there isn't a way to specify
+\verb|T| in the \emph{pre-renamed syntax}. As Explicit Backpack is
+post-renaming, \verb|M| with and without the export list are represented
+identically.
+
+There is one catch, however: in Haskell, a module can \emph{reexport}
+an identity from a different module:
+
+\begin{verbatim}
+    module A(x) where
+        x = True
+    module B(x) where
+        import A (x)
+\end{verbatim}
+
+In Backpack, \verb|B| provides a type \verb|x|, and should be considered
+to match a signature which contains \verb|x :: Bool|.  In POPL'14 and
+our ICFP'16 submission, this matching is done by looking at Haskell's
+module exports.  In Explicit Backpack, we will take a different
+approach: If a signature reexports a type, or a module reexports a
+type/value, we simply include an administrative binding in the module
+$\mathbf{type}~n = \RN$ or $n = \RN$.  Thus, in Explicit Backpack,
+these modules would be written as:
+\[
+\begin{array}{l}
+\mathtt{A} = \{ \mathtt{x} = \mathtt{True} \} \\
+\mathtt{B} = \{ \mathtt{x} = \mathtt{A}.\mathtt{x} \}
+\end{array}
+\]
+
+
+\paragraph{Haskell types and expressions}
+Here is our renamed Haskell-level types and expressions
+(for simplicity, we assume all Haskell types have kind $\star$):
+
+\begin{figure}[H]
+\[
+\begin{array}{rcll}
+\RT &::=& & \mbox{Renamed Haskell types} \\
+     & | & \RT \rightarrow \RT & \quad\mbox{Function type} \\
+     & | & \RN & \quad\mbox{Type projection} \\
+     & | & \cdots \\
+\RE &::=& & \mbox{Renamed Haskell expressions} \\
+  & | & \RE_1~\RE_2 & \quad\mbox{Function application} \\
+  & | & \RN & \quad\mbox{Value projection} \\
+  & | & \cdots & \\
+\end{array}
+\]
+\caption{Renamed Haskell types and expressions}
+\end{figure}
+
+\paragraph{Paths}
+To encode references to values which are defined in the same
+module, or modules defined in the same component, we introduce
+a notion of a \emph{path}.
+
+For someone familiar with how renaming works in GHC, the presence
+of paths in Explicit Backpack, which is \emph{renamed}, may be something of a surprise.  When
+GHC renames a Haskell program, module qualified identifiers are
+resolved to \emph{original names}, which uniquely identify the type
+or value in question, even for types and values defined in the
+module \emph{being compiled}.  This is convenient for implementation,
+but when writing declarative rules, this style requires you to know,
+as part of the environment, the name of the module (and the component)
+which you are currently typechecking.  In this presentation, we opt
+for paths in Explicit Backpack because they simplify the definition of
+our context.
+
+\begin{figure}[H]
+\[
+\begin{array}{rcll}
+\RN &::=&     & \mbox{Name paths} \\
+  & | & \RM.n & \quad\mbox{External name} \\
+  & | & n   & \quad\mbox{Module-local name} \\
+\RM &::=& & \mbox{Module paths} \\
+  & | & M & \quad\mbox{External module} \\
+  & | & m & \quad\mbox{Component-local module} \\
+\end{array}
+\]
+\caption{Paths in the surface language}
+\end{figure}
+
+\paragraph{Module and component identities}
+A path may refer to an external component, in which case we may need to
+\emph{instantiate} the component with implementations for its
+requirements.  Put differently, we need to apply our applicative
+functors (components)!  Because Explicit Backpack only supports
+applicative functors, it is unnecessary to have any constructs for
+applying a functor and then binding it, since the result will always
+be the same if you re-apply it later.
+
+We identify applicative functor applications using the language of
+component identities and module identities from our ICFP'16 submission.
+An instantiated component identity is like a functor application, except
+that that arguments are explicitly labeled with the name of the requirement
+they fill; a module identity projects out a module from an instantiated
+component, or refers to a hole module in the context.
+
+Note: the stratification of paths and identities means that you cannot
+use a locally defined module to instantiate a component (since
+identities can't refer to local paths, only local holes).  This
+restriction will simplify our component language.\footnote{You
+may be wondering where name holes \nhv{m.n} are: these name holes are
+only relevant in the semantic objects associated with this syntax.}
+
+\begin{figure}[H]
+\[
+\begin{array}{rcll}
+p &   & \mbox{Component identity} \\
+m &   & \mbox{Module name} \\
+\\
+P &::=& p[\overline{m = M}] & \mbox{Instantiated component identity} \\
+M &::=& \Mod{P}{m} & \mbox{Module identity} \\
+  & | & \hv{m} & \quad\mbox{Hole module} \\
+\end{array}
+\]
+\caption{Component and module identities (as in ICFP'16 submission)}
+\end{figure}
+
+\paragraph{Example}
+Here is the running example from our ICFP'16 submission, with
+two adjustments: first, $\mathbf{data}$ declarations have rewritten
+so that they fit our restricted syntax; second, the module
+reexport \modname{Z} in \cidl{r} has been replaced with a fresh module
+which reeexports all the entities from
+\modname{Y}:
+
+\begin{figure}[H]
+\[
+\begin{array}{l}
+\cidl{base} = \{ \\
+  \quad\quad \modname{W} = \{ \\
+  \quad\quad\quad \mathbf{data}~\mathtt{I} = \mathtt{MkI}~\{ \mathtt{unMkI} :: \mathtt{I} \}; \\
+  \quad\quad\quad \mathtt{f} = \lambda x.~\ldots \\
+  \quad\quad \} \\
+  \quad\} \\
+
+\cidl{p} = \lambda [ \modname{A} : \{ \mathbf{data}~\mathtt{J} \},
+                     \modname{B} : \{ \mathbf{data}~\mathtt{K} \} ].\, \{ \\
+  \quad\quad \modname{Y} = \{ \mathbf{data}~\mathtt{L} = \mathtt{MkL}~\{ \mathtt{unMkL} :: (\hv{A}.\mathtt{J}, \hv{B}.\mathtt{K}) \} \\
+  \quad \} \\
+
+\cidl{q} = \lambda [
+    \modname{A} : \{ \mathbf{data}~\mathtt{I} = \mathtt{MkI}~\{ \mathtt{unMkI} :: \mathtt{I} \}
+  ].\, \{ \\
+  \quad\quad \modname{X} = \{ \mathbf{data}~\mathtt{K} = \mathtt{MkK}~\{ \mathtt{unMkK} :: \hv{A}.\mathtt{I} \} \\
+  \quad \} \\
+
+\cidl{r} = \lambda [
+    \modname{A} : \{
+      \textbf{type}~\mathtt{I} = \MOD{base}{}{W}.\mathtt{I};\;
+      \textbf{data}~\mathtt{J}
+    \}
+  ].\, \{ \\
+  \quad\quad \modname{Z} = \{
+      \mathbf{type}~\mathtt{L} = \MOD{p}{ \subst{A}{\hv{A}}, \substMOD{B}{q}{ \subst{A}{\hv{A}} }{X} }{Y}.\mathtt{L}; \\
+      \quad\quad\quad\quad~\mathtt{MkL} = \MOD{p}{ \subst{A}{\hv{A}}, \substMOD{B}{q}{ \subst{A}{\hv{A}} }{X} }{Y}.\mathtt{MkL}; \\
+      \quad\quad\quad\quad~\mathtt{unMkL} = \MOD{p}{ \subst{A}{\hv{A}}, \substMOD{B}{q}{ \subst{A}{\hv{A}} }{X} }{Y}.\mathtt{unMkL} \quad \} \\
+  \quad \}
+\end{array}
+\]
+\caption{Running example in Explicit Backpack}
+\end{figure}
+
+\section{The elaboration}
+
+The lesson of F-ing modules is that ML modules are simply a mode of use
+of universals and existentials.  Backpack is closely related to ML
+modules: and can be explained in a similar fashion.
+In this section, we give an F-ing semantics for Backpack, as opposed
+to the ad hoc semantics from our ICFP'16 submission.
+
+\paragraph{Semantic objects} We start by defining our semantic signatures
+($\alpha$, $\beta$, $\CK$ and $\CT$ all denote variables):
+
+\begin{figure}[H]
+\[
+\begin{array}{rcl}
+\kappa &::=& \cdots \\
+\tau, \nu &::=& \alpha ~|~ \beta ~|~ \CK ~|~ \CT \\
+       & | & \cdots \\
+\I{ty} &::=& [ = \tau : \kappa ] ~ \\
+       & | & [ \tau ] \\
+\sigma &::=& \{ \overline{n :: \I{ty}} \,|\, r \}\\
+\Sigma &::=& \{ \overline{m : \sigma } \} \\
+\Xi    &::=& \exists \overline{(m = \CK)}\, \overline{\CT}\, \overline{r}.\, \forall \overline{(m = \alpha)}\, \overline{\beta}\, \overline{r}.\,
+              \Sigma_R \rightarrow \Sigma_P
+%   \Xi    &::=& \exists (\rho_P : \{ \overline{m = \KM^i \rightarrow \KM} \} )\,
+%                        \overline{(\beta_P : \star^j \times \KM \rightarrow \star)}.\,
+%                \forall (\rho_R : \{ \overline{m = \KM}^i \})\,
+%                        \overline{(\beta_R : \star)}^j. \\
+%          &   & \qquad \Sigma_R \rightarrow \Sigma_P \\
+\end{array}
+\]
+\caption{Semantic signatures}
+\end{figure}
+
+\noindent
+For brevity, we reuse the identifiers $\Sigma$, $\sigma$, $\tau$ and $\I{ty}$.
+Our general strategy is to model a module as a record containing entries
+representing the types and values defined in the module.  There are a few
+finer points worth discussing.
+
+\paragraph{Atomic signatures}  Like in F-ing modules, we need a way of
+encoding \emph{types} in our records, so that type matching occurs when
+we instantiate a component.  We assume that there are $\mathrm{F}_\omega$
+types for $[\tau]$ and $[= \tau : \kappa]$, denoting value and type declarations
+respectively.  The atomic signature forms are syntax sugar for $\mathrm{F}_\omega$
+types; we assume an encoding similar to the one in F-ing modules (but
+otherwise the details of the encoding is irrelevant.)
+
+\paragraph{Abstract types}
+In the surface syntax, we write \textbf{data} declarations and then refer
+to them using paths.  In our semantic signatures, these paths are eliminated
+and replaced with existentially quantified type variables $\beta$.
+For example, if a user writes $\mathbf{data}~\texttt{I}$ in a signature, they get
+a semantic type:
+
+\begin{figure}[H]
+\[
+\exists (\beta_I : \star).\, \{ \mathtt{I} :: [ = \beta_I ] \}
+\]
+\caption{Example typing of an abstract data type}
+\end{figure}
+
+\noindent
+In an F-ing semantics, these quantifiers get lifted to the top-level of
+the program (the existential turning into a universal when it moves
+out of the contravariant function position).
+We will discuss these types in more detail shortly.
+
+\paragraph{Encoding restricted algebraic data types}  Conspicuously, \textbf{data} is missing
+from the set of productions for \I{ty}.  If a user writes
+$\mathbf{data}~\mathtt{I} = \mathtt{MkI}~\{ \mathtt{unMkI} :: () \}$,
+in a signature, we will model it as the following semantic type:
+
+\begin{figure}[H]
+\[
+\exists (\beta_I : \star).\,
+\{
+\mathtt{I} :: [= \beta_I],
+\mathtt{MkI} :: [() \rightarrow \beta_I],
+\mathtt{unMkI} :: [\beta_I \rightarrow ()]
+\}
+\]
+\caption{Example signature of a (generative) algebraic data type}
+\end{figure}
+
+\noindent
+How does the elaboration work when such a declaration is written
+in a module?  Essentially, we want to define a trivial implementation
+of the record and then \emph{seal} it, so that the implementation details
+of how a data-type are encoded are hidden from users, except through the
+constructor and destructor.
+
+\paragraph{Existential and universal quantification of types}
+Roughly speaking (considering only $\beta$s), a component type
+has the form $\Xi ::= \exists \overline{\beta_P}.\, \forall \overline{\beta_R}.\, \Sigma_R \rightarrow \Sigma_P$, which is precisely the ordering of quantifiers necessary
+for applicative functors, as observed by Russo.
+
+What are the kinds of these $\beta$?  For universally quantified types,
+clearly $\beta : \star$ for any types which
+had kind $\star$ in the source language.  But for existentially quantified
+types, its abstract
+type $\beta$ must be \emph{skolemized} over the universally
+quantified types from the signature (as previously observed in Biswas
+(1995), Russo (1998), and F-ing modules).  For example, consider
+\texttt{L} from \cidl{p} in the running example:  considering
+only types for the moment, we might naively write the following type for \cidl{p}:
+
+\begin{figure}[H]
+\[
+\begin{array}{l}
+\cidl{p} : \exists (\beta_L : \highlight{\star}).\, \forall (\beta_J\, \beta_K : \star).\, \\
+    \quad \{
+     \modname{A} :
+        \{ \mathtt{J} :: [= \beta_J : \star] \},
+     \modname{B} :
+        \{ \mathtt{K} :: [= \beta_K : \star] \},
+    \}
+    \rightarrow \\
+    \quad \{
+     \modname{Y} :
+        \{ \mathtt{L} :: [= \highlight{\beta_L} : \star ]
+         ; \mathtt{MkL} :: (\beta_J, \beta_K) \rightarrow \highlight{\beta_L}
+         ; \mathtt{unMkL} :: \highlight{\beta_L} \rightarrow (\beta_J, \beta_K)
+
+         \}
+    \}
+\end{array}
+\]
+\caption{\emph{Incorrect} typing of \cidl{p}}
+\end{figure}
+
+\noindent
+But in this signature, we have claimed that we can commit to
+a representation of $\beta_L$, without knowing what $\beta_J$
+or $\beta_K$ are.  This obviously is not going to work,
+because we clearly want to define $\beta_L = (\beta_J, \beta_K)$
+inside the sealed package representing an ADT\@.  So instead, $\beta_L$
+must take these $\beta$s as a parameter.  To make the difference
+visually clear, for existentially quantified variables we use
+$\CT_L$ instead:
+
+\begin{figure}[H]
+\[
+\begin{array}{l}
+\cidl{p} : \exists (\CT_L : \highlight{\star^2 \rightarrow \star}).\, \forall (\beta_J\, \beta_K : \star).\, \\
+    \quad \{
+     \modname{A} :
+        \{ \mathtt{J} :: [= \beta_J : \star] \},
+     \modname{B} :
+        \{ \mathtt{K} :: [= \beta_K : \star] \},
+    \}
+    \rightarrow \\
+    \quad \{
+     \modname{Y} :
+        \{ \mathtt{L} :: [= \highlight{\CT_L\, \beta_J\, \beta_K} : \star]; \\
+\qquad\quad~ \mathtt{MkL} :: (\beta_J, \beta_K) \rightarrow \highlight{\CT_L\, \beta_J\, \beta_K}; \\
+
+\qquad\quad~ \mathtt{unMkL} :: \highlight{\CT_L\, \beta_J\, \beta_K} \rightarrow (\beta_J, \beta_K)
+           \}
+    \}
+\end{array}
+\]
+\caption{Simplified typing of \cidl{p} (handling only $\beta$s)}
+\end{figure}
+
+\noindent
+Now we have $\CT_L = \lambda \beta_J\, \beta_K.\, (\beta_J, \beta_K)$, as desired.
+($\star^2 \rightarrow \star$ denotes $\star \rightarrow \star \rightarrow \star$.)
+
+\paragraph{Labeled existential and universal quantification of module
+identities}
+The type identities $\CT$ described in the previous section are
+incomplete, because they check for equivalence of the \emph{type
+identities of the functional dependencies} rather than the \emph{module
+identities} which provided these dependencies.  According to
+Backpack'16, a component containing the declaration \verb|data I = MkI|
+can be instantiated to form multiple distinct
+type identities for \verb|I|, even though its definition doesn't mention
+any types from any signature.  This problem is analogous to the
+lack of ``dynamic abstraction safety'' described in the extended
+F-ing modules paper.
+
+The solution for this is to introduce a \emph{phantom type} to
+help distinguish between these two types.  Intuitively, every type
+identity is parametrized by a phantom type which encodes the
+Backpack'16 module identity associated with this type.  Thus,
+to refine the previous example further:
+
+\begin{figure}[H]
+\[
+\begin{array}{l}
+\cidl{p} : \exists \highlight{(\CK_Y : \KM^2 \rightarrow \KM)} (\CT_L : \highlight{\KM^2} \rightarrow \star^2 \rightarrow \star).\, \forall \highlight{(\alpha_A\, \alpha_B : \KM)} (\beta_J\, \beta_K : \star).\, \\
+    \quad \{
+     \modname{A} :
+        \{ \mathtt{J} :: [ = \beta_J ] \},
+     \modname{B} :
+        \{ \mathtt{K} :: [ = \beta_K ] \},
+    \}
+    \rightarrow \\
+    \quad \{
+     \modname{Y} :
+        \{ \mathtt{L} :: [ = \CT_L\,\highlight{\alpha_A\, \alpha_B}\, \beta_J\, \beta_K ]; \\
+        \qquad\quad~ \mathtt{MkL} :: (\beta_J, \beta_K) \rightarrow \CT_L\,\highlight{\alpha_A\, \alpha_B}\, \beta_J\, \beta_K \}; \\
+        \qquad\quad~ \mathtt{unMkL} :: \CT_L\, \highlight{\alpha_A\, \alpha_B}\, \beta_J\, \beta_K \rightarrow (\beta_J, \beta_K)  \}
+    \}
+\end{array}
+\]
+\caption{Typing of \cidl{p}, with rows and labels elided}
+\end{figure}
+
+\noindent
+Ignoring the kinds for a moment, notice that each existentially
+qualified $\CT$ now takes as arguments $\alpha_A\, \alpha_B$, which are
+universally quantified over the \emph{module identities} which will
+implement these signatures. The type arguments of $\CT$ are similar to
+the structure of a module identity $\MOD{q}{\subst{A}{\hv{A}},
+\subst{B}{\hv{B}}}{Y}$ (in this case, the existential $\CT$ encodes the
+component identity, module name and type name, so only the module
+identities of the holes are needed).
+
+How are module identities constructed?  Every module defined in a
+component comes with an existential $\CK$ types, e.g., $\CK_Y$, which represents
+the module identity of the module in the component.  Notice that
+$\CK_Y$ takes two arguments: we construct the final phantom type
+by filling in these arguments with the phantom types of the modules that
+$p$ is instantiated with.
+
+In System $\mathrm{F}_\omega$, the only kind is $\star$;
+$\CK_Y$ should have kind $\star^2 \rightarrow \star$; but to help distinguish
+between $\beta$s and $\alpha$s, we define a kind synonym $\KM \equiv \star$,
+denoting phantom types representing module identities; we use the metavariable
+$\nu$ to refer to such phantom types.
+
+There is one final technical complication: while we have treated
+the arguments to $\alpha$ simply as an ordered list of phantom types,
+it is instead convenient to consider them as module name labeled records, dictating \emph{which} argument
+it is for, e.g., $\CK_Y\, \{ \modname{A} = \alpha_A, \modname{B} = \alpha_B \}$.
+
+To accommodate this, in our full examples, we give $\CK$ the kind $\{\overline{m : \KM}\} \rightarrow \KM$,
+and apply it by constructing a ``record'' of the form $\{\overline{m = \nu}\}$.
+By fixing an ordering of $m$, these can be eliminated into usual, $n$-ary application.
+Additionally, quantifiers for $\alpha$s take the form
+$\exists (m = \alpha).\, {-}$, specifying that $\alpha$ binds the module
+identity associated with the module named $m$.
+
+\begin{figure}[H]
+\[
+\begin{array}{l}
+\cidl{p} : \exists (\highlight{\modname{Y} =} \CK_Y : \highlight{\{\modname{A} : \KM, \modname{B} : \KM\}} \rightarrow \KM) (\CT_L : \highlight{\{\modname{A} : \KM, \modname{B} : \KM\}} \rightarrow \star^2 \rightarrow \star).\, \\
+\quad~ \forall (\highlight{\modname{A} =} \alpha_A : \KM, \highlight{\modname{B} =} \alpha_B : \KM) (\beta_J\, \beta_K : \star).\, \\
+    \quad \{
+     \modname{A} :
+        \{ \mathtt{J} :: [= \beta_J] \},
+     \modname{B} :
+        \{ \mathtt{K} :: [= \beta_K] \}
+    \}
+    \rightarrow \\
+    \quad \{
+     \modname{Y} :
+        \{ \mathtt{L} :: [= \CT_L\, \highlight{\{\modname{A} = \alpha_A, \modname{B} = \alpha_B\}}\, \beta_J\, \beta_K \}]; \\
+        \qquad\quad~\mathtt{MkL} :: (\beta_J, \beta_K) \rightarrow \CT_L\, \highlight{\{\modname{A} = \alpha_A\, \modname{B} = \alpha_B\}}\, \beta_J\, \beta_K; \\
+        \qquad\quad~\mathtt{unMkL} :: \CT_L\,\highlight{\{\modname{A} = \alpha_A\, \modname{B} = \alpha_B\}}\, \beta_J\, \beta_K  \rightarrow (\beta_J, \beta_K)
+        \quad \}
+    \}
+\end{array}
+\]
+\caption{Typing of \cidl{p}, with rows elided}
+\end{figure}
+
+\noindent
+To summarize, the encoding scheme is as follows:
+
+\begin{itemize}
+    \item Every source module $m_P$ in some component $p$ is associated
+    with an existentially quantified $\CK : \{\overline{m_R : \KM}\} \rightarrow \KM$,
+    where $m_R$ ranges over the requirements of $p$.
+    \item The phantom type representing a module identity $\MOD{p}{\overline{m = M}}{m'}$
+    is found by recursively finding the phantom types of $\overline{M}$, and
+    then applying these as arguments to the $\CK$ associated with $m'$ in component $p$.
+    \item Every existentially bound type is skolemized
+    over its type variables ($\tau$) as well as the phantom types ($\nu$)
+    representing the module identity of the modules that fill
+    the holes.
+\end{itemize}
+
+\paragraph{Existential and universal quantification of rows}
+Finally, we quantify over \emph{row variables}. A universally
+quantified row variable matches a module
+that declares more fields than the module needs. (Technically,
+the syntax permits
+existentially quantified row variable, but we don't use this facility.)
+
+\begin{figure}[H]
+\[
+\begin{array}{l}
+\cidl{p} : \exists (\CT_L : \star \rightarrow \star \rightarrow \star).\, \forall (\beta_J\, \beta_K : \star)\, \highlight{(r_A\, r_B : \row)}.\, \\
+    \quad \{
+     \modname{A} :
+        \{ \mathtt{J} :: \mathbf{type}~{-} = \beta_J \,|\, \highlight{r_A} \},
+     \modname{B} :
+        \{ \mathtt{K} :: \mathbf{type}~{-} = \beta_K \,|\, \highlight{r_B} \},
+    \}
+    \rightarrow \\
+    \quad \{
+     \modname{Y} :
+        \{ \mathtt{L} :: \mathbf{type}~{-} = \CT_L\, \beta_J\, \beta_K~\mathbf{where}~\mathtt{MkL} :: \beta_J \rightarrow \beta_K \rightarrow \CT_L\, \beta_J\, \beta_K \}
+    \}
+\end{array}
+\]
+\caption{Simplified typing of \cidl{p} handling only $\beta$s with rows}
+\end{figure}
+
+\noindent
+Row polymorphism obviates the need for a subtyping relation:
+after picking an appropriate instantiation of $r_A$ and $r_B$,
+we will have exact equality.
+
+\paragraph{Example semantic typing context}
+Here is a context which contains all of the components of our running example.
+
+\begin{figure}[H]
+\[
+\begin{array}{rcl}
+%\Mod{\cidl{base}}{W} \Rightarrow \CK_W : \KM; \\
+\CK_W &:& \KM \\
+\CT_I &:& \star \\
+\cidl{base} &:& \{ \modname{W} : \{ \\
+&&\quad \mathtt{I} :: [= \CT_I]; \\
+&&\quad \mathtt{MkI} :: \CT_I \rightarrow \CT_I; \\
+&&\quad \mathtt{unMkI} :: \CT_I \rightarrow \CT_I; \\
+&&\quad \mathtt{f} :: \CT_I \rightarrow \CT_I \\
+&&\} \} \\
+\\
+%\Mod{\cidl{p}}{Y} \Rightarrow \CK_Y : [ \modname{A} : \KM, \modname{B} : \KM ] \rightarrow \KM; \\
+\CK_Y &:& \{ \modname{A} : \KM, \modname{B} : \KM \} \rightarrow \KM \\
+\CT_L &:& \{ \modname{A} : \KM, \modname{B} : \KM \} \rightarrow \star^2 \rightarrow \star \\
+\cidl{p} &:& \forall (\modname{A} = \alpha_A, \modname{B} = \alpha_B : \KM)\, (\beta_J, \beta_K : \star)\, (r_A\, r_B : \row). \, \{ \\
+&& \quad\modname{A} : \{ \mathtt{J} :: [= \beta_J] \,|\, r_A \}, \\
+&& \quad\modname{B} : \{ \mathtt{K} :: [= \beta_K] \,|\, r_B \} \\
+&& \} \rightarrow \{ \\
+&& \quad\modname{Y} : \{ \mathtt{L} :: [= \CT_L~ \{\modname{A} = \alpha_A, \modname{B} = \alpha_B\}\, \beta_J\, \beta_K]; \\
+&& \quad\quad~~\texttt{MkL} :: (\beta_J, \beta_K) \rightarrow \CT_L~ \{\modname{A} = \alpha_A, \modname{B} = \alpha_B\}\, \beta_J\, \beta_K  \}; \\
+&& \quad\quad~~\texttt{unMkL} :: \CT_L~\{\modname{A} = \alpha_A, \modname{B} = \alpha_B\}\, \beta_J\, \beta_K  \rightarrow (\beta_J, \beta_K)   \} \\
+&& \} \\
+\\
+\CK_X &:& \{ \modname{A} : \KM \} \rightarrow \KM \\
+\CT_K &:& \{ \modname{A} : \KM \} \rightarrow \star \rightarrow \star \\
+\cidl{q} &:& \forall (\modname{A} = \alpha_A : \KM)\, (\beta_I : \star)\, (r_A : \row). \, \{ \\
+&& \quad\modname{A} : \{ \mathtt{I} :: [= \beta_I]; \\
+&& \quad\quad~~\mathtt{MkI} :: \beta_I \rightarrow \beta_I; \\
+&& \quad\quad~~\mathtt{unMkI} :: \beta_I \rightarrow \beta_I \,|\, r_A \} \\
+&& \} \rightarrow \{ \\
+&& \quad\modname{X} : \{ \mathtt{K} :: [= \CT_K~ \{\modname{A} = \alpha_A\}\, \beta_I] \\
+&& \quad\quad~~\mathtt{MkK} :: \beta_I \rightarrow \CT_K~\{\modname{A} = \alpha_A\}\, \beta_I \\
+&& \quad\quad~~\mathtt{unMkK} :: \CT_K~\{\modname{A} = \alpha_A\}\, \beta_I \rightarrow \beta_I \}\\
+&& \} \\
+\\
+\CK_Z &:& \{ \modname{A} : \KM \} \rightarrow \KM \\
+\cidl{r} &:& \forall (\modname{A} = \alpha_A : \KM)\, (\beta_J : \star)\, (r_A : \row). \, \{ \\
+&& \quad\modname{A} : \{ \\
+&& \quad\quad \mathtt{I} :: [= \CT_I]; \\
+&& \quad\quad \mathtt{J} :: [= \beta_J] \,|\, r_A \} \\
+&& \} \rightarrow \{ \\
+&& \quad\modname{Z} : \{ \mathtt{L} :: [= \CT_L~\{\modname{A} = \alpha_A, \modname{B} = \CK_X \{\modname{A} = \alpha_A\}\} \\
+&& \qquad\qquad\qquad\qquad \beta_J \\
+&& \qquad\qquad\qquad\qquad (\CT_K~\{\modname{A} = \alpha_A\}~\CT_I) \} \quad ]; \\
+&& \qquad\qquad \ldots \\
+&& \} \\
+\end{array}
+\]
+\caption{Example typing context}
+\end{figure}
+
+\paragraph{The rules}
+
+Here is the type system for this language.  Here are all the judgments
+we must specify:
+
+\begin{figure}[H]
+\[
+\begin{array}{ll}
+\mbox{Type elaboration} &\Gamma \vdash T : \star \leadsto \tau \\
+\mbox{Expression typing} & \Gamma \vdash E : \tau \\
+\mbox{Component identity typing} & \Gamma \vdash P : \Sigma \Rightarrow [\overline{m = \nu}] \\
+\mbox{Module identity typing} & \Gamma \vdash M : \sigma \Rightarrow \nu \\
+\mbox{Module path typing} & \Gamma \vdash \RM : \sigma \\
+\mbox{Name path typing} & \Gamma \vdash \RN : \tau \\
+\mbox{Name path elaboration (for types)} & \Gamma \vdash \RN \leadsto \tau \\
+\mbox{Signature binding elaboration} & \Gamma \vdash \I{rsigs} \leadsto \exists \overline{\alpha}\, \overline{\beta}\, \overline{r}.\, \Sigma \\
+\mbox{Signature elaboration} & \Gamma \vdash \I{rsig} \leadsto \exists \overline{\beta}\, r.\, \sigma \\
+\mbox{Signature declaration elaboration} & \Gamma \vdash \I{rsigd} \leadsto \exists \beta.\, \I{\sigma} \\
+\mbox{Module binding typing} & \Gamma \vdash \I{rmods} :_P \exists \overline{(m = \CK)}\, \overline{\CT}.\, \Sigma \\
+\mbox{Module typing} & \Gamma \vdash \I{rmod} :_P \exists \overline{\CT}.\, \sigma \\
+\mbox{Module declaration typing} & \Gamma \vdash \I{rmodd} :_P \exists \CT.\, \I{\sigma} \\
+\mbox{Component typing} & \Gamma \vdash \I{rcomp} :_P \Xi \\
+\mbox{Program typing} & \Gamma \vdash \I{rprog} \\
+\end{array}
+\]
+\caption{Judgments for typing}
+\end{figure}
+
+\newcommand{\tyenv}{\Gamma}
+
+\noindent
+Like in F-ing module's treatment of applicative modules,
+$\Gamma \vdash M : \exists \overline{\alpha}.\, \tau \leadsto e$
+actually means that $e$ is a closed term satisfying
+$\cdot \vdash e : \exists \overline{\alpha}.\, \forall \tyenv.\, e $,
+subject to the $\Gamma$ translation rules described in F-ing modules
+(they are ``what you'd expect''.) \Red{A major question is whether or
+not there is a more elegant way to set this up when you don't
+have to deal with generative functors.}
+
+Let us begin.\\
+
+\begin{figure}[H]
+\fbox{
+$\Gamma \vdash \I{rprog}$
+}
+
+\[
+\Gamma \vdash \varepsilon \elab{\{\}}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\Gamma \vdash \I{rcomp} :_P \exists \overline{(m_P = \CK)}\, \overline{\CT}.\, \forall \overline{\alpha}\, \overline{\beta}\, \overline{r}.\, \Sigma_R \rightarrow \Sigma_P \elab{e} \\
+\Gamma, \overline{\Mod{p}{m_P} \Rightarrow \CK}, \overline{\CT}, p : \forall \overline{\alpha}\, \overline{\beta}\, \overline{r}.\, \Sigma_R \rightarrow \Sigma_P \vdash \I{rprog} \elab{e'}
+\end{array}
+}{
+\Gamma \vdash p = \I{rcomp}; \I{rprog} \elab{\lambda \Gamma.\, \textsf{unpack}~\langle\overline{\CK}\, \overline{\CT}, p \rangle = e~\textsf{in}~e'~(\Gamma, p~\Gamma : \forall \overline{\alpha}\, \overline{\beta}\, \overline{r}.\, \Sigma_R \rightarrow \Sigma_P)}
+}
+\]
+Given the type of a component, we unpack the existentials into the
+context and continue typechecking the rest of the component.  Note
+that the $\CK$ variables are labeled with $\Mod{p}{m_P}$ indicating
+what module they correspond to; the identity typing rules will
+take advantage of this information.  Since the labeling of $\CK$
+is just bookkeeping information for the elaboration, we elide it
+from the actual elaborated terms.
+\caption{Program typing}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{
+$\Gamma \vdash \I{rcomp} :_P \Xi \elab{e}$
+}
+
+\[
+\frac{
+\begin{array}{c}
+\Gamma \vdash \I{rsigs} \leadsto \exists \overline{(m_R = \alpha)}\, \overline{\beta}\, \overline{r}.\, \Sigma_R \\
+\Gamma, \overline{(m_R \Rightarrow \alpha)}, \overline{\beta}, \overline{r}, \Sigma_R \vdash \I{rmods} :_P \exists \overline{(m_P = \CK)}\, \overline{\CT}.\, \Sigma_P \elab{e} \\
+%\kappa_{\CK} = [\overline{m_R : \KM}] \rightarrow \KM \\
+%\kappa_{\CT} = \KM \rightarrow \overline{\star}^R \rightarrow \star \\
+\end{array}
+}{
+\Gamma \vdash \lambda [ \I{rsigs} ].\, \{ \I{rmods} \} :_P
+\exists \overline{(m_P = \CK)}\, \overline{\CT}.\,
+\forall \overline{(m_R = \alpha)}\, \overline{\beta}\, \overline{r}.\,
+\Sigma_R \rightarrow \Sigma_P
+\elab{e}
+}
+\]
+The component typing rule is simply elaborates the signature,
+and then typechecks the module bodies with the signature in the
+context.  For technical reasons, the module declaration returns
+the \emph{already skolemized} type variables.
+\caption{Component typing}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{
+$\Gamma \vdash \I{rsigs} \leadsto \exists \overline{\alpha}\, \overline{\beta}\, \overline{r}.\, \Sigma$
+}
+
+\[
+\Gamma \vdash \varepsilon \leadsto \{ \}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\alpha~\mbox{fresh}\\
+\Gamma \vdash \I{rsig} \leadsto \exists \overline{\beta}\, r.\, \sigma \\
+\Gamma, m \Rightarrow \alpha, \overline{\beta}, r, m : \sigma \vdash \I{rsigs} \leadsto \exists \overline{m' = \alpha'}\, \overline{\beta'}\, \overline{r'}.\, \{\overline{m' : \sigma'}\} \\
+\end{array}
+}{
+\Gamma \vdash (m : \{ \I{rsig} \}; \I{rsigs}) \leadsto \exists (m = \alpha)\, \overline{(m' = \alpha')}\, \overline{\beta}\, \overline{\beta'}\, r\, \overline{r'}.\, \{ m : \sigma, \overline{m' : \sigma'} \}
+}
+\]
+Lifts out existentials, allocating a fresh $\alpha$ to represent
+the module identity of the unknown module implementing a signature.
+\caption{Signature binding elaboration}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{
+$\Gamma \vdash \I{rsig} \leadsto \exists \overline{\beta}\, r.\, \sigma$
+}
+
+\[
+\Gamma \vdash \varepsilon \leadsto \exists r.\, \record{r}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\Gamma \vdash \I{rsigd} \leadsto \exists \overline{\beta}.\, \{ \overline{n :: \I{ty}} \} \\
+\Gamma, \overline{\beta}, \overline{n :: \I{ty}} \vdash \I{rsig} \leadsto \exists \overline{\beta'}\, r.\, \{ \overline{n' :: \I{ty}'} \} \\
+\end{array}
+}{
+\Gamma \vdash (\I{rsigd}; \I{rsig}) \leadsto \exists \overline{\beta}\, \overline{\beta'}\, r.\, \{ \overline{n :: \I{ty}}, \overline{n' :: \I{ty}'} \}
+}
+\]
+\caption{Signature elaboration}
+\end{figure}
+
+
+\begin{figure}[H]
+\fbox{$\Gamma \vdash \I{rsigd} \leadsto \exists \overline{\beta}.\, \I{\sigma}$}
+
+\[
+\Gamma \vdash \mathbf{data}~n \leadsto \exists \beta.\, \{ n :: [= \beta] \}
+\]
+
+\[
+\frac{
+\Gamma \vdash T : \star \leadsto \tau
+}{
+\Gamma \vdash \mathbf{data}~n = n_c~\{ n_d :: T \}
+    \leadsto
+\exists \beta.\,
+\{ n :: [=\beta], n_c :: [\tau \rightarrow \beta], n_d :: [\beta \rightarrow \tau] \}
+}
+\]
+
+\[
+\frac{
+\Gamma \vdash T : \star \leadsto \tau
+}{
+\Gamma \vdash \mathbf{type}~n = T \leadsto \{ n :: [= \tau] \}
+}
+\]
+
+\[
+\frac{
+\Gamma \vdash T : \star \leadsto \tau
+}{
+\Gamma \vdash n :: T \leadsto \{ n :: [\tau] \}
+}
+\]
+\caption{Signature declaration elaboration}
+\end{figure}
+
+
+\begin{figure}[H]
+\fbox{$\Gamma \vdash \RN \leadsto \tau$}
+
+\[
+\frac{
+\Gamma(n) = [= \tau]
+}{
+\Gamma \vdash n \leadsto \tau
+}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\Gamma \vdash \RM : \sigma \\
+\sigma(n) = [= \tau]
+\end{array}
+}{
+\Gamma \vdash \RM.n \leadsto \tau
+}
+\]
+\caption{Name path elaboration (for types)}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{$\Gamma \vdash \RN : \tau \elab{e}$}
+
+\[
+\frac{
+\Gamma(n) = \tau
+}{
+\Gamma \vdash n : \tau \elab{n}
+}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\Gamma \vdash \RM : \sigma \elab{e} \\
+\sigma(n) = \tau
+\end{array}
+}{
+\Gamma \vdash \RM.n : \tau \elab{e.n}
+}
+\]
+\caption{Name path typing}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{$\Gamma \vdash \RM : \sigma \elab{e}$}
+
+\[
+\frac{
+\Gamma(m) = \sigma
+}{
+\Gamma \vdash m : \sigma \elab{m}
+}
+\]
+
+\[
+\frac{
+\Gamma \vdash M : \sigma \Rightarrow \nu \elab{e}
+}{
+\Gamma \vdash M : \sigma \elab{e}
+}
+\]
+
+\caption{Module path typing}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{$\Gamma \vdash M : \sigma \Rightarrow \nu \elab{e}$}
+
+\[
+\frac{
+\begin{array}{c}
+\Gamma \vdash P : \Sigma \Rightarrow [m = \nu, \ldots] \elab{e} \\
+\Sigma(m) = \sigma
+\end{array}
+}{
+\Gamma \vdash \Mod{P}{m} : \sigma \Rightarrow \nu \elab{e.m}
+}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\Gamma(m) \Rightarrow \alpha \\
+\Gamma(m) = \sigma
+\end{array}
+}{
+\Gamma \vdash \hv{m} : \sigma \Rightarrow \alpha \elab{m}
+}
+\]
+This judgment also computes the phantom type variable
+which represents the type in question.
+
+\caption{Module identity typing}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{$\Gamma \vdash P : \Sigma \Rightarrow [\overline{m = \nu}] \elab{e}$}
+
+\[
+\frac{
+\begin{array}{c}
+\Gamma(p) = \forall \overline{(m_i = \alpha_i)}\, \overline{\beta}\, \overline{r}.\, \Sigma_R \rightarrow \Sigma_P \\
+\overline{\Gamma(p.m_j) \Rightarrow \CK_j} \\
+\forall i.\quad \Gamma \vdash M_i : \sigma_i \Rightarrow \nu_i \elab{e_i} \\
+\Gamma \vdash \{ \overline{m_i : \sigma_i} \} = \exists \overline{\beta}\, \overline{r}.\, \substw{\Sigma_R}{\overline{\alpha_i \mapsto \nu_i}} \uparrow \overline{\tau}, \overline{c} \\
+\end{array}
+}{
+\Gamma \vdash p[\overline{m_i = M_i}] : \substw{\Sigma_P}{\overline{\alpha_i \mapsto \nu_i}, \overline{\beta \mapsto \tau}} \Rightarrow [\overline{m_j = \CK_j~\overline{\nu_i}}] \elab{ p~\overline{\alpha_i = \nu_i}~\overline{\tau}~\overline{c}~\{\overline{m_i = e_i} \} }
+}
+\]
+
+\caption{Instantiated component identity typing}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{$\Gamma \vdash \Sigma = \exists \overline{\beta}\, \overline{r}.\, \Sigma' \uparrow \overline{\tau}, \overline{c} $}
+
+\[
+\frac{
+\Sigma = \substw{\Sigma'}{\overline{\beta \mapsto \tau}, \overline{r \mapsto c}}
+}{
+\Gamma \vdash \Sigma = \exists \overline{\beta}\, \overline{r}.\, \Sigma' \uparrow \overline{\tau}, \overline{c}
+}
+\]
+
+Critically, every $\beta$ has kind $\star$ (or, if it has
+a higher kind, it must unify with a variable of the same kind,
+as Haskell lacks type-level lambda).  Thus, $\beta$ and $r$ can
+be solved via ordinary unification.
+
+(In contrast, F-ing modules had a complex notion of \emph{explicitness}
+and \emph{validity}. We do not need these features, as we don't
+support functor signatures; however, a simplified form of \emph{rootedness}
+does hold for our signatures.)
+
+\caption{Signature matching}
+\end{figure}
+
+
+\begin{figure}[H]
+\fbox{$\Gamma \vdash \I{rmods} :_P \exists \overline{(m = \CK)}\, \overline{\CT}.\, \Sigma \elab{e}$}
+
+\[
+\Gamma \vdash \varepsilon :_P \{ \} \elab{ \{\}}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\overline{\Gamma(m_R) \Rightarrow \alpha} \\
+\CK : [\overline{m_R : \KM}] \rightarrow \KM~\mbox{fresh}\\
+\Gamma \vdash \I{rmod} :_P \exists \overline{\CT}.\, \sigma \elab{e_1} \\
+\Gamma, \overline{\CT}, m : \sigma \vdash \I{rmods} :_P \exists \overline{(m' = \CK')}\, \overline{\CT'}.\, \Sigma' \elab{e_2} \\
+\end{array}
+}{
+\begin{array}{c}
+\Gamma \vdash (m : \{ \I{rsig} \}; \I{rsigs}) :_P \exists (m = \CK)\, \overline{(m' = \CK')}\, \overline{\CT}\, \overline{\CT'}.\, \{ m : \sigma \,|\, \Sigma' \} \\
+\elab{
+\begin{array}{l}
+\textsf{unpack}~\langle \overline{\CT}, y_1 \rangle = e_1~\textsf{in} \\
+\textsf{unpack}~\langle \overline{(m' = \CK')}\, \overline{\CT'}, y_2 \rangle = e_2~\textsf{in} \\
+\textsf{pack}~\langle \overline{(m = \lambda \overline{\nu}.\, \{\})\, (m' = \CK')}\, \overline{\CT}\, \overline{\CT'}, \lambda \Gamma.\, \{ m = y_1~\Gamma \,|\, y_2~(\Gamma, \overline{\CT}, y_1\,\Gamma : \sigma) \} \rangle
+\end{array}
+}
+\end{array}
+}
+\]
+
+The witness type for the phantom $\CK$ doesn't matter so we just pick $\lambda \overline{\nu}.\, \{\}$.  Note we don't put the fresh $\CK$ in the context as it is impossible for it to be used.
+
+\caption{Module binding typing}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{
+$\Gamma \vdash \I{rmod} :_P \exists \overline{\CT}.\, \sigma \elab{e}$
+}
+
+\[
+\Gamma \vdash \varepsilon :_P \{ \} \elab{\lambda\tyenv.\, \{\}}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\Gamma \vdash \I{rmodd} :_P \exists \overline{\CT}.\, \{ \overline{n :: \I{ty}} \} \elab{e_1} \\
+\Gamma, \overline{\CT}, \overline{n :: \I{ty}} \vdash \I{rmod} :_P \exists \overline{\CT'}. \{ \overline{n' :: \I{ty}'} \} \elab{e_2} \\
+\end{array}
+}{
+\Gamma \vdash (n :: \I{rmodd} ; \I{rmod}) :_P \exists \CT\, \overline{\CT'}.\, \{ \overline{n' :: \I{ty}'}, \overline{n :: \I{ty}} \} \elab{\begin{array}{l}
+\textsf{unpack}~\langle \overline{\CT}, y_1 \rangle = e_1~\textsf{in}\\
+\textsf{unpack}~\langle \overline{\CT'}, y_2 \rangle = e_2~\textsf{in}\\
+\textsf{pack}~\langle \overline{\CT}\, \overline{\CT'},\\
+\quad\lambda \Gamma.\, \textsf{let}~\overline{n = (y_1~\Gamma).n}~\textsf{in} \\
+\quad\quad \{ \overline{n' = (y_2~(\Gamma, \overline{\CT}, \overline{n :: \I{ty}})).n'}, \overline{n = n} \} \rangle
+\end{array}}
+}
+\]
+
+\caption{Module typing}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{$\Gamma \vdash \I{rmodd} :_P \exists \overline{\CT}.\, \I{\sigma}$}
+
+\[
+\frac{
+\begin{array}{c}
+\Gamma \vdash T : \star \leadsto \tau \\
+\end{array}
+}{
+\begin{array}{c}
+\Gamma \vdash (\mathbf{data}~n = n_c~\{ n_d :: T \})
+    :_P
+\exists \CT.\,
+\{ n :: [ = \CT~\Gamma]; n_c :: [\tau \rightarrow \CT~\Gamma]; n_d :: [\CT~\Gamma \rightarrow \tau] \} \\
+\elab{
+\textsf{pack}~\langle
+\lambda \tyenv.\, \tau,
+\lambda \tyenv.\, \{n = [\tau], n_c = \lambda x : \tau.\, x, n_d = \lambda x : \tau.\, x\} \rangle
+}
+\end{array}
+}
+\]
+
+\[
+\frac{
+\Gamma \vdash T : \star \leadsto \tau
+}{
+\Gamma \vdash (\mathbf{type}~n = T) :_P \{ n :: [ = \tau ] \}
+\elab{\lambda \tyenv.\, \{ n = [\tau] \}}
+}
+\]
+
+\[
+\frac{
+\Gamma \vdash E :: \tau \elab{e}
+}{
+\Gamma \vdash n = E :_P \{ n :: \tau \} \elab{\lambda \tyenv.\, \{ n = [e] \}}
+}
+\]
+\caption{Module declaration typing}
+\end{figure}
+
+\subsection{Soundness}
+
+We can now show soundness of the F-ing semantics by showing that the
+elabaration only produces well-typed terms of the target language.
+
+\begin{theorem}[Soundness of elaboration]
+We have:
+\begin{enumerate}
+    \item If $\Gamma \vdash T/\RN : \star \leadsto \tau$, then $\Gamma \vdash \tau : \star$.
+    \item If $\Gamma \vdash E/\RN : \tau \leadsto e$, then $\Gamma \vdash e : \tau$.
+    \item If $\Gamma \vdash P : \Sigma \leadsto e$, then $\Gamma \vdash e : \Sigma$.
+    \item If $\Gamma \vdash M/\RM : \sigma \leadsto e$, then $\Gamma \vdash e : \sigma$.
+    \item If $\Gamma \vdash \I{rsigs}/\I{rsig}/\I{rsigd} \leadsto \xi$, then $\Gamma \vdash \xi : \star$.
+    \item If $\Gamma \vdash \I{rmods} :_P \exists \overline{\CK}\, \overline{\CT}.\, \Sigma \leadsto e$, then $\cdot \vdash e : \exists \overline{\CK}\, \overline{\CT}.\, \forall \Gamma.\, \Sigma$.
+    \item If $\Gamma \vdash \I{rmod} :_P \exists \overline{\CT}.\, \sigma \leadsto e$, then $\cdot \vdash e : \exists \overline{\CT}.\, \forall \Gamma.\, \sigma$.
+    \item If $\Gamma \vdash \I{rmodd} :_P \exists \overline{\CT}.\, \sigma \leadsto e$, then $\cdot \vdash e : \exists \overline{\CT}.\, \forall \Gamma.\, \sigma$.
+    \item If $\Gamma \vdash \I{rcomp} :_P \exists \overline{\CK}\, \overline{\CT}.\, \xi \leadsto e$, then $\cdot \vdash e : \exists \overline{\CK}\, \overline{\CT}.\, \forall \Gamma.\, \xi$.
+\end{enumerate}
+\end{theorem}
+
+This combined with soundness of the target language establishes soundness of the
+entire language.
+
+\end{document}

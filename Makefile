@@ -1,2 +1,2 @@
 paper.pdf:
-	pdflatex main.tex
+	texwrapper -l --format pdflatex main.tex

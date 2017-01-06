@@ -1,0 +1,497 @@
+\documentclass{article}
+
+\usepackage{mdframed}
+
+\include{macros}
+
+\begin{document}
+
+\special{papersize=8.5in,11in}
+\setlength{\pdfpageheight}{\paperheight}
+\setlength{\pdfpagewidth}{\paperwidth}
+
+\title{HM-ing Modules}
+
+\maketitle
+
+\noindent
+LESSONS LEARNED\@:
+
+If the translation is type directed, if you don't have types, you gonna
+have a bad time.
+
+When we lift generative abstraction to top level, need to know all
+type variables in scope at the time.  Absent types, may be difficult
+to know what is available.
+
+\vspace{1em}
+\hrule{}
+\vspace{1em}
+
+
+Conventional wisdom states that type inference and module systems do not
+mix.  Evidence for this fact includes (1) the presence of a
+\emph{subtyping} relation between module signatures---subtyping can
+destroy principle types and the ability to do inference, and (2) the
+philosophical principle that you really should write explicit signatures
+at the module level---that's the whole point!
+
+In this paper, we claim that \emph{complete} type inference is possible
+for a module system which only has applicative functors.  We do so by
+elaborating our module language to Hindley-Milner with (generative)
+algebraic data types and (structural) Leijen-style records.  This
+approach is inspired by F-ing modules, but we don't elaborate into
+System $\mathrm{F}_\omega$, which does not admit type inference, but HM,
+which does.
+
+There are two key ideas: first, the absence of generative functors means
+in an F-ing style formalism, existentials can always be lifted to
+the top-level.  Thus, rather than repeatedly pack and unpack existentials,
+during our elaboration we directly add declarations to the global context
+instead of introducing an existential.  Second, the use of row polymorphism
+means that there is no need for a subtyping relation between signatures:
+thus, the constraints can be solved entirely with unification.
+
+\section{Hindley-Milner with newtypes and row polymorphism}
+
+The target of our elaboration will be Hindley-Milner extended with
+top-level declarations for generative type abstraction (i.e., Haskell
+\textsf{newtype}, although in our presentation a newtype declaration
+comes with a pair of functions witnessing the coercions) and Leijen
+records (as described in ``Extensible records with scoped labels'').
+
+\textsf{newtype}s will be used to bootstrap generative type abstraction
+in our module language, while Leijen records will be used to encode
+modules (which are handled structurally).  For simplicity, we don't
+handle algebraic data types, which would require a bit of finesse to
+encode into Leijen records.
+
+\[
+\begin{array}{lrcll}
+\mbox{Term variables} &&\in& x, f \\
+\mbox{Type constructors} &&\in& T \\
+\mbox{Type variables} &&\in& a, r \\
+\mbox{Labels} &&\in& m, n, l \\
+\mbox{Kinds} & \kappa &::=& \star & \mbox{Type} \\
+       && | & \kappa \rightarrow \kappa & \mbox{Type constructor} \\
+       && | & \row & \mbox{Row} \\
+\mbox{Monotypes} & \tau, c &::=& a & \mbox{Type variable} \\
+      && | & \tau \rightarrow \tau & \mbox{Function type} \\
+      && | & \rowty{} & \mbox{Empty row} \\
+      && | & \rowty{l : \tau \,|\, c} & \mbox{Row extension} \\
+      && | & \record{c} & \mbox{Record constructor} \\
+      && | & T~\overline{\tau} & \mbox{Type constructor} \\
+\mbox{Type schemes} & \sigma &::=& \forall \overline{a}.\, \tau \\
+\mbox{Expressions} & e &::=& x \\
+ && | & \lambda x : \tau.\, e \\
+ && | & e~e \\
+ && | & \{\} \\
+ && | & \{ l = e \,|\, e \} \\
+ && | & e.l \\
+\mbox{Declarations} & \I{decl} &::=& \multicolumn{2}{l}{\mathsf{newtype}~T~\overline{(a : \kappa)} = n_c~\{ n_d : \tau \}} \\
+\mbox{Program binding} & \I{bnd} &::& \I{decl} ~|~ f = e \\
+\mbox{Programs} & \I{prog} &::=& \overline{\I{bnd}} \\
+\end{array}
+\]
+%
+(In principle all type declarations can be floated to the beginning, but
+it is convenient to be able to intersperse them, and can be useful if
+you allow top-level shadowing.)
+
+Syntax sugar:
+
+\[
+\begin{array}{lcl}
+\{ l_1 : \tau_1, l_2 : \tau_2, \ldots \} &::=& \record{\rowty{ l_1 : \tau_1 \,|\, \rowty { l_2 : \tau_2 \,|\, \ldots}\,}}
+\end{array}
+\]
+%
+Interesting kinding rules:
+
+\[
+\Gamma \vdash \{\} : \row
+\]
+
+\[
+\frac{
+\Gamma \vdash \tau : \star \qquad
+\Gamma \vdash r : \row
+}{
+\Gamma \vdash \rowty{l : \tau \,|\, r} : \row
+}
+\]
+
+\[
+\frac{
+\Gamma \vdash c : \row
+}{
+\Gamma \vdash \record{c} : \star
+}
+\]
+%
+Interesting typing rules:
+
+\[
+\Gamma \vdash \{\} : \{ \}
+\]
+
+\[
+\frac{
+\Gamma \vdash e : \tau \qquad
+\Gamma \vdash e' : \record r
+}{
+\Gamma \vdash \{ l = e \,|\, e' \} : \{ l : \tau \,|\, r \}
+}
+\]
+
+\[
+\frac{
+\Gamma \vdash e : \tau \qquad
+\Gamma \vdash e' : \record{r}
+}{
+\Gamma \vdash \{ l = e \,|\, e' \} : \{ l : \tau \,|\, r \}
+}
+\]
+
+\[
+\frac{
+\Gamma \vdash e : \{ l : \tau \,|\, r \}
+}{
+\Gamma \vdash e.l : \tau
+}
+\]
+%
+Newtypes introduce constructors and destructors to environment.
+
+\[
+\frac{
+\Gamma,
+(n_c : \forall \overline{(a : \kappa)}.\, \tau \rightarrow T~\overline{a}),
+(n_d : \forall \overline{(a : \kappa)}.\, T~\overline{a} \rightarrow \tau)
+\vdash \I{prog}
+}{
+\Gamma \vdash \mathsf{newtype}~T~\overline{(a : \kappa)} = n_c~\{ n_d : \tau \}; \I{prog}
+}
+\]
+%
+Equality on record types (Leijen-style):
+
+\[
+\frac{
+\tau_1 \equiv \tau_2 \qquad
+\tau_2 \equiv \tau_3
+}{
+\tau_1 \equiv \tau_3
+}
+\]
+
+\[
+\frac{
+\tau \equiv \tau' \qquad
+r \equiv r'
+}{
+\{ l : \tau \,|\, r \} \equiv \{ l : \tau' \,|\, r' \}
+}
+\]
+
+\[
+\frac{
+l \neq l'
+}{
+\{ l : \tau, l' : \tau' \,|\, r \} \equiv \{ l' : \tau', l : \tau \,|\, r' \}
+}
+\]
+
+\section{The module language}
+
+\begin{figure}[H]
+\[
+\begin{array}{lrcll}
+\mbox{Identifiers} &  & \in & f, m, n \\
+\mbox{Types} & \I{Ty} &::=& \cdots \\
+             &        & | & P & \mbox{Type path} \\
+\mbox{Expressions} & E &::=& \cdots \\
+                   &   & | & P & \mbox{Expression path} \\
+\mbox{Paths} & P &::=& n \\
+             &   & | & f\, m \\
+             &   & | & m.n \\
+\mbox{Modules} & M &::=& \overline{B} \\
+\mbox{Bindings} & B &::=& n=E \\
+                &   & | & \mathbf{type}~n=\I{Ty} \\
+                &   & | & \mathbf{newtype}~n=n_c~\{ n_d : \I{Ty} \} \\
+\mbox{Signatures} & S &::=& \overline{D} \\
+\mbox{Declarations} & D &::=& n :: \I{Ty} \\
+                    &   & | & \mathbf{type}~n \\
+                    &   & | & \mathbf{type}~n=\I{Ty} \\
+                    &   & | & \mathbf{newtype}~n=n_c~\{ n_d : \I{Ty} \} \\
+\mbox{Functors} & F &::=& \mathbf{fun}~(m : S) \Rightarrow F \\
+                &   & | & M \\
+\mbox{Program} & \I{Fs} &::=& \overline{f = F} \\
+\end{array}
+\]
+\end{figure}
+
+\section{Static semantics}
+
+
+\paragraph{Semantic objects} We start by defining our semantic signatures:
+
+\begin{figure}[H]
+\[
+\begin{array}{rcl}
+\I{ty} &::=& [ = \tau : \kappa ] \\
+       & | & [ \tau ] \\
+\I{tys} &::=& \{ \overline{n : \I{ty}} \}\\
+\I{sig} &::=& \{ \overline{n : \I{ty}} \,|\, r \}\\
+\Sigma &::=& \I{sig} \rightarrow \Sigma ~|~ \I{tys} \\
+%   \Xi    &::=& \exists (\rho_P : \{ \overline{m = \KM^i \rightarrow \KM} \} )\,
+%                        \overline{(\beta_P : \star^j \times \KM \rightarrow \star)}.\,
+%                \forall (\rho_R : \{ \overline{m = \KM}^i \})\,
+%                        \overline{(\beta_R : \star)}^j. \\
+%          &   & \qquad \Sigma_R \rightarrow \Sigma_P \\
+\end{array}
+\]
+\caption{Semantic signatures}
+\end{figure}
+
+\paragraph{The rules}
+
+Here is the type system for this language.  Here are all the judgments
+we must specify:
+
+\begin{figure}[H]
+\[
+\begin{array}{ll}
+\mbox{Type elaboration} &\Delta; \Gamma \vdash \I{Ty} : \kappa \leadsto \tau \\
+\mbox{Expression elaboration} &\Delta; \Gamma \vdash E : \tau \elab{e} \\
+\mbox{Path elaboration} & \Delta; \Gamma \vdash P : \Sigma \\
+\mbox{Module elaboration} & \Delta; \Gamma \vdash M : \overline{\I{decl}} \Rightarrow \I{tys} \elab{e} \\
+\mbox{Binding elaboration} & \Delta; \Gamma \vdash B : \overline{\I{decl}} \Rightarrow \I{tys} \elab{e} \\
+\mbox{Signature elaboration} & \Delta; \Gamma \vdash S \leadsto \I{tys} \\
+\mbox{Signature declaration elaboration} & \Delta; \Gamma \vdash D \leadsto \I{tys} \\
+\mbox{Functor elaboration} & \Delta; \Gamma \vdash F : \overline{\I{decl}} \Rightarrow \Sigma \elab{e} \\
+\mbox{Program elaboration} & \Delta \vdash \I{Fs} \elab{\I{prog}} \\
+\end{array}
+\]
+\caption{Judgments for typing}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{
+$\Delta \vdash \I{Fs} \elab{\I{prog}}$
+}
+
+\[
+\Delta \vdash \varepsilon \elab{\varepsilon}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\Delta; \varepsilon \vdash F : \overline{\I{decl}} \Rightarrow \Sigma \elab{e} \\
+\overline{a} = \I{fv}(\Sigma) \\
+\Delta, \overline{\I{decl}}, (f : \forall \overline{a}.\, \Sigma) \vdash \I{Fs} \elab{\I{prog}'}\\
+\end{array}
+}{
+\Delta \vdash f = F; \I{Fs}
+\elab{\overline{\I{decl}}; f = e; \I{prog}'}
+}
+\]
+
+\caption{Program elaboration}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{
+$\Delta; \Gamma \vdash F : \overline{\I{decl}} \Rightarrow \Sigma \elab{e}$
+}
+
+\[
+\frac{
+\begin{array}{c}
+\Delta; \Gamma \vdash_M M : \overline{\I{decl}} \Rightarrow \I{tys} \elab{e} \\
+\end{array}
+}{
+\Delta; \Gamma \vdash M : \overline{\I{decl}} \Rightarrow \I{tys} \elab{e}
+}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\Delta; \Gamma \vdash S \leadsto \{ \overline{n : \I{ty}} \} \\
+\I{sig} = \{ \overline{n : \I{ty}} \,|\, r \} \qquad
+r~\mbox{fresh} \\
+\Delta; \Gamma, m : \I{sig} \vdash F : \overline{\I{decl}} \Rightarrow \Sigma \elab{e} \\
+\end{array}
+}{
+\Delta; \Gamma \vdash (\mathbf{fun} (m : S) \Rightarrow F) : \overline{\I{decl}} \Rightarrow \I{sig} \rightarrow \Sigma \elab{\lambda (m : \I{sig}).\, e}
+}
+\]
+
+\caption{Functor elaboration}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{
+$\Delta; \Gamma \vdash S \leadsto \I{tys}$
+}
+
+\[
+\Delta; \Gamma \vdash \varepsilon \leadsto \{ \}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\Delta; \Gamma \vdash D \leadsto \{ \overline{n : \I{ty}} \} \\
+\Delta; \Gamma, \overline{n : \I{ty}} \vdash S \leadsto \{ \overline{n' : \I{ty}'} \} \\
+\end{array}
+}{
+\Delta; \Gamma \vdash (D; S) \leadsto \{ \overline{n' : \I{ty}'}, \overline{n : \I{ty}} \}
+}
+\]
+\caption{Signature elaboration}
+
+THIS IS NOT CORRECT, $n$ needs to be brought into scope.
+\end{figure}
+
+\begin{figure}[H]
+\fbox{
+$\Delta; \Gamma \vdash D \leadsto \I{tys}$
+}
+
+\[
+\frac{
+\Delta; \Gamma \vdash \I{Ty} : \star \leadsto \tau
+}{
+\Delta; \Gamma \vdash n :: \I{Ty} \leadsto \{ n : [ \tau ] \}
+}
+\]
+
+\[
+\frac{
+a~\mbox{fresh}
+}{
+\Delta; \Gamma \vdash \mathbf{type}~n \leadsto \{ n : [ = a : \star ] \}
+}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\Delta; \Gamma \vdash \I{Ty} : \star \leadsto \tau \\
+\end{array}
+}{
+\Delta; \Gamma \vdash \mathbf{type}~n = \I{Ty} \leadsto
+    \{ n : [ = \tau : \star ]
+    \}
+}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+a~\mbox{fresh} \\
+\Delta; \Gamma \vdash \I{Ty} : \star \leadsto \tau \\
+\end{array}
+}{
+\Delta; \Gamma \vdash \mathbf{newtype}~n = n_c~\{ n_d : \I{Ty} \} \leadsto
+    \{ n : [ = a : \star ]
+     , n_c : [\tau \rightarrow a]
+     , n_d : [a \rightarrow \tau]
+    \}
+}
+\]
+\caption{Signature declaration elaboration}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{
+$\Delta; \Gamma \vdash M : \overline{\I{decl}} \Rightarrow \I{tys} \elab{e}$
+}
+
+\[
+\Delta; \Gamma \vdash \varepsilon : \{\} \elab{\{\}}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+\Delta; \Gamma \vdash B : \overline{\I{decl}} \Rightarrow \{ \overline{ n : \I{ty} } \} \elab{e_1} \\
+\Delta; \Gamma, \overline{\I{decl}}, \overline{n : \I{ty}} \vdash M : \overline{\I{decl'}} \Rightarrow \{ \overline{ n' : \I{ty}'} \} \elab{e_2}
+\end{array}
+}{
+\Delta; \Gamma \vdash (B; M) : (\overline{\I{decl}}, \overline{\I{decl}'}) \Rightarrow \{ \overline{n : \I{ty}}, \overline{n' : \I{ty}'} \}
+\elab{ \{ \overline{n' = e_2.n'}, \overline{n = e_1.n} \} }
+}
+\]
+\caption{Module elaboration}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{
+$\Delta; \Gamma \vdash B : \overline{\I{decl}} \Rightarrow \I{tys} \elab{e}$
+}
+
+\[
+\frac{
+\Delta; \Gamma \vdash E : \tau \elab{e}
+}{
+\Delta; \Gamma \vdash n = E : \{ n : \tau \} \elab{\{ n = [e] \}}
+}
+\]
+
+\[
+\frac{
+\Delta; \Gamma \vdash T \leadsto \tau
+}{
+\Delta; \Gamma \vdash \mathbf{type}~n = \I{Ty} : \{ n : [= \tau : \star] \} \elab{\{ n = [= \tau : \star] \}}
+}
+\]
+
+\[
+\frac{
+\begin{array}{c}
+T~\mbox{fresh} \\
+\Delta; \Gamma \vdash \I{ty} : \star \leadsto \tau \\
+\overline{a} = \I{fv}(\Gamma) \\
+\end{array}
+}{
+\begin{array}{l}
+\Delta; \Gamma \vdash \mathbf{newtype}~n = n_c~\{ n_d : \I{Ty} \} \\
+\quad    : (\mathsf{newtype}~T~\overline{a} = n_c~\{ n_d : \tau \}) \Rightarrow \\
+\quad    \{ n : [ = T~\overline{a} : \star ], n_c : \tau \rightarrow T~\overline{a} , n_d : T~\overline{a} \rightarrow \tau \} \\
+\elab{\{
+n = [ = T~\overline{a} : \star ],
+n_c = [ n_c ],
+n_d = [ n_d ]
+\} }
+\end{array}
+}
+\]
+
+\caption{Binding elaboration}
+\end{figure}
+
+\begin{figure}[H]
+\fbox{
+$\Delta; \Gamma \vdash P : \Sigma \leadsto e$
+}
+
+\[
+\frac{
+\Gamma(n) = \tau
+}{
+\Delta; \Gamma \vdash n : \tau \elab{n}
+}
+\]
+
+\caption{Path elaboration}
+\end{figure}
+
+In principle, it should be possible to support sealing, but we need a stronger
+form of top-level type abstraction (able to abstract over values as well as
+types.)
+
+\end{document}

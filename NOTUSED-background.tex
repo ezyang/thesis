@@ -1,0 +1,117 @@
+\chapter{Setting the stage}
+
+\paragraph{What is Backpack trying to solve?} Backpack asks the
+question, ``How can we add ML-like support for programming against
+interfaces to Haskell?''  While one approach might be to directly
+\emph{add} ML functors to Haskell as an extension, \Red{it wouldn't let
+us write very many papers, and} this would be setting the bar too low:
+ML functors are considered a ``heavy-weight'' language feature in no
+small part due to a preponderance of sharing constraints.  Furthermore,
+it is not possible to support mutually recursive linking using functors.
+Backpack addressed these problems with an applicative, mix-in module
+system which operated at the package level, rather than the module
+level.
+
+\paragraph{What are the problems with Backpack?}  While the original
+Backpack paper argued that it was a practical design to retrofit on
+Haskell, in fact, it did not adequately address many important,
+non-obvious design constraints which we discovered in the course of implementing
+Backpack.  In the following subsections, we spend some time
+explaining implementation-induced constraints on the design of a
+module system for Haskell.
+
+\subsection{Respect the compilation / package manager boundary}
+
+Traditionally, the way most users build programs in Haskell is not by
+invoking the compiler (GHC) directly, but invoking a package manager
+(Cabal).  The compiler is responsible for building individual modules,
+while the package manager is responsible for building and installing
+entire packages.  These two pieces of software are decoupled and
+developed independently by different (only somewhat overlapping) teams.
+
+As a \emph{package} system, Backpack must integrate not only with
+the compiler, but also the package manager.  This is especially true
+in an applicative module system, where components which have been
+instantiated in the same way must be shared, even when they are compiled
+as part of disparate projects: managing this deduplication is squarely
+in the package manager's domain.
+
+The original Backpack paper stylizes itself as a ``package language''
+rather than a module language, but it fails to uphold this division
+in its semantics: shaping is a process that should be carried out
+by the package manager, but it requires fairly detailed knowledge
+about Haskell source code.
+
+\subsection{Optimizing against dependencies}
+\label{sec:optimizing}
+
+Today, the compiled interfaces of Haskell modules can record the source
+code of an expression, to allow a user of this interface to
+\emph{inline} the function in question.  This can help performance quite
+a bit, especially when a module defines many small functions: inlining
+exposes optimization opportunities.
+
+A major goal we set is that modular development in Backpack should have
+similar performance characteristics: you should not pay a performance
+tax when you abstract some code over a signature.  A consequence of this
+is that when we instantiate a package with mix-in linking, we need to
+recompile it for the correct dependencies.  Compare this to Haskell's
+type classes: functions using a type class are not specialized without
+requesting inlining.
+
+The primary implication of this goal is that it is far less important to
+ensure that a package with some signatures can be directly linked
+against its implementation; we can assume that when this linking occurs,
+the compiler is going to re-compile (and re-typecheck!) the combined
+entity.  The original Backpack design was completely oblivious to this fact.
+
+\subsection{Instantiate packages, not modules}
+\label{sec:instantiate-pkgs}
+
+In the traditional Cabal model, dependencies declared for a package
+affect all modules in the package, even if not all of the modules
+actually (transitively) import them.  Thus, the dependency structure of
+packages is manifestly clear without having to look at Haskell source
+code, and a package can be compiled as a whole into a library file
+(e.g., an \verb|so| or \verb|a| file), which then can be linked in
+statically or dynamically by existing operating system facilities.
+These properties should be preserved by Backpack.
+
+The original Backpack design failed this property: modules had
+their dependencies on signatures tracked individually, which would have
+made it very difficult to actually compile a package into a single
+shared library.\footnote{The situation gets even worse if one suggests
+that each declaration should be considered a module.}  Furthermore, you
+could not tell what the requirements of a module were without inspecting
+the import graph.
+
+\subsection{Incremental compilation}
+
+When we make a change to Haskell source code, GHC only needs to recompile
+any source code which may have (transitively) imported this source:
+it can completely skip processing all other modules.  However, the
+original Backpack paper defined a declaration shaping pass which had
+to be computed on all modules before typechecking could proceed.  This
+pass could not be easily incrementalized (as the act of merging shapes
+could cause unification to occur) and was also completely unnecessary
+in the vast majority of cases, as declaration shaping is really only
+necessary to solve the double-vision problem which occurs during when
+one has mutually recursive modules.\footnote{If one is willing to
+specify ahead of time what the shape is, as is implicitly the case with GHC's
+\texttt{hs-boot}, no shaping is necessary even with recursion.}
+
+In the absence of mutual recursion, we can eliminate this extra shaping
+pass and solve the recompilation problem in one fell swoop.
+
+% It is simple to dodge this bullet, however: shaping is only necessary in
+% the presence of mutual recursion.
+
+\subsection{Migration}
+
+There is already a large amount of code published in the Haskell
+ecosystem, and it would be unreasonable to expect everyone to switch
+over to Backpack overnight.  Dependencies specified by Backpack
+signatures (indirect dependencies) must coexist with traditional
+\verb|build-depends| dependencies (direct dependencies, modulo
+dependency solving).  The original Backpack paper said nothing about
+how to deal with this case.

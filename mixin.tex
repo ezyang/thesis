@@ -1,0 +1,336 @@
+%!TEX root = paper.tex
+\chapter{Mixin linking} %  to the \ir{}
+\label{sec:mix-in}
+
+We now formalize mixin linking and describe some of its properties.
+In particular, we define two major operations
+on component shapes: $\textsf{link}()$, which wires up the components in
+two shapes, and $\textsf{rnthin}()$, which thins and renames the input
+and output ports of a shape; then, we say how to mixin link a
+\ccomp{}.
+
+\subsection{Preliminaries}
+
+\begin{definition}[Module substitutions]  \normalfont{} A module substitution of
+the form $S ::= \overline{\subst{m}{M}}$ can be applied to a semantic object $x$
+with the notation $\substw{x}{S}$ (using double brackets).  The application of substitution is functorial for most semantic objects, but we give some representative cases below:
+\label{fig:mixin-substs}
+\[
+\begin{array}{rcl}
+  \substw{(\icid{p}{S})}{S'} &=_P& \icid{p}{\substw{S}{S'}} \\
+  \substw{\holevar{m}}{\cdot} &=_M& \holevar{m} \\
+  \substw{\holevar{m}}{\subst{m}{M}, S} &=_M& M \\
+  \substw{\holevar{m}}{\subst{m'}{M}, S} &=_M& \substw{\holevar{m}}{S} \quad (m \neq m') \\
+  \substw{(\Mod{P}{m})}{S} &=_M& \Mod{\substw{P}{S}}{m} \\
+  \substw{(\overline{\subst{m}{M}})}{S} &=_{S}& \overline{\subst{m}{\substw{M}{S}}} \\
+  \substw{(M.n)}{S} &=_\UN& \substw{M}{S}.n \\
+  \substw{(\overline{\prov{m}{M}})}{S} &=_\provs& \overline{\prov{m}{\substw{M}{S}}}  \\
+  \substw{(\overline{m : \tau})}{S} &=_\Sigma& \overline{m : \substw{\tau}{S}} \\
+  \substw{(\UsynDep{P}{r})}{S} &=_{\Uudecl}& \UsynDep{\substw{P}{S}}{r} \\
+% \substw{
+%   \left(\begin{matrix}
+%       \UsynSig{m}{\Uhssig} \\
+%       \textsf{with}~\overline{\Mod{P}{m}}
+%   \end{matrix}\right)
+%   }{S}
+%   &=_{\Uudecl}&
+%       \begin{matrix}
+%           \UsynSig{m}{\Uhssig} \\
+%           \textsf{with}~\overline{\Mod{\substw{P}{S}}{m}}
+%       \end{matrix}  \\
+\substw{(\UobjTau{\UNs}{\overline{\Uty}})}{S} &=_\tau&
+\UobjTau{\substw{\UNs}{S}}{\overline{\substw{\Uty}{S}}} \\
+\end{array}
+\]
+%   If you are familiar with
+%   explicit substitutions, the case for $P$ may strike you as a bit odd: we
+%   can get away with a simplified composition rule because $S$ is assumed to
+%   close over all module variables in $p$.
+\end{definition}
+
+\noindent
+For example, $\substw{(\MOD{p}{A=\hv{A}}{X})}{\subst{A}{\hv{B}}}$ is
+equal to $\MOD{p}{\subst{A}{\hv{B}}}{X}$.
+An important case where substitution does \emph{not} occur
+is $\substw{\nhv{m.n}}{\subst{m}{\hv{m'}}}$:
+the result is $\nhv{m.n}$, not $\nhv{m'.n}$.
+
+%   \begin{definition}[Module variables] \normalfont{}
+%   $\Theta ::= \overline{\hv{m}}$ denotes a series of module variables,
+%   usually in a context or quantifier.  For example, $\forall \Theta.\,
+%   \provs \equiv \forall \overline{\hv{m}}.\, \provs$ represents a component shape.  A substitution $S$ takes an
+%   expression in context $\Theta$ to context $\Theta'$, where $\Theta$ is
+%   the domain of $S$ and $\Theta'$ are the free module variables of $S$.
+%   \end{definition}
+
+Not all syntactic component shapes are well-formed.  Our definition of
+well-formedness rules out any ``funny business'':
+
+\begin{definition}[Well-formedness of component shapes] \normalfont{}
+A shape $\lctxpair{\provs}{\reqs}$ is well-formed if:
+\begin{enumerate}
+\item It does not provide a module variables
+(there is no $m$ such that $\hv{m} \in \textsf{range}(\provs)$),
+e.g., $\lctxpair{\{\prov{B}{\hv{A}}\}}{\hv{A}}$ is ill-formed,
+\item It does not require what it provides (no $m$
+s.t. $\hv{m} \in \reqs$ and $m \in \textsf{dom}(\provs)$),
+e.g., $\lctxpair{\{\prov{A}{\MOD{p}{}{A}}\}}{\hv{A}}$ is ill-formed,
+\item It is closed; e.g.,
+$\lctxpair{\{\prov{B}{\MOD{p}{\subst{A}{\hv{C}}}{B}}\}}{\hv{A}}$ is ill-formed.
+\end{enumerate}
+A well-formed shape is not necessarily well-typed.
+\end{definition}
+
+\subsection{Linking component shapes}
+
+%   \[
+%   \begin{array}{lcl}
+%     \lift{(\overline{m})} &=&
+%       \overline{\subst{m}{\holevar{m}}} \\
+%     \lift{(\overline{m \mapsto m'})} &=&
+%       \overline{\subst{m}{\holevar{m'}}} \\
+%   \end{array}
+%   \]
+%   \Scott{In multiple places we implicitly use $r$ as an $S$. The above lifting
+%   should actually take place. But is it necessary to write the lifting operation
+%   explicitly? Yuck. Instead of $\uparrow$ notation in both lifting cases, we
+%   can just say it's implicit.}
+
+\begin{definition}[Linking on two component shapes] \normalfont{}
+\label{fig:unification}
+We define $\textsf{link}(\lctxpair{\provs}{\reqs}, \lctxpair{\provs'}{\reqs'})$,
+the mixin linking operation on two well-formed component shapes, as follows:
+\begin{enumerate}
+    \item Unify $\reqs$ with $\provs'$, producing substitution $S'$.  (Observe that $\textsf{dom}(S')$ is disjoint from $\Theta'$, by property (2) of well-formedness.)
+    \item Unify $\substw{\provs}{S'}$ with $\substw{\reqs'}{S'}$, producing substitution $S''$.
+    %\item Unify $\substww{\provs}{S'}{S''}$ with $\substww{\provs}{S'}{S''}$, producing substitution $S'''$.
+    %\item Let $S = S''' \circ S'' \circ S'$ (the composition of substitutions.)
+    \item Let $S = S'' \circ S'$ (the composition of substitutions.)
+    \item Return new substitution $S$ and shape \[ \lctxpair{\substw{\provs}{S} \uplus \substw{\provs'}{S}}{(\reqs \cup \reqs' - \textsf{dom}(S))} \]
+\end{enumerate}
+%
+Unification between $\reqs$ and $\provs$ entails unifying every $\hv{m} \in \reqs$
+with $M$ such that $m \mapsto M \in \provs$.  $\uplus$ is a union which requires
+the domains of each $\provs$ to be disjoint.
+%   Unifying $\provs$ and $\provs'$
+%   entails unifying every $M$ and $M'$ such that $m \mapsto M \in \provs$ and
+%   $m \mapsto M' \in \provs$.
+Unification on module identities is defined
+in the usual way.
+This operation can lifted to $n$-ary linking by successive linking.
+
+%   Note that this definition makes it an
+%   error to bring to provisions into scope which have non-equal
+%   module identities ($\uplus$); a more sophisticated way to
+%   define this operation is to defer this error until this
+%   provision is actually used to fill a requirement.
+\end{definition}
+
+Here are two useful properties about the $\textsf{link}()$ operation:
+
+\begin{lemma}[Linking preserves well-formedness] \normalfont{}
+If $\lctx$ and $\lctx'$ are well-formed, then
+$\textsf{link}(\lctx, \lctx')$ is well-formed.
+\end{lemma}
+
+%   \begin{lemma}[Linking is commutative] \normalfont{} $\textsf{link}(\lctx, \lctx') = \textsf{link}(\lctx', \lctx)$
+%   \end{lemma}
+\begin{lemma}[Well-formed component shapes form a commutative monoid] \normalfont{}
+Let the join operation be $\textsf{link}()$ (made total by outputting a distinguished ``failure shape'' in the case of error) and the bottom element be the empty shape.  Then the following properties hold for all well-formed shapes:
+\begin{enumerate}
+    \item Associativity: $\textsf{link}(\textsf{link}(\lctx, \lctx'), \lctx'') = \textsf{link}(\lctx, \textsf{link}(\lctx', \lctx''))$
+    \item Commutativity: $\textsf{link}(\lctx, \lctx') = \textsf{link}(\lctx', \lctx)$
+    \item Identity: $\textsf{link}(\lctx, \{\}) = \lctx$
+\end{enumerate}
+\end{lemma}
+
+The proof of associativity relies critically on the fact that it is a failure
+to link two component shapes which provide the same module name, even if the
+provided module identities happen to be the same.
+
+\subsection{Thinning and renaming component shapes}
+
+%   There is an interesting counterexample showing that linking is not
+%   associative:
+
+%   \begin{enumerate}
+%   \item $\{ \prov{A}{\cidl{p}[]} \}$
+%   \item $\lctxpair{ \prov{B}{\Mod{\cidl{q}[\subst{A}{\hv{A}}]}{B}}, \prov{C}{\Mod{\cidl{q}[\subst{A}{\hv{A}}]}}{C} }{\hv{A}}$
+%   \item $\{ \prov{B}{\Mod{\cidl{q}[\subst{A}{\cidl{p}[]}]}{B}} \}$
+%   \end{enumerate}
+
+%   Linking (1) and (2), and then (3) works, but linking (2) and (3) does
+%   not, as the provisions are required to 
+
+\begin{definition}[Thinning and renaming component shapes] \normalfont{}
+We define $\textsf{rnthin}$ on a well-formed shape $\lctx$, a total
+module renaming $r_R$ and a partial module renaming $r_P$ as follows:
+\label{def:rnthin}
+  \[
+  \begin{array}{l@{\;\;=\;\;}l}
+    \Frename{r_R}{\lctx}{r_P}
+    % \substw{\substw{r_P^{-1}}{\provs}}{r_R}
+    & \lctxpairx%
+        {\overlinej{\prov{r_P(m'_j)}{\substw{M'_j}{r_R}}}}
+        {\overlinei{\holevar{r_R(m_i)}}} \\
+    \multicolumn{2}{l}{\quad \textsf{where}} \\
+    \multicolumn{2}{@{\qquad}l}{
+      \left\{\begin{array}{l}
+        \lctx \;\;=\;\; \lctxpair%
+          {\{\overlinej{\prov{m'_j}{M'_j}}, \overlinek{\prov{m''_k}{M''_k}}\}}%
+          {\overlinei{\holevar{m_i}}} \\
+        \textsf{dom}(r_P) = \overlinej{m'_j} \\
+      \end{array}\right.
+    } \\
+  \end{array}
+  \]
+%
+Intuitively, $r_R$ applies a renaming on all of the input ports of
+the component shape, while $r_P$ applies a renaming on the output ports
+of a component shape.  $r_R$ must be total because we are not allowed
+to ``drop'' any requirements; furthermore when we rename a requirement
+we must also rename each reference to it in the provided $M$s.  $r_P$
+does not have to be total, and the resulting output ports of the
+component shape will only be those mentioned in $r_P$.
+
+For example, if you have a component shaped
+$\lctxpairx{\provMOD{A}{p}{\subst{A}{\holevar{B}}}{A},
+\provMOD{C}{q}{}{C} }{\modname{B}}$ and you apply the renaming
+$(\Sas{A}{X})$ $\texttt{requires}$ $(\Sas{B}{Y})$, we should get a new shape
+$\lctxpairx{\provMOD{X}{p}{\subst{A}{\holevar{Y}}}{A}}{\modname{Y}}$.
+\end{definition}
+
+\begin{lemma}[Thinning and renaming preserves well-formedness] \normalfont{}
+If $\lctx$ is well-formed, for all total $r_R$ and partial $r_P$,
+$\Frename{r_R}{\lctx}{r_P}$ is well-formed.
+\end{lemma}
+
+\subsection{Component mixin linking}
+
+\begin{figure}
+
+
+\fbox{$\shctx \vdash \Scomp \leadsto \Uunit \haspr \lctx$}
+
+\[
+\frac{
+\begin{array}{c}
+  % \prereqs = \Freqs{\mathtt{component}\: p\: \{ \overline{I_i}^i; \overline{D_j}^j \}} \qquad
+  % P = p(\prereqs) \\
+  P = p[\reqs] \qquad
+  \forall i:\; \shctx; P \vdash \Sdecl_i \leadsto \Uudecl_i \haspr \lctx_i \\
+  (\lctx, S) = \Flink{\overlinei{\lctx_i}} \qquad
+  \lctxpair{\provs}{\reqs} = \lctx \qquad
+  % \provs = \{\overlinej{m_j \mapsto M_j}\}\qquad
+  r_P = \overlinei{\Fprovs{\Sdecl_i}} \\
+\end{array}
+}{
+\begin{array}{@{}r@{\;\;}c@{\;\;}l@{}}
+  \shctx \vdash \Scomponent{p}{\overlinei{\Sdecl_i}}
+    &\leadsto& \UsynUnit{p}{\reqs}{\overlinei{\substw{\Uudecl_i}{S}}}
+  \\
+    &\haspr& \Frename{\,\cdot\,}{\lctx}{r_P}
+\end{array}
+}
+\]
+\\
+
+
+\fbox{$\shctx; P \vdash \Sdecl \leadsto \Uudecl \haspr \lctx$}
+
+%   \[
+%   \begin{array}{rcll}
+%   &\vdash_\mathsf{ex}& \verb|exposed-module|\: m &\Rightarrow (m, m) \\
+%   &\vdash_\mathsf{ex}& \verb|reexported-module|\: m_0\: \mathtt{as}\: m &\Rightarrow (m_0, m) \\
+%   \end{array}
+%   \]
+\[
+\frac{
+\begin{array}{c}
+p \haspr \lctx \in \Delta \qquad
+\lctx = \lctxpair{\provs}{\reqs} \\
+(r_R, r_P) = \textsf{getrns}(\lctx, \I{rns}) \qquad
+\lctx' = \Frename{r_R}{\lctx}{r_P}
+\end{array}
+}{
+\begin{array}{l@{\;\;}l}
+\shctx; P \vdash&\Sinclude{p}{\I{rns}} \leadsto \\
+&\UsynDep{p[r_R]}{r_P} \haspr \lctx'
+\end{array}
+}
+\]
+\[
+\begin{array}{l@{\;\;}l}
+  \shctx; P \vdash&\Sexposed{m}{\Uhsbody} \leadsto \\
+    & \UsynMod{m}{\Uhsbody} \;\;\haspr\;\; \{\provMod{m}{P}{m}\} \\
+  \shctx; P \vdash&\Sother{m}{\Uhsbody} \leadsto \\
+    & \UsynMod{m}{\Uhsbody} \;\;\haspr\;\; \{\provMod{m}{P}{m}\} \\
+  \shctx; P \vdash&\Srequired{m}{\Uhssig} \leadsto \\
+    & \UsynSig{m}{\Uhssig} \;\;\haspr\;\; \lctxpairx{\shnull}{\hv{m}} \\
+  \shctx; P \vdash&\Sreexported{m}{m'} \leadsto \\
+    & \varnothing \;\;\haspr\;\; \{\} \\
+\end{array}
+\]
+\caption{Component mixin linking. We implicitly lift $\Theta = \overline{\protect\hv{m}}$
+into a substitution $\overline{\protect\subst{m}{\protect\hv{m}}}$.}
+\label{fig:mix-in}
+\end{figure}
+
+Given $\textsf{link}()$ and $\textsf{rnthin}()$, we are well equipped to say how to mixin link
+an entire \ccomp{} (Figure~\ref{fig:mix-in}).  Our general strategy will be to compute the
+component shape of every $\I{rdecl}$ (as well as its elaboration to
+$\mdecl$) and link them all together in the component judgment,
+combining all of the $\mdecl$s together to form the final
+elaborated \unit{}.  There is an auxiliary definition (Definition~\ref{def:provs})
+which computes the final renaming on the provisions of the
+component, so that only \texttt{exposed-module}s and \texttt{reexported-modules}
+are exposed to the world.
+
+The rules for shaping modules and signatures are straightforward: a
+module $m$ provides the module identity $\Mod{P}{m}$, where $P$ is the
+component identity of the component currently being shaped; a signature
+$m$ adds a requirement $\hv{m}$.  The rule for includes is more
+interesting: we look up the shape of the included unit from the context ($\shctx$),
+and then rename it according to the user provided renamings $\I{rns}$.
+There is an auxiliary definition (Definition~\ref{def:getrns}) for
+translating renaming syntax into a pair of module renamings.
+
+Our presentation of the judgment is slightly
+nondeterministic in that it assumes we know the set of requirements
+$\Theta$ upfront to compute $P$; however it's easy to see that $P$ is
+only used for the module identities assigned to module declarations, and
+thus does not actually affect the final requirements of a component.
+
+\subsection{Auxiliary definitions}
+
+\begin{definition}[Interpretation of thinning and renaming] \normalfont{}
+\label{def:getrns}
+\[
+  \begin{array}{l@{\;\;=\;\;}l}
+    \textsf{getrns}(\lctxpair{\provs}{\reqs}, [\Slparen\overline{\I{rn}_P}\Srparen]~[\texttt{requires}~ \Slparen\overline{\I{rn}_R}\Srparen])
+    & (r_P, r_R)
+  \end{array}
+\]
+The syntactic \texttt{include} declaration specifies renamings for
+provisions and requirements, but users are allowed to omit a renaming
+altogether (in which case everything is brought into scope) or give
+only a partial requirement renaming (in which case the requirement
+renaming is extended to be total over $\reqs$.)
+\textsf{getrns} simply computes the appropriate $r_R$ and $r_P$
+given this syntax.
+\end{definition}
+
+\begin{definition}[Interpretation of exposed/reexported modules] \normalfont{}
+\label{def:provs}
+\[
+  \begin{array}{l@{\quad=\quad}l}
+    \Fprovs{\Sexposed{m}{\_}} & \prov{m}{m} \\
+    \Fprovs{\Sreexported{m}{m'}} & \prov{m}{m'} \\
+    \Fprovs{\_} & \cdot \\
+  \end{array}
+\]
+Only modules specified with \texttt{exposed-module} or
+\texttt{reexported-\allowbreak{}module} should be put in the final shape of
+a component.  \textsf{provs} computes the appropriate $r_P$ based
+on these declarations.
+\end{definition}

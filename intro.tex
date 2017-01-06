@@ -1,0 +1,117 @@
+%!TEX root = paper.tex
+\chapter{Introduction}
+
+The universal organizing principle for large software systems in
+programming languages today is the \emph{package}, the unit by which
+reusable code may be versioned and distributed.  However, most package systems
+provide only a weak form of modularity, where packages depend directly
+on other packages.  A stronger form of modularity would
+support \emph{separate modular development}, where a package may be
+typechecked against an \emph{interface} of its dependency.  While
+such facilities have been implemented as extensions to the core
+language (e.g., the ML module system), these extensions say little
+about modularity in the \emph{package language}, which is generally
+independent from the core language and implemented by a separate tool.
+
+The Backpack package system~\cite{backpack}
+(hereafter called \OldBackpack{}) broke new ground, arguing that \emph{mixin
+packages} could be a good fit for providing package-level modularity.
+Mixin packages consist of defined modules (provisions) and declared
+signatures (requirements); these packages can be combined together
+through a process of mixin linking, which wires up provisions with
+requirements.  Mixin packages fit very naturally into the existing
+patterns of use for packages. Moreover, since they extend only the package
+language they can be retrofitted onto Haskell without requiring ``yet
+another type system extension.''  Finally, mixin linking helps avoid the
+preponderance of \emph{sharing constraints}
+and the so-called ``fully-functorized'' style commonly associated with
+ML functors.
+
+There is just one problem: \OldBackpack{} was never implemented.  Worse, it
+cannot be implemented---at least, not as an extension to the package
+manager.  The problem is that the semantics of \OldBackpack{} were closely entwined
+with the semantics of Haskell itself. It did not respect the
+traditional abstraction barrier between the compiler and package
+manager---a direct implementation would require close coupling between
+the two.
+
+Thus motivated, we describe how to divide
+\OldBackpack{} across the abstraction barrier between the package manager and
+the compiler; we call our system \Backpack{}.  We consider separately the problem of
+\emph{mixin linking}, which is indifferent to Haskell source code, and
+the problem of \emph{typechecking against interfaces}, which is purely
+the concern of the compiler.  To focus the paper, we do not address
+mutual recursion between packages, allowing us to avoid some orthogonal
+technical complications. We believe that in practice this is a minor
+limitation.
+
+Specifically, our contributions are as follows:
+\begin{itemize}
+
+    \item On the package manager side, we describe the new,
+    unordered package language users program in Section~\ref{sec:tour}, and
+    show how to \emph{mixin link} this language while being indifferent
+    to the contents of Haskell source files (Sections~\ref{sec:overview-mixin} and~\ref{sec:mix-in}).  We achieve
+    this by recasting mixin linking as the process of computing a
+    \emph{wiring diagram} which describes how the requirements of depended upon
+    components are \emph{instantiated}.  In fact, the algorithm
+    is essentially equivalent to early descriptions of mixin linking
+    in the literature; the difference
+    is that the structure of these wiring diagrams serve as the
+    basis for type equality in the compiler.  Mixin linking produces
+    an intermediate representation, the \emph{\unit{} language}, which
+    mediates between the compiler and the package manager.
+
+  \item On the compiler side, we describe how to typecheck a
+    \unit{} when its requirements are unfilled (Section~\ref{sec:overview-compiler}) and how to
+    subsequently compile it when it is instantiated (Section~\ref{sec:overview-instantiate}).
+    These operations require only modest changes to GHC\@, specifically
+    the ability to compute the type of an \iunit{}.
+    We provide a declarative typing judgment for \unit{}s,
+    acting as a specification for the implementation of the former process.
+    (Section~\ref{sec:compiler}).
+
+%     This
+%   operation is only relevant to typechecking: when compiling, we
+%   assume every instantiated component dependency has already been
+%   compiled, so that finding the type of an instantiated component a trivial lookup in the
+%   context.
+%   However, as a
+%   sanity check for our semantics, we show that successful
+%   typechecking implies successful compilation in the absence of
+%   features of like type classes.
+
+%   \item It is nontrivial to specify what it means for a program using
+%   mix-in modules that can \emph{merge requirements} to be
+%   non-recursive, as requirement merging can introduce non-obvious
+%   circularity. We define a condition under which requirements are
+%   recursive, and give some visual intuition for it. (Section)
+
+    \item We have implemented our design in the GHC compiler and the
+    Cabal package manager.\footnote{See PC chair for link to open source release.}
+    Though the true test of \Backpack{} would be
+    ``Backpack''ing in the wild and seeing how it can be used, we give
+    some evidence that \Backpack{} works by
+    Backpack'ifying two substantial, real world Haskell packages,
+    alongside a menagarie of synthetic test cases written in an alternate
+    implementation of mixin linking which is implemented entirely
+    by the compiler
+    (Section~\ref{sec:evaluation}).
+
+\end{itemize}
+%
+Although the idea of separating the core language and the module/package
+language is not novel~\cite{leroy:modular,milner+:def-of-sml-revised,rossberg+:f-ing}, we are the first to exploit these ideas in service
+of an actual implementation, retrofitting strong modularity to an existing
+programming language.  Some significant tasks remain to complete \Backpack{}
+(Section~\ref{sec:limitations}),
+but we have enough experience working with \Backpack{} that we believe that
+this design is practical.
+
+
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "paper"
+%%% End:

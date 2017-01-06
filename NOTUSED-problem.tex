@@ -1,0 +1,195 @@
+%!TEX root = paper.tex
+\section{The problem}
+
+\Red{I don't know where to put in comparisons to Backpack. I might
+compromise by inserting a forward reference somewhere to related
+work. But where?!}
+\Scott{As written, this section seems to be setting up the exact
+same problem as the POPL paper. Shouldn't the problem here have
+something to do with the limitations of the other? Something like
+needing to abstract over the whole module level while simultaneously
+separating the concerns into package manager vs., compiler?}
+
+At the beginning of this project, we posed ourselves the question, ``How
+can we add ML-like support for programming against interfaces to
+Haskell?''  The obvious thing to do would be to simply \emph{add} ML
+functors to Haskell as an extension to Haskell's existing modules,
+which serve mostly as a weak namespacing system.  But this is setting
+the bar too low:
+
+\begin{itemize}
+    \item ML functors (as distinguished from the functor type class
+    in Haskell) are known to have difficulties dealing with
+    recursive linking, where two functors recursively depend on
+    one another.  Recent work has shown that systems based on
+    \emph{mix-in linking} can overcome this problem, while simultaneously
+    subsuming the functionality of ML modules.
+
+    \item One of the biggest reasons ML functors are considered a
+    ``heavy-weight'' language feature is because of tricky issues like
+    sharing constraints.  Here is an example from (\Red{cite Paulson, ML for the
+    working programmer}):  \Red{I think it is a
+    disservice to the casual, non-ML using reader to not have an example
+    to illustrate the problem, but at the same time, I fear it will take
+    too much column space to adequately explain this.}
+
+\begin{verbatim}
+signature IN = sig
+  structure PQueue : PRIORITY_QUEUE
+  type problem
+  val goals : problem -> PQueue.t
+end
+
+signature OUT = sig
+  structure PQueue : PRIORITY_QUEUE
+  type solution
+  val solve : PQueue.t -> solution
+end
+
+functor MainFunctor
+    ( structure In : IN and Out : OUT
+      sharing In.PQueue = Out.PQueue ) = struct
+  fun tackle p = Out.solve (In.goals p)
+end
+\end{verbatim}
+
+    The sharing constraint \verb|In.PQueue = Out.PQueue| is necessary to
+    ensure that the \verb|PQueue| in both signatures refer to the same
+    type, so that the body of \verb|MainFunctor| type checks.  It is
+    often difficult to explain to beginners when a sharing constraint is
+    necessary.
+
+    A more natural style is to have \verb|IN| and \verb|OUT| be
+    parametrized by \verb|PQueue|, but it has been observed that such a
+    design results in an explosion of plumbing parameters to functors.
+    (\Red{cite ATTAPL Harper design of module systems, also the
+    original paper on this subject.}) Mix-in linking
+    side-steps the problem by utilizing the namespace to
+    \emph{implicitly} instantiate these parameters.
+
+    \item \Red{We need an air-tight argument for applicativity, because
+    it is \emph{applicativity} that forces you into the
+    stratified design.  I think Scott picked applicativity because, in
+    mix-in linking, instantiation is ``obscured from sight''; so it's
+    hard to tell when something is instantiated and easier to explain if
+    this process is not generative.  It also affords more flexibility on
+    deciding when to instantiate something, because you can decide to
+    instantiate now, or instantiate later, without cost (commutativity
+    of instantiation and linking, as Scott puts it).  But I couldn't
+    figure out how to get this paragraph to work, because OCaml
+    \emph{does} have (limited) applicative functors, and most of the
+    literature is decidely ambivalent on whether or not this is a good
+    thing or not.  Or if we look at Derek's old WG2.8 slides on why
+    applicativity matters, modular type classes are the killer app, but
+    we don't really support modular type classes so we can't argue this
+    as a motivation.} \Scott{That modular type classes are a killer
+    app of applicativity is another instance of applicativity's utility
+    when instantiation is obscured from sight. The instantiation
+    there is done implicitly as it is with mixin linking.}
+
+\end{itemize}
+
+\Red{OK, I know the following text is way too informal, and it can't be
+right to start the paper off by describing some hypothetical syntax
+which isn't even what we actually implemented, but I needed to write
+something down, so here it is.}
+
+``OK,'' you say, ``So all we need to do is implement ML-style functors
+in GHC, but with mix-in linking and applicative semantics.  Seems
+straightforward enough!''  And maybe you look at the previous Backpack
+paper and say, ``All of this business with packages is all
+very well and good, but ML managed to implement their module system
+entirely within the compiler, so Haskell should be able to too.''
+So maybe you design a new source file format for GHC (or maybe even
+extend the existing Haskell files to support mix-in linking via imports)
+and go away and try to implement it in GHC\@.
+
+\begin{figure}[t]
+\centering
+\includegraphics[keepaspectratio,width=3.8in]{./problem.eps}
+\caption{\emph{The applicative sharing problem.} When two separate packages b and
+c can independently instantiate a component (A) in the same way (HImpl), applicativity
+demands that both instantiations be type-equal (if not implementation-equal).  In
+a traditional model where the compiler is called once per package, who is ultimately
+responsible for building the instantiated version of the code? \Red{Replace me with a real diagram.}}
+\label{fig:problem}
+\end{figure}
+
+But there's a problem: \emph{applicative sharing}. Consider the
+situation in Figure~\ref{fig:problem}:  we have two, independently
+written packages which both want to instantiate a component (A) in the
+same way (HImpl).  Applicativity demands that both instantiations
+represent precisely the same type, and thus, a very natural thing to
+want is for the two packages to \emph{share} the instantiated component.
+But how should this sharing be arranged?  Package b may be compiled
+completely independently from package c (perhaps many days later,
+perhaps in parallel).  A traditional compiler is solely responsible for
+transforming source files into object code: it has no good way of
+arranging for this sharing.
+
+Faced with this problem, there are number of obvious approaches one
+might apply:
+
+\begin{itemize}
+
+    \item \emph{Why not just duplicate the code in the two packages?} In
+    a generative module system, this is a very obvious way to implement
+    functor instantiation.  However, when we are applicative, this
+    proposition is much more delicate: applicativity specifies that the
+    types between these two copies are the same, so the code generated
+    in each case better be the same or bad things will happen.
+    Duplicating code also increases compile times (you end up repeatedly
+    recompiling components with the same instantiation), increases
+    library sizes and requires a deduplication step at link-time.  This
+    approach simply does not scale for large systems.
+
+    \item \emph{Why not compile A only once?}  This breaks
+    optimizations!  As a functional language, Haskell encourages
+    programmers to write small definitions.  It would be terrible for
+    performance if we actually had to make a function call in such
+    cases, so GHC aggressively inlines code to allow for low cost
+    abstraction.  This strongly encourages us to \emph{recompile} a
+    module after it gets instantiated (so that we can take advantage of
+    optimization opportunities).  If we never recompile A, we are forced
+    to inline it at the use-sites to expose optimization opportunities.
+    In fact, this is exactly what is needed to optimize \emph{type
+    classes}: every user of a type class must explicitly specialize (or
+    declare themselves inlinable) to enable optimizations against the
+    implementation of an interface. \Scott{It's not totally clear
+    that by ``compile A only once'' you mean ``compile A abstractly
+    against H'', ie, that the inlined definitions you want to include in
+    compilation are those that it got from HImpl, not something particular
+    to packages b or c. Because even with applicative sharing, you only compile
+    A (against HImpl) only once, right?}
+
+    \item \emph{Why not use a just-in-time compiler, so that you can
+    delay instantiation to link-time?}  This is an obvious follow-on
+    to the previous solution.  Indeed, it is a good idea (and may
+    explain, to some degree, the prevalance of mix-ins in languages like
+    Scala which are implemented on top of JIT compilers); however,
+    support for ahead-of-time compilation is a feature of GHC and not
+    one we can get rid of.
+
+    \item \emph{Why not use a whole-program compiler, so that you can
+    identify the duplication?}  Whole program
+    compilers occupy only one spot of the design curve trading off
+    compilation time for performance (GHC, an incremental compiler,
+    occupies another); it would be bad to introduce a language feature
+    which could \emph{only} be reasonably compiled by a whole-program
+    compiler.
+
+\end{itemize}
+
+The trick to solving this problem is to observe that there already is a
+piece of software that solves this problem: the \emph{package manager}
+\Red{ugh naming!  Using the word package too much here.},  which is
+responsible for building a graph of components to be built and then
+invoking the compiler repeatedly to build them.  The inexorable
+conclusion is that Backpack is not a compiler feature (with some
+adjustments to the package manager to handle it); it is a \emph{package
+manager} feature (with some adjustments to the compiler to handle it.)
+\Red{Some sort of better bridge is needed here into the next section,
+including something about why this is an interesting solution.}
+
+\Red{OK, so, there are other problems.  But I am afraid that tacking
+them on here, we will muddy what the ``good idea'' of this is.}

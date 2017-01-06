@@ -1,0 +1,142 @@
+%!TEX root = paper.tex
+\chapter{Related Work}
+
+\paragraph{Comparison with \OldBackpack{}}  The inspiration for this
+work was the original Backpack paper~\cite{backpack}.  Backpack was
+first to pose the problem of retrofitting Haskell with interfaces, and
+many of its design ideas, such as mixin packages, applicativity and
+module identities have been preserved in this paper.  The contribution
+of this paper is an actual \emph{implementation} of the
+Backpack design, by refactoring of these ideas into a form that can be
+implemented in two stages: mixin linking handled by the package manager,
+and typechecking and compilation handled by the compiler.
+
+This refactoring necessitated a change to one of the core definitions
+in the package language: in \OldBackpack{}, type equality was based on
+a per-module computed \emph{module identity}.  In effect, every
+defined module separately kept track of the set of signatures that it
+transitively imported.  If mixin linking is not allowed to inspect
+source code, the notion of identity must be coarsened. In this paper,
+\emph{instantiated component identities} track all of the requirements
+in the component, which are computed during mixin linking.
+
+A technical accomplishment of the original Backpack was a solution to
+the ``double vision problem'', where the typechecker can see two
+distinct names for the same underlying type in a mutually recursive
+module.  In Backpack, this problem was solved by way of a ``shaping pass'' which
+first computed the identities of what we call name variables prior to type
+checking.  In this paper, we do not permit
+mutual recursion; thus, the double vision problem does not occur,
+and our ``shaping pass'' only computes a very coarse-grained shape
+on the overall wiring structure of components.  From this wiring
+structure, \Backpack{} can compute the correct identities for
+name variables at the same time as type checking.
+
+We have also taken a different approach to defining the semantics of
+\Backpack{}.  Instead of elaborating to Haskell, which is not how you would ever
+implement a Backpack-like system, we give an ad hoc semantics which
+directly reflects how \Backpack{} has been implemented in GHC\@.
+
+\paragraph{Modularity in the package manager}  While there is far more
+literature on module systems that can be implemented entirely by a
+compiler, there has been some work which has looked at the problem of
+modular development at the package level.
+
+One such system
+is the Functoria DSL\footnote{\smaller \url{https://mirage.io/blog/introducing-functoria}}
+of MirageOS~\cite{mirageos}.  MirageOS is a library operating system
+written in OCaml, which provides modules and functors for constructing
+unikernels.  Rather than manually instantiate these functors,
+users write in the Functoria DSL, which describes what
+dependencies to install (via the OCaml package manager) and how the ML
+functors should be assembled.  Unlike \Backpack{}, their DSL follows
+the model of explicit functor applications rather than mixin linking.
+
+The Nix package manager~\cite{dolstra:thesis} is a
+system for enabling reproducible builds of packages. Nix defines a (pure, functional) language of component
+\emph{derivations}---\ie{} the source code and configuration
+needed to build the derived component---%
+functorized over configuration parameters and derivations of
+depended-upon components.  Components are linked together with explicit
+functor application, albeit with some of the syntactic convenience of
+mixin linking.  However, there is no type system for components,
+and thus the Nix output hashes (similar to our \cid{}s) only serve
+the role of uniquely identifying derivations.
+
+The SMLSC extension to Standard ML~\cite{swasey+:smlsc}, while
+primarily intended as a mechanism to support separate compilation in
+Standard ML, also has some similarities to \Backpack{}.  Like
+Backpack, SMLSC operates at the level of \emph{units} (our
+components), and defines interfaces between units to allow them to be
+separately typechecked.  Unlike \Backpack{}, SMLSC does not support
+reusing units with different
+implementations of their interfaces: dependencies in SMLSC are always
+\emph{definite references}, and signatures are used purely to permit
+separate compilation.  In SMLSC, if you want multiple instantiations,
+you are expected to use ML functors.
+
+An unusual case of \emph{not} using a package manager when it would be
+useful occurs in C++ templates.\footnote{\smaller
+  \url{https://gcc.gnu.org/onlinedocs/gcc/Template-Instantiation.html}}
+C++ templates are
+applicative, in the sense that two occurrences of \verb|vector<int>| refer to the
+same type.  However, the C++ compiler must generate code when a
+template is instantiated. Implemented naively, this could result in a
+lot of duplicate copies of code.  One early method of handling this
+problem, ``Cfront model'', involved a template database where
+instances of templates were maintained.  However, it was too
+complicated for most C++ compilers to handle this database, and so the
+usual ``Borland model'' (implemented by GCC, among others) is to just
+recompile every template instantiation and deduplicate them at link
+time.  With Backpack, we already have a package manager, Cabal, which
+administers its own installed package database, so we can offload the
+caching of instantiated components to it.  (This technique would not
+work for C++ templates, whose type based dispatch must be deeply
+integrated with the compiler.)
+
+\paragraph{ML functors}  The original Backpack language distinguished
+itself from ``functors'' in (variants of) the ML module system
+\cite{milner+:def-of-sml-revised,ocaml} by the fact that it supported
+separate type checking for recursive modules under applicative
+instantiation.  Additionally, by being a mixin system, it is a
+better fit for the package language and avoids the need for
+sharing constraints.
+
+As this paper does not address mutual recursion, one may wonder
+if the \unit{} language is not simply just a stylized applicative
+functor language. In fact, it is!  The reason our technical presentation
+is done in the way it is done here is because our primary goal
+was integrating with the existing compiler infrastructure.
+
+\paragraph{Mixin linking} There is a rich literature in the mixin
+linking world, which both Backpack and \Backpack{} draw heavily from
+\cite{ancona+:cms,flatt+:units,rossberg+:mixml}.  Indeed,
+the relationship to this literature is even clearer in \Backpack{}, as
+the mixin linking step is factored out and is independent of the
+Haskell language.  For example, the basic algorithm for linking in
+Cardelli's \emph{linksets} calculus~\cite{cardelli:linksets}, at a
+high level, is essentially the same algorithm as our mixin linking.
+The difference, however, is that we must keep track of the structure
+of the ``wiring diagram'', as this structure will be used to establish
+the identities of types at the Haskell level.  In contrast, Cardelli
+gave no account of the interaction between module-level linking and
+core-level user-defined abstract data types.
+
+The object oriented community has also studied mixin-style composition
+in their designs.  However, these mechanisms are organized around
+dynamic binding and objects; whereas in Backpack-style systems,
+the emphasis is on packages.  Users of \Backpack{} pay no performance
+penalty switching from a direct dependency to an indirect dependency
+via a signature, because we don't do separate compilation of \Backpack{}.
+
+
+
+
+
+
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "paper"
+%%% End:

@@ -1,0 +1,167 @@
+%!TEX root = paper.tex
+\section{Design and implementation constraints}
+
+\Red{This section is now somewhat duplicate with ``The problem'', I haven't
+tried editing very much yet pending feedback on the approach of the problem.
+One delicate thing is that we do want examples in this section, but we need
+to have introduced the syntax first.}
+
+The specific constraints facing the implementation of a mix-in,
+applicative \emph{package} system for Haskell were non-obvious at
+the beginning of this project.  In this section, we spend some time
+explaining the constraints on the design which stemmed from Backpack's
+focus on the package level rather than the module level.
+
+\Red{This section should have forward references but they are missing
+because the sections they should point to don't exist yet}
+
+%   Backpack is a system for mix-in \emph{packages}, not modules, which puts
+%   it in an unusual corner of the design space: it is as much an extension
+%   to Cabal, Haskell's \emph{package manager}, as it is to GHC, in
+%   contrast to most other module systems (ML modules, Scala mix-ins, etc.)
+%   which are strictly compiler affairs.  This is good and bad: it means
+%   that you can actually use Backpack to program against interfaces at the
+%   package level, but, na\"\i vely, it also means you must interact with the
+%   package manager to use Backpack.
+
+%   This does not mean Backpack cannot be used to do ML-style modular
+%   development at the level of modules rather packages.  But the primary
+%   focus of Backpack on a package level rather than a module level
+%   one leads to a number of interesting constraints on the design
+%   and implementation of Backpack, which we will discuss in this section.
+
+\subsection{Optimizing against dependencies}
+\label{sec:optimizing}
+
+\Red{For example, maybe can drop this section now.}
+
+Today, when \verb|mylib| is built against \verb|mysql|, \verb|mylib|
+takes advantage of having an implementation in hand to inline code from
+\verb|mysql|.  This can help performance quite a bit, especially when
+\verb|mysql| defines many small functions, for which inlining exposes
+optimization opportunities.  Backpack should have similar performance
+characteristics, which means that when we instantiate a package with
+mix-in linking, we need to recompile it for the correct dependencies.
+Compare this to Haskell's type classes: functions using a type class are
+not specialized without requesting inlining.
+
+\Scott{This seems like a much clearer explanation of what was described (and
+what I commented on) in the ``problem'' section. If that section becomes more
+about the diff between POPL backpack and ICFP backpack, then this bit here
+seems clearer and better positioned.}
+
+\subsection{Applicativity and the installed package database}
+
+Suppose that you want to combine \verb|myapp| with another application
+which also uses \verb|mylib|:
+
+\begin{verbatim}
+name: otherapp
+version: 1.0
+library
+    build-depends: mylib == 2.*, mysql
+    backpack-includes:
+        mysql (MySQL as Database)
+    exposed-modules: OtherApp
+
+name: multiapp
+version: 1.0
+library
+    build-depends: myapp, otherapp
+    exposed-modules: MultiApp
+\end{verbatim}
+
+In both \verb|myapp| and \verb|otherapp|, \verb|mylib| has been
+instantiated with a \verb|Database| implementation from \verb|mysql|.
+Indeed, you might reasonably assume that the types and values from the
+two instances \verb|mylib| ought to be exactly the same, much in the
+same way that if we hadn't used Backpack signatures and instead gave
+\verb|mylib| a direct dependency on \verb|mysql|, it would obviously be
+shared.  In module systems, this property is called
+\emph{applicativity}, which states that if two mix-in packages are
+instantiated in the same way, they have exactly the same code and types.
+
+The implication of sharing code and types this way is that, as we
+are building a application we have to remember which packages we have
+instantiated globally (since they must be shared.)  In fact, we can
+do better: we can use an \emph{installed package database} to share
+these instantiation across all builds.
+
+\subsection{Instantiate packages, not modules}
+\label{sec:instantiate-pkgs}
+
+In the traditional Cabal model, dependencies declared for \verb|mylib|
+affect all modules in \verb|mylib|, even if not all of the modules
+actually (indirectly) depend on them.  Thus, the dependency structure of
+packages is manifestly clear without having to look at Haskell source
+code, and a package can be compiled as a whole into a library file
+(e.g., an \verb|so| or \verb|a| file), which then can be linked in
+statically or dynamically by existing operating system facilities.
+These properties should be preserved by Backpack.
+
+In fact, the original Backpack design failed this property: modules had
+their dependencies on signatures tracked individually, which would have
+made it very difficult to actually compile a package into a single
+shared library.\footnote{The situation gets even worse if one suggests
+that each declaration should be considered a module.}  Furthermore, you
+could not tell what the requirements of a module were without inspecting
+the import graph.
+
+\subsection{Distinguish between packages and components}
+
+In both traditional Cabal and Backpack, there are two primary
+motivations behind packages.  First, the package is how code is
+distributed: a package consists of a tarball with code and metadata
+which is then uploaded to a package repository.  Second, packages track
+dependencies: a package is the unit of code which another package can
+depend on.
+
+These motivations are sometimes in tension: for example, in Cabal today,
+a user may want to \emph{distribute} a library and a test suite for the
+library in the same package, but want to ascribe different
+\emph{dependencies} two each of these components (the library does not
+depend on a test harness).  Cabal deals with this tension by permitting
+a package (the unit of distribution) to contain multiple components (the
+unit of dependency), as in the following example, where an algorithm
+library and its test suite are distributed together, but the test suite
+has different dependencies:
+
+\begin{verbatim}
+name: algorithm
+version: 1.0
+library
+    build-depends: base, containers
+test-suite prop-compiled
+    build-depends: algorithm, base, QuickCheck
+\end{verbatim}
+
+Backpack continues in this direction: Backpack is not a system for
+mix-in packages but really a system for mix-in \emph{components}.  (It
+just so happens that most packages contain a single component.) The use
+of components allows us to use Backpack in cases where it would be
+painful to make separate packages.  In the rest of this paper, we will
+use the term \emph{component},  as it is the appropriate level of
+granularity, and the problem packages solve (distribution) is out of
+scope for this paper.
+
+\subsection{Incremental compilation}
+
+When we make a change to Haskell source code, GHC avoids recompiling
+any modules which did not depend on that source code: an obviously
+desirable feature!  However, incremental compilation interacts
+poorly with certain features, e.g., a \emph{shaping pre-pass} which
+processes every module first before actually type-checking.
+\Scott{Here, and probably elsewhere, we need to more carefully separate
+what's in the POPL system (eg shaping) and what's in the present system.}
+
+% It is simple to dodge this bullet, however: shaping is only necessary in
+% the presence of mutual recursion.
+
+\subsection{Migration}
+
+There is already a large amount of code published in the Haskell
+ecosystem, and it would be unreasonable to expect everyone to switch
+over to Backpack overnight.  Dependencies specified by Backpack
+signatures (indirect dependencies) must coexist with traditional
+\verb|build-depends| dependencies (direct dependencies, modulo
+dependency solving).

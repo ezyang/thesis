@@ -2,6 +2,8 @@
 \usepackage{suthesis-2e}
 \dept{Computer Science}
 
+\include{macros}
+
 \begin{document}
 \title{Backpack: Towards Practical Mix-in Linking in Haskell}
 \author{Edward Z. Yang}
@@ -11,20 +13,29 @@
 %\thirdreader{Jane Supernumerary} %if needed
 %\fourthreader{Severus Snape} %if needed
 
-\beforepreface
+\beforepreface%
 \prefacesection{Preface}
     (To be written)
 \prefacesection{Acknowledgments}
-    I would like to thank...
-\afterpreface
+    I would like to thank\ldots
+\afterpreface%
 
-\chapter{Introduction}
-     ...
+\input{intro}
+%\input{background}
+\input{tour}
+\input{overview}
+\input{mixin}
+\input{compiler}
+\input{pragmatics}
+\input{related}
+
+
+
 \chapter{Conclusions}
-     ...
+    \ldots
 \appendix
 \chapter{A Long Proof}
-     ...
+     \ldots
 \bibliographystyle{plain}
-\bibliography{mybib}
+\bibliography{references}
 \end{document}
