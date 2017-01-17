@@ -3,7 +3,7 @@
 \label{sec:overview}
 
 \begin{figure}
-\includegraphics{diagrams/pipeline.pdf}
+\center\includegraphics{diagrams/pipeline.pdf}
 \caption{Diagram of the pipeline}\label{fig:pipeline}
 \end{figure}
 
@@ -67,20 +67,20 @@
 \begin{minipage}{\linewidth}
 \begin{alltt}
 component db-dsl-1.0-aaa
- backpack-include: base-4.7-bbb (Prelude)
+ mixin: base-4.7-bbb (Prelude)
  required-signature: Data.ByteString
  required-signature: Db
  exposed-module: DSL.Db
 
 component mysql-indef-1.0-ccc
- backpack-include: base-4.7-bbb (Prelude)
+ mixin: base-4.7-bbb (Prelude)
  required-signature: Data.ByteString
  exposed-module: Db.MySQL
 
 component mysql-dsl-indef-1.0-ddd
- backpack-include: base-4.7-bbb (Prelude)
- backpack-include: db-dsl-1.0-aaa (DSL.Db) requires (Db)
- backpack-include: mysql-indef-1.0-ccc (Db.MySQL as Db)
+ mixin: base-4.7-bbb (Prelude)
+ mixin: db-dsl-1.0-aaa (DSL.Db) requires (Db)
+ mixin: mysql-indef-1.0-ccc (Db.MySQL as Db)
  required-signature: Data.ByteString
  reexported-module: DSL.Db as DSL.Db.MySQL
 \end{alltt}
@@ -93,121 +93,17 @@ component mysql-dsl-indef-1.0-ddd
 \label{fig:resolved-full-comps}
 \end{figure}
 
-%   The problem we are trying to solve 
-
-%   The primary contribution of \Backpack{} is to separate mixin linking and
-%   typechecking against interfaces: mixin linking 
-
-%   Enough syntax, time to explain how it all works.  In Figure~\ref{fig:pipeline}, 
-
 The implementation and semantics of \Backpack{} is structured as a
 series of passes (Figure~\ref{fig:pipeline}) on several intermediate
-languages (Figure~\ref{fig:glossary}).  The key idea is that some of
-these passes can be performed solely by the package manager, without
-inspecting any Haskell code.  In this section, we will give a detailed
-summary of all the phases in this pipeline, starting with the source
-package language described in the previous section, and continuing on to
-two intermediate languages that will serve as the basis for our
-semantic account for \Backpack{}.  Our running example will be a
-simplified version of the final example from the tour (Figure~\ref{fig:composing-requirements}), shown in Figure~\ref{fig:stuff}.
+languages (Figure~\ref{fig:glossary}).  The key idea is that mixin
+linking can be performed solely by the package manager (which we
+pictorially represented as wiring diagrams), without inspecting any
+Haskell code.
 
-% \begin{figure}
-% \[
-% \begin{array}{rcl}
-% m & & \mbox{Module name} \\
-% p, q & & \mbox{\Cid} \\[0.3em]
-% \Uhsbody & & \mbox{Module source} \\
-% \Uhssig & & \mbox{Signature source} \\
-% \Scomp & ::= & \Scomponent{\Up}{\overline{\Sdecl}} \\[0.3em]
-% \Sdecl & ::= & \Sinclude{\Up}{\I{rns}} \\
-%        & |   & \Sexposed{m}{\Uhsbody} \\
-%        & |   & \Sother{m}{\Uhsbody} \\
-%        & |   & \Sreexported{m}{m'} \\
-%        & |   & \Srequired{m}{\Uhssig} \\
-% \I{rns} & ::= & [\Slparen\overline{rn}\Srparen]~[\texttt{requires}~ \Slparen\overline{rn'}\Srparen] \\
-% \I{rn} & ::= & \Sas{m}{m'} \\
-%        & |   & m \\
-% \end{array}
-% \]
-% \caption{Syntax of \ccomp{}s}
-% \label{fig:rcomponents}
-% \end{figure}
-
-% \begin{figure}
-% \begin{verbatim}
-% component db-dsl-1.0
-%   include: base-4.7 (Prelude)
-%   required-signature: Data.ByteString
-%   required-signature: Db
-%   exposed-module: DSL.Db
-
-% component mysql-indef-1.0
-%   include: base-4.7 (Prelude)
-%   required-signature: Data.ByteString
-%   exposed-module: Db.MySQL
-
-% component mysql-dsl-indef-1.0
-%   include: base-4.7 (Prelude)
-%   include: db-dsl-1.0 (DSL.Db) requires (Db)
-%   include: mysql-indef-1.0 (Db.MySQL as Db)
-%   required-signature: Data.ByteString
-%   reexported-module: DSL.Db as DSL.Db.MySQL
-% \end{verbatim}
-% \caption{\Ccomp{}s for \texttt{mysql-dsl-indef-1.0}.  In this example,
-% we've elided source code for signatures and modules and simplified the
-% \cid{}s: in reality, they must record the versions of the dependencies
-% they transitively depend on (usually a hash.) \Scott{It might help to
-% add ``library'' to sample component names to emphasize that these result
-% from resolving the ``library'' component of the packages. Or maybe this
-% should just be mentioned somewhere.}}
-% \label{fig:resolved-full-example}
-% \end{figure}
-
-% \begin{figure}
-% \hspace{-0.5em}\begin{verbbox}
-% component base
-%   exposed-module: W
-%                          component r
-% component p                include: base (W)
-%   required-signature: A    include: p (Y) requires (B)
-%   required-signature: B    include: q (X as B)
-%   exposed-module: Y        required-signature: A
-%                            reexported-module: Y as Z
-% component q
-%   required-signature: A
-%   exposed-module: X
-% \end{verbbox}
-% \theverbbox{}\\
-% \caption{Running example, a more compact version of Figure~\ref{fig:resolved-full-example}.
-% The source code is still elided.  By convention, $A, B, C$ are signatures and $X, Y$ are modules.}
-% \label{fig:resolved-example}
-% \end{figure}
-
-% \begin{figure}
-% \[
-% \begin{array}{rcrcl}
-% \cidl{base} &\haspr& \lctxpairex{\provMod{W}{\icid{base}{}}{W}}{} \\
-% \cidl{p} &\haspr& \lctxpairex%
-%     {%
-%         \provMod{Y}{%
-%             \icid{\cidl{p}}{ \subst{A}{\holevar{A}}, \subst{B}{\holevar{B}}  }%
-%         }{Y}%
-%     }%
-%     {\modname{A}, \modname{B}} \\
-% \cidl{q} &\haspr& \lctxpairex{\provMod{X}{\icid{\cidl{q}}{\subst{A}{\holevar{A}}}}{X}}%
-%                              {\modname{A}} \\
-% \cidl{r} &\haspr&
-%     \lctxpairex{\provMod{Z}{\icid{\cidl{p}}{%
-%                         \subst{A}{\holevar{A}},
-%                         \substMod{B}{\icid{\cidl{q}}{\subst{A}{\holevar{A}}}}{X}
-%                     }}{Y}}%
-%                {\modname{A}} \\
-% \end{array}
-% \]
-% \caption{Component shape for running example.}
-% \label{fig:running-shape}
-% \end{figure}
-
+In this section, we will give a detailed summary of all the phases in
+this pipeline, starting with the source package language described in
+the previous section, and continuing on to two intermediate languages
+that will serve as the basis for our semantic account for \Backpack{}.
 
 \section{Dependency resolution to a \ccomp{}}
 
@@ -234,14 +130,14 @@ right~\cite{well-typed-solver, well-typed-qualified}, beyond the scope of this p
 Instead, we simply assume that we have a black box which
 produces \ccomp{}s.  However, we do have to mention one thing about resolution:
 how are \verb|build-depends| fields from
-a source component translated into \verb|backpack-include| fields in the
+a source component translated into \verb|mixin| fields in the
 \ccomp{}?  For any package \verb|p|
 mentioned in \verb|build-depends| that is not mentioned in
-\verb|backpack-includes|, it simply translates to
-\verb|backpack-include: p|.
+\verb|mixins|, it simply translates to
+\verb|mixin: p|.
 % If a package from \verb|build-depends| is not mentioned
-% by \verb|backpack-includes|, it gets given a default \verb|include: p|
-% declaration; otherwise, the \verb|backpack-includes| field translates
+% by \verb|mixins|, it gets given a default \verb|include: p|
+% declaration; otherwise, the \verb|mixins| field translates
 % directly to a series of \verb|include| statements.
 
 \input{diagram-page}
@@ -264,7 +160,7 @@ Figure~\ref{fig:lcomponents}:
     renaming $r$.  $P$ is an \uid{}; a \cid{} augmented with a
     \emph{module substitution} $S ::= \overline{\subst{m}{M}}$
     specifying how every requirement of the component is instantiated.
-    (Compare to the \texttt{backpack-include} in a \ccomp{}, which only gives a \cid{}).
+    (Compare to the \texttt{mixin} in a \ccomp{}, which only gives a \cid{}).
     \item \UsynMod{m}{\Uhsbody} indicates that this component defines
     a module named $m$ with Haskell source code $\Uhsbody$.
   \item \UsynSig{m}{\Uhssig} indicates that this component has a signature
@@ -278,7 +174,7 @@ the mixin linking algorithm
 can actually be understood entirely pictorially:
 
 \begin{figure}[H]
-\includegraphics{diagrams/mixin-diagram.pdf}
+\center\includegraphics{diagrams/mixin-diagram.pdf}
 \end{figure}
 
 \noindent
@@ -289,7 +185,7 @@ which have an input port for every required module (\modname{A} for \cidl{q}
 and \modname{A}, \modname{B} for \cidl{p}), and an output
 port for every provided module (\modname{X} for \cidl{q} and \modname{Y}
 for \cidl{p}).  Every port is labeled with a module name, which may
-be renamed according to the \texttt{backpack-include} (e.g., \modname{X} from \cidl{q}
+be renamed according to the \texttt{mixin} (e.g., \modname{X} from \cidl{q}
 is renamed to \modname{B}).
 
 These two components are linked in two ways: first, the (renamed) output
@@ -301,7 +197,7 @@ complete; \cidl{base} is omitted since it doesn't contribute in any
 interesting way to linking.}:
 
 \begin{figure}[H]
-\includegraphics{diagrams/uid-diagram.pdf}
+\center\includegraphics{diagrams/uid-diagram.pdf}
 \end{figure}
 
 \noindent
@@ -424,7 +320,7 @@ checks to the following module type (also given syntactically
 in Figure~\ref{fig:typing-example}):
 
 \begin{figure}[H]
-\includegraphics{diagrams/base-types.pdf}
+\center\includegraphics{diagrams/base-types.pdf}
 \end{figure}
 
 \noindent
@@ -460,7 +356,7 @@ representation of the final type of \cidl{q}, which we can think of as
 a zoomed in version of the diagram from Section~\ref{sec:overview-mixin}:
 
 \begin{figure}[H]
-\includegraphics{diagrams/q-types.pdf}
+\center\includegraphics{diagrams/q-types.pdf}
 \end{figure}
 
 \noindent
@@ -500,7 +396,7 @@ Let's consider a simple one: filling \cidl{q}'s
 requirement with \modname{W} from \cidl{base}, i.e., $\UsynDepEmpty{\cidl{q}[\subst{A}{\Mod{\cidl{base}[]}{W}}]}$.
 
 \begin{figure}[H]
-\includegraphics{diagrams/q-base-types.pdf}
+\center\includegraphics{diagrams/q-base-types.pdf}
 \end{figure}
 
 \noindent

@@ -48,55 +48,54 @@ limitation.
 Specifically, our contributions are as follows:
 \begin{itemize}
 
-    \item On the package manager side, we describe the new,
-    unordered package language users program in Section~\ref{sec:tour}, and
-    show how to \emph{mixin link} this language while being indifferent
-    to the contents of Haskell source files (Sections~\ref{sec:overview-mixin} and~\ref{sec:mix-in}).  We achieve
-    this by recasting mixin linking as the process of computing a
-    \emph{wiring diagram} which describes how the requirements of depended upon
-    components are \emph{instantiated}.  In fact, the algorithm
-    is essentially equivalent to early descriptions of mixin linking
-    in the literature; the difference
-    is that the structure of these wiring diagrams serve as the
-    basis for type equality in the compiler.  Mixin linking produces
-    an intermediate representation, the \emph{\unit{} language}, which
-    mediates between the compiler and the package manager.
+    \item We describe a package language which can be \emph{mixin
+    linked} without knowing anything about the Haskell programming
+    language.  This gives us a language agnostic mechanism for
+    expressing separate modular development, in contrast to
+    \OldBackpack{}, which relies on critically on the import structure
+    of Haskell modules in its semantics.  As a result, \Backpack{}
+    employs a far simpler mixin linking procedure essentially equivalent
+    to early descriptions of mixin linking in the literature.  As an
+    added bonus, our new package language is order-independent, which is
+    essential for backwards-compatibility with Haskell's existing
+    package format.
 
-  \item On the compiler side, we describe how to typecheck a
-    \unit{} when its requirements are unfilled (Section~\ref{sec:overview-compiler}) and how to
-    subsequently compile it when it is instantiated (Section~\ref{sec:overview-instantiate}).
-    These operations require only modest changes to GHC\@, specifically
-    the ability to compute the type of an \iunit{}.
-    We provide a declarative typing judgment for \unit{}s,
-    acting as a specification for the implementation of the former process.
-    (Section~\ref{sec:compiler}).
+    \item To express the results of mixin linking, we introduce the
+    \emph{\unit{} language}, an intermediate representation that
+    represents all instantiations explicitly.  This language is
+    ``just'' ML-style applicative functors, but with a twist:
+    unfilled requirements of dependency are propagated to the requirements
+    of the enclosing package.  The effect is that \Backpack{}, as a
+    whole, has the same mix-in semantics that were pioneered by \OldBackpack{}.
 
-%     This
-%   operation is only relevant to typechecking: when compiling, we
-%   assume every instantiated component dependency has already been
-%   compiled, so that finding the type of an instantiated component a trivial lookup in the
-%   context.
-%   However, as a
-%   sanity check for our semantics, we show that successful
-%   typechecking implies successful compilation in the absence of
-%   features of like type classes.
+    \item We describe how to modify a real world compiler like GHC to
+    implement the necessary instantiation and merging operations
+    required by the \unit{} language.  Because the \unit{} language
+    specifies instantiations explicitly, it is an easy matter to perform
+    syntactic substitutions to form the instantiated versions of a
+    \unit{}.  To handle signature merging in the presence of \emph{type
+    synonyms} (not addressed in \OldBackpack{}), we describe a novel
+    algorithm which takes advantage of lazy evaluation to avoid the need
+    for a type computation pass (as seen in RMC) or bidirectional type
+    lookup (as seen in MixML).
 
-%   \item It is nontrivial to specify what it means for a program using
-%   mix-in modules that can \emph{merge requirements} to be
-%   non-recursive, as requirement merging can introduce non-obvious
-%   circularity. We define a condition under which requirements are
-%   recursive, and give some visual intuition for it. (Section)
+%   \item \Backpack{} stakes out a new point in the design space,
+%   with an emphasis on practicality.  Two particular decisions stand
+%   out. First, it eliminates \OldBackpack{}'s shaping pass, giving
+%   up accuracy in module loops for less work upon recompilation.
+%   Second, it tracks requirements at the package level, rather than
+%   the module level, letting us straightforwardly map build products
+%   into traditional shared and static libraries.
 
-    \item We have implemented our design in the GHC compiler and the
-    Cabal package manager.\footnote{See PC chair for link to open source release.}
-    Though the true test of \Backpack{} would be
-    ``Backpack''ing in the wild and seeing how it can be used, we give
-    some evidence that \Backpack{} works by
-    Backpack'ifying two substantial, real world Haskell packages,
-    alongside a menagarie of synthetic test cases written in an alternate
-    implementation of mixin linking which is implemented entirely
-    by the compiler
-    (Section~\ref{sec:evaluation}).
+    \item This is not a paper design: Backpack has been fully
+    implemented in the upcoming GHC 8.2 and cabal-install 2.0.  Although
+    the true test of \Backpack{} would be
+    ``Backpack''ing in the wild and seeing how the wider community
+    uses it, we have done a number of case studies to give evidence
+    that \Backpack{} works.  Among other things, these case studies
+    have motivated the introduction of \emph{signature thinning}
+    and how Backpack interoperates with Cabal's existing dependency
+    solver.
 
 \end{itemize}
 %
