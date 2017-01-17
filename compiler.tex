@@ -24,11 +24,11 @@ operation of the judgments we assume are given to us.
     specifies the set of name variables that are in scope.  Each should be
     ascribed a type
     in $\Sigma_R$ (described next.)
-    \item The local requirements context $\Sigma_R ::= \overline{m : \tau}$ specifies the
+    \item The local requirements context $\Sigma_R ::= \overline{m : \Umty}$ specifies the
     module types of the requirements of the current component.  In this formal
     development, we assume that $\Sigma_R$ is given to us nondeterministically,
     see Section~\ref{sec:merging} for more details.
-    \item The local provisions context $\Sigma_P ::= \overline{m : \tau}$ specifies
+    \item The local provisions context $\Sigma_P ::= \overline{m : \Umty}$ specifies
     the module types of modules defined in the current component.
     Collectively, $\Delta ::= (\Sigma_R; \Sigma_P)$ is the full
     local context, which  will be transformed into the final type of the overall component.
@@ -56,8 +56,8 @@ functorial; here are the important cases:
   \substw{\nhv{m.n}}{\subst{m'.n'}{N}, \USn} &=_\UN& \substw{\nhv{m.n}}{\USn} \quad (m.n \neq m'.n')\\
   \substw{(M.n)}{\USn} &=_\UN& M.n\\
   \substw{\overline{N}}{\USn} &=_\UNs& \overline{\substw{N}{\USn}}\\
-  \substw{\left\{ \overline{m : \tau} \right\}}{\USn} &=_\Sigma& \{ \overline{m : \substw{\tau}{\USn}} \} \\
-  \substw{(\UobjTau{\UNs}{\overline{\Uty}})}{\USn} &=_\tau&
+  \substw{\left\{ \overline{m : \Umty} \right\}}{\USn} &=_\Sigma& \{ \overline{m : \substw{\Umty}{\USn}} \} \\
+  \substw{(\UobjTau{\UNs}{\overline{\Uty}})}{\USn} &=_\Umty&
   \UobjTau{\substw{\UNs}{\USn}}{\overline{\substw{\Uty}{\USn}}} \\
 \end{array}
 \]
@@ -67,7 +67,7 @@ functorial; here are the important cases:
 
 \begin{figure}
 \begin{centering}
-\fbox{$\Gamma; \Theta; \theta; \Delta; \impctx; p_0; m \vdash \Uhsbody : \tau$}\\
+\fbox{$\Gamma; \Theta; \theta; \Delta; \impctx; p_0; m \vdash \Uhsbody : \Umty$}\\
 \fbox{$\Gamma; \Theta; \theta; \Delta; \impctx; p_0; m \vdash \Uhssig$} \\
 \fbox{$ty <: ty'$} \\
 \end{centering}
@@ -80,7 +80,7 @@ assume the compiler provides for us.
 The module typechecking judgment synthesizes a module type
 for the given $\Uhsbody$. Each entity $n$ freshly defined in this module
 is given the original name $\Mod{p_0[\Theta]}{m}.n$, which will appear in
-the module type $\tau$. For example, the type of module \modname{Y}, defined in
+the module type $\Umty$. For example, the type of module \modname{Y}, defined in
 the component \cidl{p} from~\ref{fig:linked-example}, exports the freshly
 named $\MOD{p}{\substHole{A}, \substHole{B}}{Y}.\texttt{L}$.
 
@@ -128,7 +128,7 @@ for every module in the substitution (the recursive process), and then
 compute an appropriate name substitution $\USn$ induced by the entire
 substitution which unifies the export lists (intuitively, we just look
 at the export lists and unify the ones which have the same $n$).  Finally, we perform
-signature matching, which simply checks that required type $\tau$,
+signature matching, which simply checks that required type $\Umty$,
 after name substitution, is consistent with all the types in the context.
 It does this by going through each export of the requirement which is
 locally defined and checking the local type.
@@ -150,13 +150,13 @@ p \neq p_0  \qquad  p : \forall \Theta_R.\, \forall \theta_R.\, \Sigma_R \righta
 \]
 \\
 
-\fbox{$\Gamma; \Theta; \theta; \Delta; p_0\vdash M : \tau$}
+\fbox{$\Gamma; \Theta; \theta; \Delta; p_0\vdash M : \Umty$}
 \[
 \frac{
 \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \UP : \Sigma_P \qquad
-m : \tau \in \Sigma_P
+m : \Umty \in \Sigma_P
 }{
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \Mod{\UP}{m} : \tau
+\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \Mod{\UP}{m} : \Umty
 }
 \]
 
@@ -164,9 +164,9 @@ m : \tau \in \Sigma_P
 \frac{
 \hv{m} \in \Theta \qquad
 \Delta = \Sigma_R; \Sigma_P \qquad
-m : \tau \in \Sigma_R
+m : \Umty \in \Sigma_R
 }{
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \holevar{m} : \tau
+\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \holevar{m} : \Umty
 }
 \]
 \\
@@ -174,8 +174,8 @@ m : \tau \in \Sigma_R
 \fbox{$\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \UN :: \Uty$}
 \[
 \frac{
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash M : \tau \qquad
-n :: \Uty \in \tau
+\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash M : \Umty \qquad
+n :: \Uty \in \Umty
 }{
 \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash M.n :: \Uty
 }
@@ -185,8 +185,8 @@ n :: \Uty \in \tau
 \frac{
 \begin{array}{c}
 \nhv{m.n} \in \theta \qquad
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \holevar{m} : \tau \qquad
-n :: \Uty \in \tau
+\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \holevar{m} : \Umty \qquad
+n :: \Uty \in \Umty
 \end{array}
 }{
 \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \nhv{m.n} :: \Uty
@@ -203,9 +203,9 @@ n :: \Uty \in \tau
 \frac{
 % \begin{array}{c}
 % S = \overline{\subst{m_i}{M_i}} \qquad
-% \forall i. \quad \Gamma; \Theta; \theta; \Delta; p_0 \vdash M_i : \tau'_i \\
-% \Tsubg{\cdot}{\overline{\tilde{\tau}'_i <:_{m_i} \tilde{\tau}_i}}{Sn} \\
-% \forall i. \quad \Gamma; \Theta; \theta; \Delta; p_0 \vdash \substww{\tau_i}{S}{Sn}~\textsf{valid} \\
+% \forall i. \quad \Gamma; \Theta; \theta; \Delta; p_0 \vdash M_i : \Umty'_i \\
+% \Tsubg{\cdot}{\overline{\tilde{\Umty}'_i <:_{m_i} \tilde{\Umty}_i}}{Sn} \\
+% \forall i. \quad \Gamma; \Theta; \theta; \Delta; p_0 \vdash \substww{\Umty_i}{S}{Sn}~\textsf{valid} \\
 % \end{array}
   \begin{array}{@{}l@{\;=\;}l@{}}
     S & (\overlinei{\subst{m_i}{M_i}}) \\
@@ -215,12 +215,12 @@ n :: \Uty \in \tau
   \quad
   \forall i:\;
     \begin{cases}
-      \Gamma; \Theta; \theta; \Delta; p_0 \vdash M_i : \tau'_i \\
-      \Fexports{\tau_i'} \supseteq \Fexports{\substww{\tau_i}{S}{\USn}} \\
-      \Gamma; \Theta; \theta; \Delta; p_0 \vdash \substww{\tau_i}{S}{Sn}~\textsf{valid} \\
+      \Gamma; \Theta; \theta; \Delta; p_0 \vdash M_i : \Umty'_i \\
+      \Fexports{\Umty_i'} \supseteq \Fexports{\substww{\Umty_i}{S}{\USn}} \\
+      \Gamma; \Theta; \theta; \Delta; p_0 \vdash \substww{\Umty_i}{S}{Sn}~\textsf{valid} \\
     \end{cases}
 }{
-\JMatch{S}{\Theta_R}{\theta_R}{(\overlinei{m_i:\tau_i})}{\USn}
+\JMatch{S}{\Theta_R}{\theta_R}{(\overlinei{m_i:\Umty_i})}{\USn}
 }
 \] \\
 
@@ -247,7 +247,7 @@ n :: \Uty \in \tau
 % }
 % \]\\
 
-\fbox{$\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \tau~\textsf{valid}$}
+\fbox{$\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \Umty~\textsf{valid}$}
 \[
 \frac{
 \forall i: \quad \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash M_i.n_i :: ty_i' \quad \land \quad
@@ -257,8 +257,8 @@ ty_i' <: ty_i
 }
 \]
 
-\caption{Rules for export matching and signature matching.  $\Fexports{\tau}$ refers to the
-the export specification of the type $\tau$.}
+\caption{Rules for export matching and signature matching.  $\Fexports{\Umty}$ refers to the
+the export specification of the type $\Umty$.}
 \label{fig:ty-match}
 \end{figure}
 
@@ -270,16 +270,16 @@ the export specification of the type $\tau$.}
 %   the module is defined in $\Delta$, and otherwise consulting $\impctx$.
 
 %   \begin{figure}
-%   \fbox{$\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash P~\textsf{requires}~m : \tau_R$}
+%   \fbox{$\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash P~\textsf{requires}~m : \Umty_R$}
 %   \[
 %   \frac{
 %   \begin{array}{c}
 %   \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash p : \forall\Theta'.\,\forall\theta'.\,\Sigma_R \rightarrow \Sigma_P \\
 %   \Gamma; \Theta; \theta; \Delta; p_0 \vdash S : \Sigma_R \induces \USn \\
-%   m : \tau_R \in \Sigma_R
+%   m : \Umty_R \in \Sigma_R
 %   \end{array}
 %   }{
-%   \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash p[S]~\textsf{requires}~m : \tau_R
+%   \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash p[S]~\textsf{requires}~m : \Umty_R
 %   }
 %   \]
 %   \caption{Signature merging}
@@ -293,7 +293,7 @@ the export specification of the type $\tau$.}
   \begin{array}{c}
     % \Delta = \Sigma_R; \Sigma_P
     % \qquad
-    \Gamma; \Theta; \theta; (\Sigma_R; \Sigma_P); \impctx; \Up_0; m \vdash \Uhsbody : \tau
+    \Gamma; \Theta; \theta; (\Sigma_R; \Sigma_P); \impctx; \Up_0; m \vdash \Uhsbody : \Umty
   \end{array}
 }{
   \shctx; \Gamma; \Theta; \Up_0 ; \theta; \Sigma_R \vdash
@@ -304,7 +304,7 @@ the export specification of the type $\tau$.}
   \UsynMod{m}{\Uhsbody}
   \declst%
     {\theta}%
-    {\Sigma_P, m : \tau}%
+    {\Sigma_P, m : \Umty}%
     {\impctx}
 }
 \]
@@ -314,21 +314,21 @@ the export specification of the type $\tau$.}
   %   % \Delta = \Sigma_R; \Sigma_P
   %   % \qquad
   %   %\hv{m} \in \Theta \\
-  %   \Gamma; \Theta; \theta; (\Sigma_R; \Sigma_P); \impctx; \Up_0; m \vdash \Uhssig : \exists \theta_0.\, \tau_0
+  %   \Gamma; \Theta; \theta; (\Sigma_R; \Sigma_P); \impctx; \Up_0; m \vdash \Uhssig : \exists \theta_0.\, \Umty_0
   %   &
-  %   %\forall i.\quad \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash P_i~\textsf{requires}~m'_i : \tau'_{Ri} \\
-  %   %\tau_R \oplus \overline{\tau'_{Ri}} = \exists \theta'.\, \tau
+  %   %\forall i.\quad \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash P_i~\textsf{requires}~m'_i : \Umty'_{Ri} \\
+  %   %\Umty_R \oplus \overline{\Umty'_{Ri}} = \exists \theta'.\, \Umty
   %   S_0 = (\subst{m}{\hv{m}})
   %   \\
-  %   \JMatch[\Gamma;\Theta;\thetaOR;(\SigmaOR;\cdot);\Up_0]{S_0}{\hv{m}}{\theta_0}{(m:\tau_0)}{\USn_0}
+  %   \JMatch[\Gamma;\Theta;\thetaOR;(\SigmaOR;\cdot);\Up_0]{S_0}{\hv{m}}{\theta_0}{(m:\Umty_0)}{\USn_0}
   %   &
-  %   \tau'_0 = \substww{\tau_0}{S_0}{\USn_0}
+  %   \Umty'_0 = \substww{\Umty_0}{S_0}{\USn_0}
   %   \\
-  %   \forall i. \quad \JReqType[\Gamma;\Theta;\thetaOR;(\SigmaOR;\cdot);\Up_0]{m_i}{P_i}{\tau_i}
+  %   \forall i. \quad \JReqType[\Gamma;\Theta;\thetaOR;(\SigmaOR;\cdot);\Up_0]{m_i}{P_i}{\Umty_i}
   %   &
-  %   \tau' = \bigoplus_i \tau_i
+  %   \Umty' = \bigoplus_i \Umty_i
   %   \\
-  %   \multicolumn{2}{c}{\tau = \Ftrim{m}{\tau'_0 \oplus \tau'}}
+  %   \multicolumn{2}{c}{\Umty = \Ftrim{m}{\Umty'_0 \oplus \Umty'}}
   % \end{array}
   \begin{array}{c}
     \Gamma; \Theta; \theta; (\Sigma_R;\Sigma_P); \impctx; \Up_0; m
@@ -390,7 +390,7 @@ the export specification of the type $\tau$.}
 }
 \]\\
 
-% \fbox{$\JReqType{m}{P}{\tau}$} \\
+% \fbox{$\JReqType{m}{P}{\Umty}$} \\
 % \Scott{Typing of (external) requirement}
 % \[
 % \frac{
@@ -445,7 +445,7 @@ the export specification of the type $\tau$.}
 % \end{array}
 % \]
 
-% \Red{Definition of $\tau \oplus \tau$ \dots}
+% \Red{Definition of $\Umty \oplus \Umty$ \dots}
 
 \fbox{$\square \;\le\; \square$ \quad \textsf{less general than}}
 \[
@@ -459,11 +459,11 @@ the export specification of the type $\tau$.}
 \]
 \[
 \begin{array}{@{}r@{\;\;}c@{\;\;}l@{\;\;}c@{\;\;}l}
-  (\overline{m':\tau'},\overline{m:\tau_1})
+  (\overline{m':\Umty'},\overline{m:\Umty_1})
     &\le&
-    (\overline{m:\tau_2})
+    (\overline{m:\Umty_2})
       &\Leftrightarrow&
-      \overline{\tau_1 \le \tau_2}
+      \overline{\Umty_1 \le \Umty_2}
   \\
   \UobjTau{\UNs',\UNs}{\overline{\Uty'},\overline{\Uty_1}}
     &\le&
@@ -483,7 +483,7 @@ The rest of the typechecking process (Figure~\ref{fig:unit-ty-rules})
 involves processing each declaration of a \unit{} in order, modifying
 the local contexts as we process the each declaration of the \unit{}.
 Most per-declaration rules are fairly straightforward: module
-typechecking produces a $\tau$ which is added to $\Sigma_P$ and signature
+typechecking produces a $\Umty$ which is added to $\Sigma_P$ and signature
 typechecking just checks for consistency with $\Sigma_R$.
 
 However, the dependency rule is a little subtle.  First, we eagerly

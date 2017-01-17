@@ -61,38 +61,6 @@
 \end{mdframed}
 \end{figure}
 
-\newsavebox{\resolvedfullexample}
-\begin{lrbox}{\resolvedfullexample}
-\hspace{-1em}
-\begin{minipage}{\linewidth}
-\begin{alltt}
-component db-dsl-1.0-aaa
- mixin: base-4.7-bbb (Prelude)
- required-signature: Data.ByteString
- required-signature: Db
- exposed-module: DSL.Db
-
-component mysql-indef-1.0-ccc
- mixin: base-4.7-bbb (Prelude)
- required-signature: Data.ByteString
- exposed-module: Db.MySQL
-
-component mysql-dsl-indef-1.0-ddd
- mixin: base-4.7-bbb (Prelude)
- mixin: db-dsl-1.0-aaa (DSL.Db) requires (Db)
- mixin: mysql-indef-1.0-ccc (Db.MySQL as Db)
- required-signature: Data.ByteString
- reexported-module: DSL.Db as DSL.Db.MySQL
-\end{alltt}
-\end{minipage}
-\end{lrbox}
-
-\begin{figure}
-    \usebox{\resolvedfullexample}
-  \caption{\Ccomp{}s for \texttt{mysql-dsl-indef-1.0}.}%
-\label{fig:resolved-full-comps}
-\end{figure}
-
 The implementation and semantics of \Backpack{} is structured as a
 series of passes (Figure~\ref{fig:pipeline}) on several intermediate
 languages (Figure~\ref{fig:glossary}).  The key idea is that mixin
@@ -259,7 +227,7 @@ signatures.  We can define a topological ordering on declarations in a
 %   \Red{Forward reference to worked example here.}
 \end{itemize}
 %
-A dependency cycle indicates mutual recursion and is not allowed by GHC.
+A dependency cycle indicates mutual recursion and is not allowed by GHC\@.
 (In principle, other compilers might be more permissive.)
 
 \section{Typechecking a \unit{}}
@@ -272,15 +240,17 @@ A dependency cycle indicates mutual recursion and is not allowed by GHC.
   \Uunitty &::=& \forall \Theta.\, \forall \theta.\, \{\Sigma_R\} \rightarrow \{\Sigma_P\}
     & \text{Component type} \\
   \theta &::=& \overline{\hv{m.n}} & \text{Name variable quantifiers} \\
-  \Sigma &::=& \overline{m : \tau}
+  \Sigma &::=& \overline{m : \Umty}
     & \text{Provided/required types} \\
   \Gamma &::=& \overline{\Up : \Uunitty} & \text{Component typing context} \\
   &&&\\
-  \tau &::=& \UobjTau{\UNs}{\overline{\Uty}} & \text{Module type} \\
+  \Umty &::=& \UobjTau{\UNs}{\overline{\Uty}} & \text{Module type} \\
   % \tau_R &::=& \exists \overline{\hv{m.n}}.\, \tau  & \text{Signature type} \\
   \UNs &::=& \overline{\UN} & \text{Export specification} \\
   \Uty &::=& \texttt{data}~n :: \I{kind} & \text{Defined entity spec} \\
        &  |& \texttt{data}~n :: \I{kind} = \cdots N \cdots& \\
+       &  |& \texttt{type}~n :: \I{kind} = \cdots N \cdots\\
+       &  |& \texttt{class}~n :: \I{kind} \\
        &  |& n :: \cdots N \cdots& \\
        &  |& \cdots& \\
   &&&\\
@@ -290,7 +260,7 @@ A dependency cycle indicates mutual recursion and is not allowed by GHC.
   \USn &::=& \overline{\subst{m.n}{N}} & \text{Name substitution} \\
 \end{array}
 \]
-\caption{Semantic objects of Haskell with \Backpack{}.}
+\caption{Semantic objects of GHC Haskell.  Intuitively, these objects represent their syntactic counterparts, except that }
 %  We say $\tilde{\tau}$ to refer to the $\UNs$ of a $\tau$. Export specifications $\UNs$ have the invariant that every $n$ is distinct; so we may say $\Un \mapsto \UN \in \UNs$ to match the specific $\UN$ with $\Un$.
 \label{fig:haskell-semantics}
 \end{figure}
@@ -306,7 +276,7 @@ more about the quantifiers shortly).
 
 \paragraph{Typechecking a module}
 A module is typechecked to produce a \emph{module
-type} $\tau$, consisting of an \emph{export
+type} $\Umty$, consisting of an \emph{export
 specification} $\UNs$---what gets brought into scope when
 you import this module---and a set of \emph{defined entity specifications}
 $\overline{\Uty}$---the types and values defined by

@@ -21,8 +21,7 @@
            & |   & m \\
     \end{array}
     \]
-    \caption{\Ccomp{}s.}
-    \label{fig:rcomponents}
+    \caption{\Ccomp{}s.}\label{fig:rcomponents}
 \end{figure}
 
 \begin{figure}
@@ -58,29 +57,35 @@
     \end{array}
     \]
 
-\caption{Component shapes and \unit{}s.}
-\label{fig:lcomponents}
+\caption{Component shapes and \unit{}s.}\label{fig:lcomponents}
 \end{figure}
 
 
 
 \begin{figure}
+\begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
 \begin{verbatim}
-
-component p                 component base
- required-signature: A       exposed-module: W
- required-signature: B
- exposed-module: Y          component q
-                             required-signature: A
-component r                  exposed-module: X
- required-signature: A
- mixin: base (W)
- mixin: p (Y) requires (B)
- mixin: q (X as B)
- reexported-module: Y as Z
+component base
+    exposed-module: W
+component p
+    required-signature: A
+    required-signature: B
+    exposed-module: Y
+component q
+    required-signature: A
+    exposed-module: X
 \end{verbatim}
-  \caption{Heavily simplified version of Figure~\ref{fig:resolved-full-comps} to serve as the running example: \texttt{p} is \texttt{db-dsl}, \texttt{q} is \texttt{mysql-indef} and \texttt{r} is \texttt{mysql-dsl-indef}; signature \texttt{A} is \texttt{Data.ByteString} and signature \texttt{B} is \texttt{Db}.}
-  \label{fig:resolved-example}
+&
+\begin{verbatim}
+component r
+    required-signature: A
+    mixin: base (W)
+    mixin: p (Y) requires (B)
+    mixin: q (X as B)
+    reexported-module: Y as Z
+\end{verbatim}
+\end{tabular}
+  \caption{Our running example.}\label{fig:resolved-example}
 \end{figure}
 
 \begin{figure}
@@ -115,17 +120,16 @@ component r                  exposed-module: X
              }}{Y} \}
         \\
       \quad \UsynDep{\icid{base}{}}{ \rename{W}{W} } \\
-      \quad \mathsf{signature}~\modname{A}~(\texttt{I}(..))~\{ \texttt{import W(I(..))} \} \\
       %\quad\quad \textsf{with}~\Mod{\icid{\cidl{q}}{\substHole{A}}}{A},
       %           \Mod{\icid{\cidl{p}}{\substHole{A}, \subst{B}{\ldots}}}{A} \\
       \quad \UsynDep{\icid{\cidl{q}}{\substHole{A}}}{ \rename{X}{B} } \\
       \quad \UsynDep{\icid{\cidl{p}}{\substHole{A}, \substMod{B}{\icid{\cidl{q}}{\substHole{A}}}{X}}}{ \rename{Y}{Y} } \\
+      \quad \mathsf{signature}~\modname{A}~(\texttt{I}(..))~\{ \texttt{import W(I(..))} \} \\
     \end{array}
     \]
 
   \caption{\Unit{}s. Each component is ordered and annotated with its provided modules, as
-    $\textsf{component}~p~\overline{\protect\hv{m}}\haspr\{\provs\}$.}
-  \label{fig:linked-example}
+    $\textsf{component}~p~\overline{\protect\hv{m}}\haspr\{\provs\}$.}\label{fig:linked-example}
 \end{figure}
 
 \begin{figure}

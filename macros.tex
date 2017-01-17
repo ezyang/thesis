@@ -86,8 +86,9 @@
 \newcommand{\Uhsbody}{\mathit{hsbody}}
 \newcommand{\Uhssig}{\mathit{hssig}}
 \newcommand{\Uunitty}{\Xi}
-\newcommand{\Uty}{\mathit{ty}}
-\newcommand{\Utys}{\mathit{tys}}
+\newcommand{\Umty}{T}
+\newcommand{\Uty}{\mathit{decl}}
+\newcommand{\Utys}{\mathit{decls}}
 \newcommand{\Umatch}{\mathit{sub}}
 % syntax
 \newcommand{\UsynUnitH}[2]{\ensuremath{\mathsf{component}~#1~#2}}
@@ -242,8 +243,8 @@
 \newcommand{\Sincl}{\I{rincl}}
 \newcommand{\Sdecl}{\I{rdecl}}
 \newcommand{\Scomponent}[2]{\texttt{component}~ #1 ~ \wrapcb{#2}}
-\newcommand{\Sinclude}[2]{\texttt{backpack-include:}~ #1 ~#2}
-\newcommand{\Sincludespec}[3]{\texttt{backpack-include:}~ #1 ~[\texttt{(}#2\texttt{)}]~[\texttt{requires}~ \texttt{(}#3\texttt{)}]}
+\newcommand{\Sinclude}[2]{\texttt{mixin:}~ #1 ~#2}
+\newcommand{\Sincludespec}[3]{\texttt{mixin:}~ #1 ~[\texttt{(}#2\texttt{)}]~[\texttt{requires}~ \texttt{(}#3\texttt{)}]}
 \newcommand{\Slparen}{\texttt{(}}
 \newcommand{\Srparen}{\texttt{)}}
 \newcommand{\Sexposed}[2]{\texttt{exposed-module:}~ \modnameif{#1} ~\{ #2 \}}
