@@ -1,49 +1,559 @@
 %!TEX root = paper.tex
 \chapter{Related Work}
 
-\paragraph{Comparison with \OldBackpack{}}  The inspiration for this
+\section{The Double Vision Problem}
+
+First coined by Dreyer in his thesis~\cite{dreyer:thesis}, the
+\emph{double vision problem} refers to technical difficulty that arises
+when attempting to define the typing rules for recursive modules.
+Informally, the double vision problem occurs when the things an implementing
+module knows about a type does not coincide with the things they know about the
+recursive occurrence of that very same type.
+
+There is no formal definition of ``double vision'', which at times makes it
+difficult to characterize, because module systems can solve double vision
+to varying degrees.  Indeed, to explain the sense in which \Backpack{} solves the double
+vision problem, and how its solution compares to previous work, it will be
+helpful to explain the double vision problem as a series of litmus tests,
+which will help characterize the various facets of this problem.
+
+\subsection{Simple recursion}
+
+\paragraph{Simple recursion in OCaml}  Our first litmus test is a simple
+recursive module from Rossberg\footnote{\url{http://caml.inria.fr/pub/ml-archives/caml-list/2007/05/d9414d45a9a6f30f2609e08c43f011a0.en.html}}, which fails to compile in OCaml 4.02:
+
+% chktex-file 13
+% chktex-file 26
+% chktex-file 36
+\begin{figure}[H]
+\begin{tabular}{p{0.35\textwidth} p{0.55\textwidth}}
+\begin{lstlisting}[language=ML,escapechar=@]
+module rec A : sig
+  type t
+  val f : t -> t
+end =
+struct
+  type t = int
+  let f (x : t) = A.f @\fbox{x}@
+end
+\end{lstlisting}
+&
+\begin{verbatim}
+(* OCaml 4.02.03 fails with: *)
+Error: This expression has type t = int
+       but an expression was expected of type A.t
+\end{verbatim}
+\end{tabular}
+\caption{Simple recursion in OCaml with type synonyms}
+\label{fig:double-vision-simple-recursion-ocaml-synonym}
+\end{figure}
+
+\noindent
+OCaml has determined the type of \verb|A.f| to be \verb|A.t -> A.t|,
+while the boxed \verb|x| has type \verb|t|.  This example exhibits
+``double vision'' because OCaml is unable to tell that \verb|A.t| and
+\verb|t| are equal, despite the fact that, intuitively, both identifiers refer to
+the same type.
+
+A slight variation on the above litmus test is one which utilizes a generative type
+definition (\verb|type t = MkT of int|) rather than a type synonym (\verb|type t = int|):
+
+\begin{figure}[H]
+\begin{tabular}{p{0.35\textwidth} p{0.55\textwidth}}
+\begin{lstlisting}[language=ML,escapechar=@]
+module rec A : sig
+  type t
+  val f : t -> t
+end =
+struct
+  type t = @\colorbox{yellow!50}{MkT of int}@
+  let f (x : t) = A.f @\fbox{x}@
+end
+\end{lstlisting}
+&
+\begin{verbatim}
+(* OCaml 4.02.03 succeeds, with #show_module: *)
+module A : sig type t val f : t -> t end
+\end{verbatim}
+\end{tabular}
+\caption{Simple recursion in OCaml with generative data}
+\label{fig:double-vision-simple-recursion-ocaml-generative}
+\end{figure}
+
+\noindent
+Interestingly, OCaml is able to compile this example, because the type-checker
+adds an equality \verb|t = A.t| when typechecking the structure; something that
+is not possible when there is already a type equality \verb|t = int|.\footnote{\url{http://caml.inria.fr/pub/ml-archives/caml-list/2007/06/0d23465b5b04f72fedecdd3bbf2c9d72.en.html}}
+
+\paragraph{Simple recursion in MixML}
+Both RMC~\cite{dreyer:recursive} and MixML~\cite{rossberg+:mixml} are
+both systems which solve the double vision problem.  As RMC was never
+implemented, we ported our
+litmus test to the MixML prototype interpreter 0.2.1, using the
+desugaring of recursive modules described in the paper.
+
+\begin{figure}[H]
+\begin{tabular}{p{0.40\textwidth} p{0.50\textwidth}}
+\begin{lstlisting}[language=ML,escapechar=@]
+link A =
+  {type t, val f : t -> t}
+with {
+  type t = int,
+  val f (x : t) = A.f x
+}
+\end{lstlisting}
+&
+\begin{verbatim}
+(* mixml 0.2.1 passes with type: *)
+it : {f : [int -> int]+, t : [= int : #]}
+\end{verbatim}
+\end{tabular}
+\caption{Simple recursion in MixML with type synonyms and sealing}
+\label{fig:double-vision-simple-recursion-mixml}
+\end{figure}
+
+\noindent
+An astute reader may note that the desugaring from the paper omits the
+final sealing operation, unlike OCaml recursive modules which implicitly
+seal by the forward declaration.  It is a simple matter to add the sealing back:
+
+\begin{figure}[H]
+\begin{tabular}{p{0.40\textwidth} p{0.50\textwidth}}
+\begin{lstlisting}[language=ML,escapechar=@]
+link A =
+  {type t, val f : t -> t}
+with ({
+  type t = int,
+  val f (x : t) = A.f x
+} @\colorbox{yellow!50}{:> {type t, val f : t -> t}}@)
+\end{lstlisting}
+&
+\begin{verbatim}
+(* mixml 0.2.1 passes with type: *)
+it.t%2 : #
+it : {f : [it.t%2 -> it.t%2]+,
+      t : [= it.t%2 : #]+}
+\end{verbatim}
+\end{tabular}
+\caption{Simple recursion in MixML with type synonyms and sealing}
+\label{fig:double-vision-simple-recursion-mixml-sealed}
+\end{figure}
+
+\noindent
+MixML does not natively support generative data declarations, since they can be
+encoded using modules and sealing.
+
+\paragraph{Simple recursion in GHC Haskell} Recursive modules
+with generative data can be directly ported to Haskell using \verb|hs-boot| files:
+
+\begin{figure}[H]
+\begin{tabular}{p{0.35\textwidth} p{0.55\textwidth}}
+\begin{lstlisting}[language=Haskell,escapechar=@]
+-- A.hs-boot
+module A where
+  data T
+  f :: T -> T
+-- B.hs
+module B(f) where
+  import {-# SOURCE #-} A
+-- A.hs
+module A(T, f) where
+  import qualified B
+  data T = MkT Int
+  f :: T -> T
+  f x = B.f x
+\end{lstlisting}
+&
+\begin{verbatim}
+{- GHC 8.0.2 succeeds -}
+\end{verbatim}
+\end{tabular}
+\caption{Simple recursion in Haskell with \texttt{hs-boot} files}
+\label{fig:double-vision-simple-recursion-haskell-hs-boot}
+\end{figure}
+
+\noindent
+There is some nuance in the above translation, since GHC Haskell's module
+system is substantially less expressive than ML's.  First, in most
+presentations of recursive modules, the defined module is implicitly
+\emph{sealed} by the signature that serves as the forward reference.
+In GHC Haskell, no such sealing takes place: if a module directly
+imports the implementing module, they will see all the entities it
+exports.  Data abstraction in Haskell is achieved by \emph{hiding}
+constructors of generative type definitions from the exports of a module, as we
+have done here. If we were to implement \verb|T| using a type synonym
+(not currently allowed by GHC), there is no way to seal it after-the-fact
+so that it is opaque.
+
+Second, when the abstract type declaration \verb|data T| is specified in
+\verb|A.hs-boot| file, we are \emph{committing} to there being a
+generative data declaration of \verb|T| in the implementation \verb|A|.
+In particular, \verb|A| is not allowed to reexport a definition of
+\verb|T| from somewhere else, nor are we permitted to implement \verb|T|
+using a type synonym (as was the case in the first OCaml example.)
+With these restrictions, it's quite easy to ``solve'' the double-vision
+problem, since it easy to allocate a consistent original name for both
+declarations of \verb|T| in \verb|A.hs-boot| and \verb|A.hs|.
+
+\paragraph{Simple recursion in \OldBackpack{}}
+\OldBackpack{} does not support implementing abstract types using type
+synonyms, but does support implementing abstract types via a reexport.
+Thus, it does need to address a variant of the double vision problem
+on \emph{original names}.  Here is an example written in \OldBackpack{}
+which constructed so as to not be typecheckable using GHC Haskell's existing strategy,
+by creating a separate module \verb|M| defines \verb|T|
+for \verb|A| to reexport.
+
+\begin{figure}[H]
+\begin{tabular}{p{0.35\textwidth} p{0.55\textwidth}}
+\begin{lstlisting}[language=Haskell,escapechar=@]
+module M where
+    data T = MkT Int
+signature A where
+    data T
+    f :: T -> T
+module B(f) where
+    import A
+module A(T, x) where
+    import qualified B
+    import M (T)
+    f :: T -> T
+    f x = B.f x
+\end{lstlisting}
+&
+\begin{verbatim}
+{- Backpack'14 accepts -}
+{- GHC 8.0.2 (with {-# SOURCE #-} added) fails: -}
+A.hs-boot:2:1: error:
+    'A.T' is exported by the hs-boot file,
+    but not exported by the module
+
+A.hs-boot:3:1: error:
+    Identifier 'f' has conflicting definitions
+    in the module and its hs-boot file
+    Main module: f :: T -> T
+    Boot file:   f :: A.T -> A.T
+    The two types are different
+\end{verbatim}
+\end{tabular}
+\caption{Simple recursion in \OldBackpack{}}
+\label{fig:double-vision-simple-recursion-old-backpack}
+\end{figure}
+
+\noindent
+In this case, GHC is clearly afflicted by the double vision
+problem!\footnote{In fact, in GHC 8.0.2, if we were to refer to
+\texttt{B.T}, that would cause a compiler panic.  The above example works
+only ``accidentally'', because when we typecheck, \texttt{B.f} takes
+on the type of the local definition of \texttt{f}, \emph{not} the
+forward declaration.}
+
+\paragraph{Simple recursion in \Backpack{}}
+
+\Backpack{} doesn't support recursive packages, deferring to \verb|hs-boot|
+modules for same package recursion.  (Do not worry: as it turns out, \Backpack{}
+must grapple with more interesting variants of the double vision problem, described
+below.)
+
+\subsection{Backwards propagating type information}
+
+Both MixML and \OldBackpack{} avoid double-vision by way of a
+type-computation/shaping pass, which computes the types/original names
+of modules before typechecking proper.  This means that these
+type systems permit type information can be propagated \emph{backwards}
+from the relevant declaration.
+
+Although this property increases the expressivity of a type
+system, it interacts poorly with separate compilation, as the
+pre-pass must be performed over the \emph{entire} recursive loop
+before any typechecking can take place.
+
+\paragraph{Backwards propagation in MixML}  Consider the following
+example:
+
+\begin{figure}[H]
+\begin{tabular}{p{0.40\textwidth} p{0.50\textwidth}}
+\begin{lstlisting}[language=ML,escapechar=@]
+{ type t,
+  val f : t -> t,
+  val x = f 2 }
+    with
+{ type t = int }
+\end{lstlisting}
+&
+\begin{verbatim}
+(* mixml 0.2.1 passes with type: *)
+it : {f : [int -> int]-,
+      t : [= int : #], x : [int]+}
+\end{verbatim}
+\end{tabular}
+\caption{Backwards propagating type information in MixML}
+\label{fig:double-vision-backwards-propagating-mixml}
+\end{figure}
+
+\noindent
+In this example, a module which ordinarily would not typecheck
+(there is no reason to believe \verb|t = int|) is mixin linked
+with a second module, which introduces the necessary type equality
+for \verb|f 2| to typecheck.  We think this is a bit \emph{unusual}.
+
+\Red{But does MixML actually behave this way, or is it an
+implementation bug? Point out that the suggested encoding for signature
+refinement is not upheld faithfully here.}
+
+\paragraph{Backwards propagation in \OldBackpack{}}
+
+Consider the following adapation of
+Figure~\ref{fig:double-vision-simple-recursion-old-backpack}, where
+\verb|f MkT| has been moved out of \verb|module A| and into a module of
+its own.
+
+\begin{figure}[H]
+\begin{tabular}{p{0.35\textwidth} p{0.55\textwidth}}
+\begin{lstlisting}[language=Haskell,escapechar=@]
+module M where
+    data T = MkT
+signature A where
+    data T
+    f :: T -> T
+module B where
+    import M
+    import A
+    g = f MkT
+module A(T) where
+    import B
+    import M
+\end{lstlisting}
+&
+\begin{verbatim}
+{- Backpack'14 accepts -}
+\end{verbatim}
+\end{tabular}
+\caption{Backwards propagation in \OldBackpack{}}
+\label{fig:double-vision-backwards-propagating-old-backpack}
+\end{figure}
+
+\noindent
+Why does this typecheck?  In \OldBackpack{}, a shaping pass ignores
+all term declarations (including \verb|f MkT|) and computes the
+original names of all types.  At this point, we learn that \verb|A.T|
+is \verb|M.T|; now when \verb|B| is typechecked, \verb|f MkT| is found
+to be well-typed.
+
+This example gets at the heart of why \OldBackpack{} is not a very
+separately-compileable design: we \emph{cannot} know if \verb|module B| is
+type-correct without having first shaped \verb|module A|.
+
+\paragraph{No backwards propagation in \Backpack{}}  When we originally
+went about implementing Backpack, we implemented the shaping pass
+as suggested in \OldBackpack{}.  But it quickly became evident that before
+doing any typechecking, we would have to reshape all the modules in a package;
+and for what?  Arguably, it is extremely surprising for the typechecking of
+\verb|B| to depend on the source of the module that imports it!
+
+Thus, we argue that type refinements should only be visible \emph{from the
+module that implements the refinement and those which import it},
+preserving separate compilation.  This means that shaping and type
+computation can be done \emph{on-the-fly}, at the point when the refinement
+occurs, we strengthen our context.  This might seem like a tall order,
+but as we have seen \Red{reference}, GHC's type checker is up to the challenge.
+
+\subsection{Mutual recursion}
+
+\paragraph{Bidirectional Type Lookup}
+
+In Section~\ref{subsec:typechecking-dependency}, we observed that
+it is necessary to refine the specifications of types in signatures
+before checking if a module matches a signature.  The bidirectional
+type lookup problem arises when we are merging two signatures, in
+which case type lookup and refinement must be performed in both
+directions simultaneously.  Below, we've transcribed MixML's
+example of bidirectional type lookup into Haskell:
+
+%\begin{figure}[H]
+\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth} p{0.30\textwidth}}
+\begin{verbatim}
+signature A where
+    type T = Int
+    data U
+    f :: Int -> U
+\end{verbatim}
+&
+\begin{verbatim}
+signature A where
+    data T
+    type U = Bool
+    f :: T -> Bool
+\end{verbatim}
+&
+\begin{verbatim}
+signature A where
+    type T = Int
+    type U = Bool
+    f :: Int -> U
+\end{verbatim}
+\end{tabular}
+%\caption{Simple}
+%\label{fig:signature-merging}
+%\end{figure}
+
+\noindent
+Like MixML, \Backpack{} is able to handle the type refinement simply
+by picking \verb|type T = Int| and \verb|type U = Bool| as the ``canonical''
+representatives for the overall typechecking process, at which point
+\verb|Int -> U| and \verb|T -> Bool| are definitionally equal.
+
+An interesting question is whether or not \Backpack{} and MixML's semantics
+diverge in any cases.  In this case, it is instructive to consider
+
+
+
+This in and of itself
+is not unusual: signature matching in plain ML operates similarly;
+however, \Backpack{} goes about implementing this refinement quite differently
+from ML or even MixML\@.  This 
+
+
+\paragraph{Cyclic type definitions}
+
+Like MixML, \Backpack{} must detect and reject type synonym cycles that
+could arise after merging signatures:
+
+\begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+\begin{verbatim}
+signature A where
+    type T = U
+    data U
+\end{verbatim}
+&
+\begin{verbatim}
+signature A where
+    data T
+    type U = T
+\end{verbatim}
+\end{tabular}
+
+Also like MixML, \Backpack{} can merge signatures to form opaquely recursive types:
+
+\begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+\begin{verbatim}
+signature A where
+    data T = MkT U
+    data U
+\end{verbatim}
+&
+\begin{verbatim}
+signature A where
+    data T
+    data U = MkU T
+\end{verbatim}
+\end{tabular}
+
+\paragraph{Double Vision}
+
+Before we discuss differences in \Backpack{} and MixML's treatment of
+double vision, it is helpful to first define double vision.  This
+is especially important because double vision, as originally formulated
+by Dreyer in his thesis (2005) was a concept specific to the ML module
+system, and more specifically was a problem that arose from \emph{opaque type
+specifications} (generated by sealing), for which Haskell does not quite
+have a direct analog.
+
+In the study of recursive modules in ML, the double vision problem applies
+whenever you have a recursive module in the following form (we've used OCaml
+syntax for recursive modules):
+
+\begin{verbatim}
+    module type SIG =
+      sig
+        type t
+        val f :: t -> t
+      end
+    module rec X : SIG =
+      struct
+        type t = int
+        let f x = X.f (x-1)
+      end : SIG
+\end{verbatim}
+
+
+\section{Comparison with \OldBackpack{}}
+
+The inspiration for this
 work was the original Backpack paper~\cite{backpack}.  Backpack was
 first to pose the problem of retrofitting Haskell with interfaces, and
 many of its design ideas, such as mixin packages, applicativity and
-module identities have been preserved in this paper.  The contribution
+module identities have been preserved in this paper.  The primary contribution
 of this paper is an actual \emph{implementation} of the
 Backpack design, by refactoring of these ideas into a form that can be
 implemented in two stages: mixin linking handled by the package manager,
-and typechecking and compilation handled by the compiler.
+and typechecking and compilation handled by the compiler.  However,
+the vagaries of actual implementation have also influenced the design
+and semantics of the language in some non-trivial ways, which we elaborate
+upon below.
 
-This refactoring necessitated a change to one of the core definitions
-in the package language: in \OldBackpack{}, type equality was based on
-a per-module computed \emph{module identity}.  In effect, every
-defined module separately kept track of the set of signatures that it
-transitively imported.  If mixin linking is not allowed to inspect
-source code, the notion of identity must be coarsened. In this paper,
-\emph{instantiated component identities} track all of the requirements
-in the component, which are computed during mixin linking.
+\paragraph{Unordered Packages}
 
-A technical accomplishment of the original Backpack was a solution to
-the ``double vision problem'', where the typechecker can see two
-distinct names for the same underlying type in a mutually recursive
-module.  In Backpack, this problem was solved by way of a ``shaping pass'' which
-first computed the identities of what we call name variables prior to type
-checking.  In this paper, we do not permit
-mutual recursion; thus, the double vision problem does not occur,
-and our ``shaping pass'' only computes a very coarse-grained shape
-on the overall wiring structure of components.  From this wiring
-structure, \Backpack{} can compute the correct identities for
-name variables at the same time as type checking.
+One of the most obvious surface language changes from \OldBackpack{}
+to \Backpack{} is that \Backpack{}'s surface language is unordered: it
+does not matter what order you write your signatures and modules, \Backpack{}
+implicitly defines an ordering between them based on the import declarations
+in the module text.  Unordered module languages are a better match for
+the usual mapping of modules to files in a directory (which are unordered.)
 
-We have also taken a different approach to defining the semantics of
-\Backpack{}.  Instead of elaborating to Haskell, which is not how you would ever
-implement a Backpack-like system, we give an ad hoc semantics which
-directly reflects how \Backpack{} has been implemented in GHC\@.
+This takes away some expressivity from \Backpack{}: for example, module
+signatures (\verb|hsig| files) no longer subsume \verb|hs-boot| files
+(GHC's current mechanism for supporting mutually recursive modules).
+Within an unordered package, there is no way to tell if \verb|import A|
+was intended to refer to a signature or a module.  (\verb|hs-boot| files
+do not have this problem, as imports to the \verb|hs-boot| file are
+explicitly disambiguated using a \verb|{-# SOURCE #-}| pragma).
 
-\paragraph{Modularity in the package manager}  While there is far more
+\Red{Something about merging being undirected.  But maybe this makes sense
+only for MixML}
+
+\paragraph{Per-package modularity}
+
+In \OldBackpack{}, type equality was based on a per-module computed
+\emph{module identity}.  In effect, every defined module separately kept
+track of the set of signatures that it transitively imported.
+\Backpack{} posed the design constraint that mixin linking should not
+inspect source code. Thus, \Backpack{} needs a coarser notion of
+identity. In \Backpack{}, \emph{\uid{}s} record \emph{all} of the
+requirements in the component, so that every module in a component
+depends on the choice of implementation for every signature in the
+component.  This can be inconvenient at times, as it means that if you
+want a module to depend on fewer signatures, you must move it to a
+separate package, but this restriction allows us to preserve the
+abstraction barrier between the package manager and compiler.
+
+\section{Comparison with MixML}
+
+As \Backpack{} supports type synonyms where \OldBackpack{} did not,
+it is instructive to do a detailed comparison of how \Backpack{} handles
+many of the problems associated with transparent type declaration
+which \OldBackpack{} sidesteps by only considering the \emph{names}
+of language entities (rather than their computed types.)
+
+It's worth recapping what has \emph{not} changed since \OldBackpack{}.
+As before, \Backpack{} does not attempt to implement all of the features
+of ML module systems.  We do not support first-class and higher order
+units; indeed, from an implementation perspective, it is difficult to
+see how these features would be implemented without compromising on
+\Backpack{}'s promise that programming with signatures will be no less
+efficient than programming against the implementing module directly.
+Similarly, we do not support hierarchical linking or translucent
+sealing.
+
+\section{Modularity in the package manager}
+
+While there is far more
 literature on module systems that can be implemented entirely by a
 compiler, there has been some work which has looked at the problem of
 modular development at the package level.
 
 One such system
-is the Functoria DSL\footnote{\smaller \url{https://mirage.io/blog/introducing-functoria}}
+is the Functoria DSL\footnote{\smaller\url{https://mirage.io/blog/introducing-functoria}}
 of MirageOS~\cite{mirageos}.  MirageOS is a library operating system
 written in OCaml, which provides modules and functors for constructing
 unikernels.  Rather than manually instantiate these functors,
@@ -76,7 +586,7 @@ separate compilation.  In SMLSC, if you want multiple instantiations,
 you are expected to use ML functors.
 
 An unusual case of \emph{not} using a package manager when it would be
-useful occurs in C++ templates.\footnote{\smaller
+useful occurs in C++ templates.\footnote{\smaller%
   \url{https://gcc.gnu.org/onlinedocs/gcc/Template-Instantiation.html}}
 C++ templates are
 applicative, in the sense that two occurrences of \verb|vector<int>| refer to the
@@ -94,7 +604,9 @@ caching of instantiated components to it.  (This technique would not
 work for C++ templates, whose type based dispatch must be deeply
 integrated with the compiler.)
 
-\paragraph{ML functors}  The original Backpack language distinguished
+\section{ML functors}
+
+The original Backpack language distinguished
 itself from ``functors'' in (variants of) the ML module system
 \cite{milner+:def-of-sml-revised,ocaml} by the fact that it supported
 separate type checking for recursive modules under applicative
@@ -108,7 +620,9 @@ functor language. In fact, it is!  The reason our technical presentation
 is done in the way it is done here is because our primary goal
 was integrating with the existing compiler infrastructure.
 
-\paragraph{Mixin linking} There is a rich literature in the mixin
+\section{Mixin linking}
+
+There is a rich literature in the mixin
 linking world, which both Backpack and \Backpack{} draw heavily from
 \cite{ancona+:cms,flatt+:units,rossberg+:mixml}.  Indeed,
 the relationship to this literature is even clearer in \Backpack{}, as

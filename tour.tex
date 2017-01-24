@@ -22,7 +22,7 @@ and package system works; experienced readers should feel free to skip
 ahead to the next section.
 
 \begin{figure}
-\begin{verbatim}
+\begin{lstlisting}
 module Regex (Reg(..), accept) where
 
 -- | A type of regular expressions.
@@ -46,9 +46,9 @@ parts :: String -> [[String]]
 parts [] = [[]]
 parts [c] = [[[c]]]
 parts (c:cs) = concat [[(c:p):ps, [c]:p:ps] | p:ps <- parts cs]
-\end{verbatim}
+\end{lstlisting}
 \caption{Source code for a regular expression matcher from~\cite{Fischer:2010:PRE:1863543.1863594}.}
-\begin{verbatim}
+\begin{lstlisting}
 module Main where
 
 import Regex
@@ -57,7 +57,7 @@ nocs = Rep (Alt (Sym 'a') (Sym 'b'))
 onec = Seq nocs (Sym 'c')
 evencs = Seq (Rep (Seq onec onec)) nocs
 main = print (accept evencs "acc")
-\end{verbatim}
+\end{lstlisting}
 \caption{Simple test program for the matcher.}
 \label{fig:matcher-haskell98}
 \end{figure}
@@ -92,23 +92,23 @@ packages with the Cabal files as shown in Figure~\ref{fig:matcher-packages}.
 
 \begin{figure}
 \begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
-\begin{verbatim}
+\begin{lstlisting}[language=Cabal]
 -- regex.cabal
 name: regex
 version: 1.0
 library
     exposed-modules: Regex
     build-depends: base
-\end{verbatim}
+\end{lstlisting}
 &
-\begin{verbatim}
+\begin{lstlisting}[language=Cabal]
 -- regex-program.cabal
 name: regex-program
 version: 1.0
 executable regex-program
     main-is: Main.hs
     build-depends: base, regex
-\end{verbatim}
+\end{lstlisting}
 \end{tabular}
 \caption{Cabal files for the regex and regex-program packages. The Haskell source code
 of these packages is in Figure~\ref{fig:matcher-haskell98}.}
@@ -161,7 +161,7 @@ Figure~\ref{fig:matcher-regex-indef-source}, alongside a module which
 implements the string signature.
 
 \begin{figure}
-\begin{verbatim}
+\begin{lstlisting}
 signature Str where
 
 data Str
@@ -172,10 +172,10 @@ null      :: Str -> Bool
 singleton :: Chr -> Str
 splits    :: Str -> [(Str, Str)]
 parts     :: Str -> [[Str]]
-\end{verbatim}
+\end{lstlisting}
 \caption{Source code for a signature specifying abstract strings.}
 
-\begin{verbatim}
+\begin{lstlisting}
 module Regex where
 
 import Prelude hiding (null)
@@ -189,7 +189,7 @@ accept (Sym c)   u = u == singleton c
 accept (Alt p q) u = accept p u || accept q u
 accept (Seq p q) u = or [accept p u1 && accept q u2 | (u1, u2) <- splits u]
 accept (Rep r)   u = or [and [accept r ui | ui <- ps] | ps <- parts u]
-\end{verbatim}
+\end{lstlisting}
 \caption{Source code for regular expression matcher, parametrized by the Str signature.}
 \label{fig:matcher-regex-indef-source}
 \end{figure}
@@ -206,14 +206,14 @@ module, seen in Figure~\ref{fig:matcher-regex-indef-cabal}, needs only
 to declare \verb|Str| in the \verb|signatures| field.
 
 \begin{figure}
-\begin{verbatim}
+\begin{lstlisting}[language=Cabal]
 name: regex-indef
 version: 1.0
 library
     exposed-modules: Regex
     signatures: Str
     build-depends: base
-\end{verbatim}
+\end{lstlisting}
 \caption{Cabal files for the regex-indef package, which provides a Regex
 module parametrized by string implementation.}
 \label{fig:matcher-regex-indef-cabal}
@@ -231,7 +231,7 @@ provides one such implementation.
 
 \begin{figure}
 \begin{tabular}{p{0.55\textwidth} p{0.40\textwidth}}
-\begin{verbatim}
+\begin{lstlisting}
 module Str.String where
 
 import Prelude as P
@@ -243,15 +243,15 @@ null   = P.null :: Str -> Bool
 singleton = (\c -> [c]) :: Chr -> Str
 splits = ... :: Str -> [(Str, Str)]
 parts  = ... :: Str -> [[Str]]
-\end{verbatim}
+\end{lstlisting}
 &
-\begin{verbatim}
+\begin{lstlisting}[language=Cabal]
 name: str-string
 version: 1.0
 library
     exposed-modules: Str.String
     build-depends: base
-\end{verbatim}
+\end{lstlisting}
 \end{tabular}
 \caption{An implementation of Str, alongside its package description.}
 \label{fig:matcher-str-string-source}
@@ -294,14 +294,14 @@ convenience of not needing to rename modules overrides the benefits of
 being able to refer to a module uniquely by its name.}
 
 \begin{figure}
-\begin{verbatim}
+\begin{lstlisting}[language=Cabal]
 name: regex-program
 version: 1.0
 executable regex-program
     main-is: Main.hs
     build-depends: base, regex-indef, str-string
     mixins: str-string (Str.String as Str)
-\end{verbatim}
+\end{lstlisting}
 \caption{Package descriptions for \texttt{regex-program}, which brings
 Regex into scope instantiated with the \texttt{Str} implementation from \texttt{str-string}.}
 \label{fig:matcher-functorized-packages}
@@ -341,13 +341,13 @@ between the compiler and package manager, and we will repeatedly return to
 it throughout the rest of this thesis.
 
 \begin{figure}
-\begin{verbatim}
+\begin{lstlisting}
 unit regex-program where
     dependency base
     dependency str-string
     dependency regex-indef[Str=str-string:Str.String]
     module Main where ...
-\end{verbatim}
+\end{lstlisting}
 \caption{The intermediate representation of the packages from Figure~\ref{fig:matcher-functorized-packages}.
 The reference to \texttt{regex-indef} in \texttt{regex-program} now consists of an explicit functor application.}
 \label{fig:matcher-bkp}
@@ -380,8 +380,7 @@ are reexported by the \verb|module Data.ByteString| line in the export list
 of \verb|Str.ByteString|.
 
 \begin{figure}
-\begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
-\begin{verbatim}
+\begin{lstlisting}
 module Str.ByteString (
     module Data.ByteString,
     Str, Chr,
@@ -403,18 +402,16 @@ parts s | null s    = [[]]
         | otherwise = do n <- [1..length s]
                          let (l, r) = splitAt n s
                          fmap (l:) (parts r)
-\end{verbatim}
-&
-\begin{verbatim}
+\end{lstlisting}
+\begin{lstlisting}[language=Cabal]
 name: str-bytestring
 version: 1.0
 library
     exposed-modules: Str.ByteString
     build-depends: base, bytestring
-\end{verbatim}
-\end{tabular}
+\end{lstlisting}
 \caption{An implementation of Str backed by \texttt{bytestring},
-alongside its package description.}
+and its package description.}
 \label{fig:str-bytestring}
 \end{figure}
 
@@ -426,7 +423,7 @@ twice in \verb|mixins|, as seen in the Cabal file in
 Figure~\ref{fig:regex-program-multi}.
 
 \begin{figure}
-\begin{verbatim}
+\begin{lstlisting}[language=Cabal]
 name: regex-program
 version: 1.0
 executable regex-program
@@ -435,7 +432,7 @@ executable regex-program
     mixins:
         regex-indef (Regex as Regex.String) requires (Str as Str.String),
         regex-indef (Regex as Regex.ByteString) requires (Str as Str.ByteString)
-\end{verbatim}
+\end{lstlisting}
 \caption{Package descriptions for \texttt{regex-program}, which brings
 Regex into scope instantiated with the \texttt{Str} implementation from \texttt{str-string}.}
 \label{fig:regex-program-multi}
@@ -462,7 +459,7 @@ their respective wiring diagrams are different.}
 \end{figure}
 
 \begin{figure}
-\begin{verbatim}
+\begin{lstlisting}
 unit regex-program where
     dependency base
     dependency str-string
@@ -473,7 +470,7 @@ unit regex-program where
         import qualified Regex.String
         import qualified Regex.ByteString
         ...
-\end{verbatim}
+\end{lstlisting}
 \caption{The intermediate representation \texttt{regex-program} with two instantiations of \texttt{regex-indef}.  The unit identifiers after \texttt{dependency} form the type identity of the entities declared in \texttt{Regex.String} and \texttt{Regex.ByteString}.}
 \label{fig:matcher-twice-bkp}
 \end{figure}
@@ -511,25 +508,25 @@ to form the third signature in Figure~\ref{fig:signature-merging}.
 
 \begin{figure}
 \begin{tabular}{p{0.30\textwidth} p{0.30\textwidth} p{0.30\textwidth}}
-\begin{verbatim}
+\begin{lstlisting}
 signature Str where
   data Str
   null  :: Str -> Bool
-\end{verbatim}
+\end{lstlisting}
 &
-\begin{verbatim}
+\begin{lstlisting}
 signature Str where
   data Str
 
   empty :: Str
-\end{verbatim}
+\end{lstlisting}
 &
-\begin{verbatim}
+\begin{lstlisting}
 signature Str where
   data Str
   null  :: Str -> Bool
   empty :: Str
-\end{verbatim}
+\end{lstlisting}
 \end{tabular}
 \caption{The first and second signatures merge to form the third signature.}
 \label{fig:signature-merging}
@@ -555,11 +552,11 @@ representation for clarity.}
 \center\includegraphics{figures/p-q-merge-Str.pdf}
 &
 \vspace{2em}
-\begin{verbatim}
+\begin{lstlisting}
 unit r <Str> where
     dependency p[Str=<Str>]
     dependency q[Str=<Str>]
-\end{verbatim}
+\end{lstlisting}
 \end{tabular}
 \caption{Representation of \texttt{r} as a diagram, and as the intermediate
 representation after mix-in linking.}
@@ -585,11 +582,12 @@ advantage of another feature such as ``destructive substitution''
 to apply this assertion to an existing signature.  In \Backpack{}, you
 write a small signature to link with the existing signature:
 
-\begin{verbatim}
+\begin{lstlisting}
     signature Str where
         type Chr = Char
-\end{verbatim}
+\end{lstlisting}
 
+\noindent
 The effect of linking this signature to \verb|regex-indef| is that
 all occurrences of \verb|Chr| are all refined to be \verb|Char|;
 for example, with this signature you can now write the regular
@@ -610,14 +608,15 @@ A signature can be straightforwardly packaged into a library, simply
 by declaring a library with one or more signatures, but no modules.
 We call such packages \emph{signature packages}:
 
-\begin{verbatim}
-name: str-sig
-version: 1.0
-library
-    signatures: Str
-    build-depends: base
-\end{verbatim}
+\begin{lstlisting}[language=Cabal]
+    name: str-sig
+    version: 1.0
+    library
+        signatures: Str
+        build-depends: base
+\end{lstlisting}
 
+\noindent
 In fact, \Backpack{} treats such signature packages specially.
 Ordinarily, a required signatures cannot be thinned: if you are using a
 package that requires \verb|null :: Str -> Bool|, you must \emph{always}
@@ -632,10 +631,10 @@ For example, the following signature would thin any inherited signatures
 from signature packages to just require \verb|Str|, \verb|null| and
 \verb|empty|.
 
-\begin{verbatim}
-signature Str (Str, null, empty) where
-    {- empty -}
-\end{verbatim}
+\begin{lstlisting}
+    signature Str (Str, null, empty) where
+        {- empty -}
+\end{lstlisting}
 
 %%% Local Variables:
 %%% mode: latex

@@ -61,6 +61,8 @@
 \end{mdframed}
 \end{figure}
 
+\Red{Rewrite this eventually}
+
 The implementation and semantics of \Backpack{} is structured as a
 series of passes (Figure~\ref{fig:pipeline}) on several intermediate
 languages (Figure~\ref{fig:glossary}).  The key idea is that mixin
@@ -75,16 +77,69 @@ that will serve as the basis for our semantic account for \Backpack{}.
 
 \section{Dependency resolution to a \ccomp{}}
 
+\begin{figure}
+    \[
+    \begin{array}{rcl}
+    m & & \mbox{Module name} \\
+    p, q & & \mbox{\Cid} \\[0.3em]
+    \Uhsbody & & \mbox{Module source} \\
+    \Uhssig & & \mbox{Signature source} \\
+    \Scomp & ::= & \Scomponent{\Up}{\overline{\Sdecl}} \\[0.3em]
+    \Sdecl & ::= & \Sinclude{\Up}{\I{rns}} \\
+           & |   & \Sexposed{m}{\Uhsbody} \\
+           & |   & \Sother{m}{\Uhsbody} \\
+           & |   & \Sreexported{m}{m'} \\
+           & |   & \Srequired{m}{\Uhssig} \\
+    \I{rns} & ::= & [\Slparen\overline{rn}\Srparen]~[\texttt{requires}~ \Slparen\overline{rn'}\Srparen] \\
+    \I{rn} & ::= & \Sas{m}{m'} \\
+           & |   & m \\
+    \end{array}
+    \]
+    \caption{\Ccomp{}s.  While in this syntax declarations like \texttt{exposed-module}
+    embed the corresponding Haskell source code, in practice, this source code is recorded in a separate file.}\label{fig:rcomponents}
+\end{figure}
+
+\begin{figure}
+\begin{verbatim}
+        component base
+            exposed-module: W               module W where
+                                                data I = MkI
+                                                f (MkI i) = i
+        component p
+            signature: A                    signature A where data J
+            signature: B                    signature B where
+                                                data K
+                                                g :: K
+            exposed-module: Y               module Y where
+                                                import A
+                                                import B
+                                                data L = MkL J K
+        component q
+            signature: A                    signature A where data I = MkI I
+            exposed-module: X               module X (I(..), K, g) where
+                                                import A
+                                                type K = I
+                                                g = MkI g
+        component r
+            mixin: base (W)
+            mixin: p (Y) requires (B)
+            mixin: q (X as B)
+            signature: A                    signature A (I(..)) where
+                                                import W(I(..))
+            reexported-module: Y as Z
+\end{verbatim}
+  \caption{Our running example, with the package language displayed
+  on the left, and the Haskell source code displayed on the right.
+  An explicit export list can be used to reexport an
+  imported declaration, e.g., as is done with \texttt{I} in the
+  signature \texttt{X}.}\label{fig:resolved-example}
+\end{figure}
+
 The first step in
 processing a source component is \emph{dependency resolution},
 the existing Cabal phase that
 selects the versions and conditional flags of all direct dependencies of
 a source component (and their transitive direct dependencies as well).
-For example, Figure~\ref{fig:resolved-full-comps} shows the results
-of resolving a few examples from the tour, with each component renamed to
-a \cid{}, which records the name, version, and a hash (e.g., \verb|aaa|)
-recording how its direct dependencies were resolved to \cid{}s.
-
 The result of dependency resolution is a \emph{\ccomp}
 (Figure~\ref{fig:rcomponents}) which has all conditionals and fields
 irrelevant to \Backpack{} eliminated, and all direct dependencies
@@ -99,19 +154,93 @@ Instead, we simply assume that we have a black box which
 produces \ccomp{}s.  However, we do have to mention one thing about resolution:
 how are \verb|build-depends| fields from
 a source component translated into \verb|mixin| fields in the
-\ccomp{}?  For any package \verb|p|
-mentioned in \verb|build-depends| that is not mentioned in
-\verb|mixins|, it simply translates to
+\ccomp{}?  For any package \verb|p| mentioned in \verb|build-depends|
+that is not mentioned in \verb|mixins|, it simply translates to
 \verb|mixin: p|.
-% If a package from \verb|build-depends| is not mentioned
-% by \verb|mixins|, it gets given a default \verb|include: p|
-% declaration; otherwise, the \verb|mixins| field translates
-% directly to a series of \verb|include| statements.
-
-\input{diagram-page}
 
 \section{Mixin linking to a \unit{}}
 \label{sec:overview-mixin}
+
+\begin{figure}
+
+    \[
+    \begin{array}{lcll}
+    \lctx & ::= & \lctxpairx{\provs}{\reqs} & \mbox{Component shape} \\
+    %r_\textsf{R} & ::= & \overline{m \rightarrow m'} & \mbox{Requirement renaming (total)} \\
+    %r_\textsf{P} & ::= & \overline{m \rightarrow m'} & \mbox{Provision renaming (partial)} \\
+    \reqs  & ::= & \overline{\hv{m}} & \mbox{Required module variables} \\
+    \provs & ::= & \overline{\prov{m}{M}}  & \mbox{Provided modules} \\
+    \shctx & ::= & \overline{\Up \shapeis \lctx} & \mbox{Component shape context} \\
+    \end{array}
+    \]
+    \[
+    \begin{array}{rcll}
+      M   &::=& \Mod{\UP}{m} & \text{Module identity} \\
+          &|&   \holevar{m} & \text{Module hole} \\
+      \UP &::=& \icid{\Up}{S} & \text{\Uid} \\
+      S   &::=& \overline{\subst{m}{M}} & \text{Module substitution} \\
+    \end{array}
+    \]
+    \[
+    \begin{array}{rcll}
+      \Uunit &::=& \UsynUnit{\Up}{\reqs}{\overline{\Uudecl}} & \text{Mixed component} \\
+      \Uudecl &::=& \UsynDep{\UP}{r} & \text{Direct dependency} \\
+              &|&   \UsynMod{m}{\Uhsbody} & \text{Module definition} \\
+              &|&   \UsynSig{m}{\Uhssig} & \text{Signature definition} \\
+              %& &   \qquad \textsf{with}~\overline{P\!:\!m} & \quad\text{(Merges)} \\
+              %&|&   \UsynLet{m}{M} & \text{Let binding} \\
+      %\mprog &::=& \overline{\Uunit} & \text{Mixed program} \\
+      r   &::=& \overline{m \mapsto m'} & \text{Module renaming} \\
+    \end{array}
+    \]
+
+\caption{Component shapes and \unit{}s.}\label{fig:lcomponents}
+\end{figure}
+
+\begin{figure}
+    \[
+    \begin{array}{l}
+      \UsynUnitH{\cidl{base}}{} \haspr \{\provMod{W}{\icid{base}{}}{W}\}  \\
+      %\qquad \UsynLet{W}{\Mod{\icid{base}{}}{W}} \\
+      \qquad \UsynMod{\modname{W}(\texttt{I}(..))}{\texttt{data I = MkI I; f (MkI i) = i}} \\
+      \\
+      \UsynUnitH{\cidl{p}}{\hv{\modname{A}}~\hv{\modname{B}}}
+        \haspr \{
+            \provMod{Y}{%
+                \icid{\cidl{p}}{ \subst{A}{\holevar{A}}, \subst{B}{\holevar{B}}  }%
+            }{Y} \} \\
+      \qquad \UsynSig{A}{\texttt{data J}} \\
+      \qquad \UsynSig{B}{\texttt{data K; g ::}~\texttt{K}} \\
+      %\qquad \UsynLet{Y}{\MOD{p}{\substHole{A}, \substHole{B}}{Y}} \\
+      \qquad \UsynMod{Y}{\texttt{import A; import B; data L = MkL J K}} \\
+      \\
+      \UsynUnitH{\cidl{q}}{\hv{\modname{A}}}
+        \haspr \{ \provMod{X}{\icid{\cidl{q}}{\subst{A}{\holevar{A}}}}{X} \}
+      \\
+      \qquad \UsynSig{\modname{A}~(\texttt{I}(..))}{\texttt{data I = MkI I}} \\
+      %\qquad \UsynLet{X}{\MOD{q}{\substHole{A}}{X}} \\
+      \qquad \UsynMod{\modname{X}~(\texttt{I}(..), \texttt{K}(..))}{\texttt{import A; type K = I; g = MkI g}} \\
+      \\
+      \UsynUnitH{\cidl{r}}{\hv{\modname{A}}}
+        \haspr \{
+        \provMod{Z}{\icid{\cidl{p}}{%
+                 \subst{A}{\holevar{A}},
+                 \substMod{B}{\icid{\cidl{q}}{\subst{A}{\holevar{A}}}}{X}
+             }}{Y} \}
+        \\
+      \qquad \UsynDep{\icid{base}{}}{ \rename{W}{W} } \\
+      %\qquad\qquad \textsf{with}~\Mod{\icid{\cidl{q}}{\substHole{A}}}{A},
+      %           \Mod{\icid{\cidl{p}}{\substHole{A}, \subst{B}{\ldots}}}{A} \\
+      \qquad \UsynDep{\icid{\cidl{q}}{\substHole{A}}}{ \rename{X}{B} } \\
+      \qquad \UsynDep{\icid{\cidl{p}}{\substHole{A}, \substMod{B}{\icid{\cidl{q}}{\substHole{A}}}{X}}}{ \rename{Y}{Y} } \\
+      \qquad \mathsf{signature}~\modname{A}~(\texttt{I}(..))~\{~\texttt{import W(I(..))}~\} \\
+    \end{array}
+    \]
+
+  \caption{\Unit{}s. Each component is annotated with its provided modules, as
+    $\textsf{component}~p~\overline{\protect\hv{m}}\haspr\{\provs\}$.}\label{fig:linked-example}
+\end{figure}
+
 
 The next step is \emph{mixin linking}, which 
 elaborates a \ccomp{} into a \emph{\unit{}} and computes its
@@ -147,7 +276,7 @@ can actually be understood entirely pictorially:
 
 \noindent
 Here, we look at the process of mixin linking \cidl{p} and \cidl{q} in
-the component \cidl{r} in our running example (Figure~\ref{fig:stuff}).
+the component \cidl{r} in our running example.
 The includes of \cidl{p} and \cidl{q} are represented as boxes, each of
 which have an input port for every required module (\modname{A} for \cidl{q}
 and \modname{A}, \modname{B} for \cidl{p}), and an output
@@ -188,47 +317,77 @@ it too follows straightforwardly from the wiring diagram.  In particular,
 the dependency requirements that are to be merged for signature \modname{A}
 are from \cidl{p} and \cidl{q}, as is evident from the diagram.
 
-\section{Ordering a \unit{}}
+Although the intuitive description of mixin linking is very simple,
+there is one subtlety: what happens if two modules (not
+signatures) are brought into scope with the same name?  Naively,
+we would \emph{unify} the two module identities, erroring if they
+have incompatible module identities.  But there are two problems
+with this approach:
 
-There is a minor step which must be done before typechecking a
-\unit{}: we must \emph{order} the declarations of a \unit{} since declarations in the
-earlier languages in the pipeline are unordered.  At this point,
-we step into the realm of the GHC compiler, as this ordering depends
-on the \texttt{import} statements within (Haskell-level) modules and
-signatures.  We can define a topological ordering on declarations in a
-\unit{} as follows:
+\begin{enumerate}
+    \item If two distinct modules are brought into scope with the same
+    name, but are never used (in particular, if they are not used to
+    fill a signature), it is better not to report an error if they do
+    not unify.  This is inline with Cabal's existing behavior, and is
+    analogous to Haskell's name resolution rules, which only report an
+    ambiguity when the ambiguous name is used.
 
-\begin{itemize}
-    \item Obviously, every module/signature declaration depends on
-    any module/signature/dependency declaration which defines a
-    module it imports.
-    \item Every module declaration implicitly depends on every signature
-    declaration in the component.  (This means that it is illegal for a
-    signature to import a locally defined module.  In the absence of
-    mutual recursion such signatures would not be implementable.)
-    \item A dependency declaration $\textsf{dependency}~P$ depends
-    on the signature declarations for every free module variable
-    in $P$.  For example, in the definition of component \cidl{r} in
-    Figure~\ref{fig:linked-example},
-    \textsf{signature}~\modname{A} must precede the dependencies
-    on \cidl{p} and \cidl{q}, because both mention \hv{A}; but
-    can come after the \cidl{base} dependency which does not
-    depend on \modname{A}.
-%   \item A signature $m$ depends on another signature if it
-%   transitively imports it, either locally in this module, or
-%   within any of the dependencies (since dependencies there
-%   merge into our local dependency).
+    \item Suppose that $\Mod{\cidl{q}[\subst{A}{\hv{A}}]}{X}$ and
+        $\Mod{\cidl{q}[\subst{A}{\Mod{\cidl{a}}{A}}]}{X}$ are in
+        scope at the same name, and we need to use them
+        to fill a requirement (so that case (1) does not apply).
+        If we set $\subst{A}{\Mod{\cidl{a}}{X}}$,
+        the two modules unify.  But unifying in this way has a surprising consequence:
+        it means that one cannot determine the new set of
+        required module names by taking the set difference of the
+        required and provided names in scope: a unification between
+        two module identities can cause other requirements to be filled.
+        We think it is better to request that users explicitly fill all
+        requirements via mixin linking.
 
-%   A signature $m$ which is merged from $\Mod{p[S, \subst{m'}{\hv{m}}, S']}{m'}$
-%   depends on the signatures of any free module variables in $S$, where $S$
-%   is the set of requirements that signature $m'$ in $p$ transitively depends on.
-%   This is because the required interface for this
-%   component is not well-defined before we know the types of $S$.
-%   \Red{Forward reference to worked example here.}
-\end{itemize}
-%
-A dependency cycle indicates mutual recursion and is not allowed by GHC\@.
-(In principle, other compilers might be more permissive.)
+\end{enumerate}
+
+%   \section{Ordering a \unit{}}
+
+%   There is a minor step which must be done before typechecking a
+%   \unit{}: we must \emph{order} the declarations of a \unit{} since declarations in the
+%   earlier languages in the pipeline are unordered.  At this point,
+%   we step into the realm of the GHC compiler, as this ordering depends
+%   on the \texttt{import} statements within (Haskell-level) modules and
+%   signatures.  We can define a topological ordering on declarations in a
+%   \unit{} as follows:
+
+%   \begin{itemize}
+%       \item Obviously, every module/signature declaration depends on
+%       any module/signature/dependency declaration which defines a
+%       module it imports.
+%       \item Every module declaration implicitly depends on every signature
+%       declaration in the component.  (This means that it is illegal for a
+%       signature to import a locally defined module.  In the absence of
+%       mutual recursion such signatures would not be implementable.)
+%       \item A dependency declaration $\textsf{dependency}~P$ depends
+%       on the signature declarations for every free module variable
+%       in $P$.  For example, in the definition of component \cidl{r} in
+%       Figure~\ref{fig:linked-example},
+%       \textsf{signature}~\modname{A} must precede the dependencies
+%       on \cidl{p} and \cidl{q}, because both mention \hv{A}; but
+%       can come after the \cidl{base} dependency which does not
+%       depend on \modname{A}.
+%   %   \item A signature $m$ depends on another signature if it
+%   %   transitively imports it, either locally in this module, or
+%   %   within any of the dependencies (since dependencies there
+%   %   merge into our local dependency).
+
+%   %   A signature $m$ which is merged from $\Mod{p[S, \subst{m'}{\hv{m}}, S']}{m'}$
+%   %   depends on the signatures of any free module variables in $S$, where $S$
+%   %   is the set of requirements that signature $m'$ in $p$ transitively depends on.
+%   %   This is because the required interface for this
+%   %   component is not well-defined before we know the types of $S$.
+%   %   \Red{Forward reference to worked example here.}
+%   \end{itemize}
+%   %
+%   A dependency cycle indicates mutual recursion and is not allowed by GHC\@.
+%   (In principle, other compilers might be more permissive.)
 
 \section{Typechecking a \unit{}}
 \label{sec:overview-compiler}
@@ -244,45 +403,183 @@ A dependency cycle indicates mutual recursion and is not allowed by GHC\@.
     & \text{Provided/required types} \\
   \Gamma &::=& \overline{\Up : \Uunitty} & \text{Component typing context} \\
   &&&\\
-  \Umty &::=& \UobjTau{\UNs}{\overline{\Uty}} & \text{Module type} \\
+  \Umty &::=& \UobjTau{\UNs}{\overline{\Uty}~\overline{\Uinst}} & \text{Module type} \\
   % \tau_R &::=& \exists \overline{\hv{m.n}}.\, \tau  & \text{Signature type} \\
   \UNs &::=& \overline{\UN} & \text{Export specification} \\
-  \Uty &::=& \texttt{data}~n :: \I{kind} & \text{Defined entity spec} \\
-       &  |& \texttt{data}~n :: \I{kind} = \cdots N \cdots& \\
-       &  |& \texttt{type}~n :: \I{kind} = \cdots N \cdots\\
-       &  |& \texttt{class}~n :: \I{kind} \\
-       &  |& n :: \cdots N \cdots& \\
-       &  |& \cdots& \\
+  \Uty &::=& & \text{Defined entity spec} \\
+       &  |& \texttt{data}~\graybox{n}~\overline{(a :: \kappa)} & \qquad\text{Abstract data declaration} \\
+       &  |& \texttt{class}~\graybox{n}~\overline{(a :: \kappa)} & \qquad\text{Abstract type class} \\
+       &  |& \texttt{type family}~\graybox{n} :: \kappa~\texttt{where}~\texttt{..} & \qquad\text{Abstract closed type family} \\
+       &  |& \texttt{data}~\graybox{n}~\overline{(a :: \kappa)}~\texttt{where}~\I{dinfo}& \qquad\text{Data declaration} \\
+       &  |& \texttt{newtype}~\graybox{n}~\overline{(a :: \kappa)} = \I{ntinfo}& \qquad\text{Newtype declaration} \\
+       &  |& \texttt{type}~\graybox{n}~\overline{(a :: \kappa)} :: \kappa = \tau & \qquad\text{Type synonym} \\
+       &  |& \texttt{class}~\graybox{n}~\overline{(a :: \kappa)}~\texttt{where}~\I{clinfo} & \qquad\text{Type class} \\
+       &  |& \texttt{type family}~\graybox{n} :: \kappa~\texttt{where}~\I{tfinfo} & \qquad\text{Closed type family} \\
+       &  |& \texttt{type family}~\graybox{n} & \qquad\text{Open type family} \\
+       % Patterns omitted
+       % Data families omitted
+       &  |& n :: \tau& \qquad\text{Term declaration} \\
+  % Notes: Why are the axioms/names kept separately from the instance
+  % lists, rather than embedded "implicitly" (e.g., like how coercion
+  % for newtype is stored)?  Historically, the DFun was always kept
+  % separate from the instance declaration.
+  \Uinst &::=& \texttt{instance}~n :: \tau & \text{Class instance} \\
+         &  |& \texttt{family instance}~n :: \I{fiinfo} & \text{Family instance} \\
   &&&\\
   \Un   && \multicolumn{2}{l}{\text{Haskell source-level entity name}} \\
   \UN &::=& M.\Un & \text{Original name} \\
       &|&   \nhv{m.n} & \text{Name hole} \\
   \USn &::=& \overline{\subst{m.n}{N}} & \text{Name substitution} \\
+  &&&\\
+  a &&& \text{Haskell type variable} \\
+  \tau &::=& \cdots N \cdots & \text{Haskell type} \\
+  \kappa &::=& \cdots N \cdots & \text{Haskell kind} \\
+  \multicolumn{3}{l}{\I{dinfo}, \I{ntinfo}, \I{clinfo}, \I{tfinfo}, \I{fiinfo}} & \text{Haskell declaration metadata} \\
+% R &::=& & \text{Haskell role} \\
+%   & | & \mathsf{P} & \qquad\text{Phantom} \\
+%   & | & \mathsf{R} & \qquad\text{Representational} \\
+%   & | & \mathsf{N} & \qquad\text{Nominal} \\
 \end{array}
 \]
-\caption{Semantic objects of GHC Haskell.  Intuitively, these objects represent their syntactic counterparts, except that }
+\caption{The syntactic \emph{interface file} representation of GHC Haskell's declarations, which is produced after typechecking Haskell source code. Unlike source code, identifiers in these objects have been renamed into \emph{original names} ($N$) which identify the exact module which originally defined an entity.  We call these \emph{syntactic}, because internally, GHC uses a graph (rather than tree) based representation to actually perform semantic operations like type equality.  Every \I{decl} is associated with an entity name $\graybox{n}$, which we have indicated in grey.  We leave some of the details about declaration metadata unspecified, as they are not directly related to Backpack.  Abstract declarations can only occur in signatures.}
 %  We say $\tilde{\tau}$ to refer to the $\UNs$ of a $\tau$. Export specifications $\UNs$ have the invariant that every $n$ is distinct; so we may say $\Un \mapsto \UN \in \UNs$ to match the specific $\UN$ with $\Un$.
 \label{fig:haskell-semantics}
 \end{figure}
 
-After mixin linking has produced a \unit{} definition from a \ccomp{}
-definition, the component can now be \emph{typechecked} into Haskell's
-semantic objects (Figure~\ref{fig:haskell-semantics}).  We now
-consider how to typecheck each of the declarations in a \unit{}.
-Broadly speaking, the type of a component $\Xi$ is a function type $\Sigma_R
-\rightarrow \Sigma_P$, mapping from the required types
-$\Sigma_R$ to the provided types $\Sigma_P$ (we'll say
-more about the quantifiers shortly).
+\begin{figure}
+    \[
+    \begin{array}{l}
+    \cidl{base}
+        : \left\{\right\} \rightarrow
+          \left\{
+            \modname{W}
+            : \begin{array}{l}
+                \UobjIface\: (\MOD{base}{}{W}.\texttt{I}, \MOD{base}{}{W}.\texttt{f} ) \\
+                \qquad\texttt{data I = MkI}\ \MOD{base}{}{W}.\texttt{I} \\
+                \qquad\texttt{f ::}~\MOD{base}{}{W}.\texttt{I}~\rightarrow~\MOD{base}{}{W}.\texttt{I}
+            \end{array}
+          \right\}
+    \\[2em]
+    \cidl{p}~:~\forall\hv{A} \hv{B}.\, \forall\nhv{\texttt{A.J}} \nhv{\texttt{B.K}}. \\
+    \qquad
+    \left\{
+        \modname{A}~:~\begin{array}{l}
+                \UobjIface\: (\nhv{\texttt{A.J}}) \\
+                \qquad\texttt{data J}
+            \end{array},\quad
+        \modname{B}~:~\begin{array}{l}
+                \UobjIface\: (\nhv{\texttt{B.K}}, \nhv{\texttt{B.g}}) \\
+                \qquad\texttt{data K} \\
+                \qquad\texttt{g ::}~\nhv{\texttt{B.K}}
+            \end{array}
+    \right\}
+    \rightarrow\\
+    \qquad
+    \left\{
+        \modname{Y}~:~\begin{array}{l}
+                \UobjIface\: (\MOD{p}{\substHole{A}, \substHole{B}}{Y}.\texttt{L}) \\
+                \qquad\texttt{data L = MkL \nhv{\texttt{A.J}} \nhv{\texttt{B.K}}}
+            \end{array}
+    \right\}
+    \\[2em]
+    \cidl{q}~:~\forall\hv{A}.\, \forall\nhv{\texttt{A.I}}. \\
+    \qquad
+    \left\{
+        \modname{A}~:~\begin{array}{l}
+                \UobjIface\: (\nhv{\texttt{A.I}}) \\
+                \qquad\texttt{data I = MkI}\ \nhv{\texttt{A.I}}
+            \end{array}
+    \right\}
+    \rightarrow\\
+    \qquad
+    \left\{
+        \modname{X}~:~\begin{array}{l}
+                \UobjIface\: (\nhv{\texttt{A.I}}, \MOD{q}{\substHole{A}}{X}.\texttt{K}) \\
+                \qquad\texttt{type K = \nhv{\texttt{A.I}}} \\
+                \qquad\texttt{g ::}~\nhv{\texttt{A.I}}
+            \end{array}
+    \right\}
+    \\[2em]
+    \cidl{r}~:~\forall\hv{A}.\, \forall\nhv{\texttt{A.J}}. \\
+    \qquad
+    \left\{
+        \modname{A}~:~\begin{array}{l}
+                \UobjIface\: (\MOD{base}{}{W}.\texttt{I}, \nhv{\texttt{A.J}}) \\
+                \qquad\texttt{data J }
+            \end{array}
+    \right\}
+    \rightarrow%
+    \left\{
+    \right\}
+    \end{array}
+    \]
 
-\paragraph{Typechecking a module}
+\caption{Interface representation of our running example (Figure~\ref{fig:linked-example}).
+Note that the reexported \texttt{Z} from \texttt{r} is not shown in the type of \texttt{r}, as the \emph{type} of a component encompasses only the modules it defines, not those it reexports.}
+\label{fig:typing-example}
+\end{figure}
+
+\begin{figure}
+\center\includegraphics{figures/pqr-type-diagram.pdf}
+\caption{Graph representation of our running example
+(Figure~\ref{fig:linked-example}), with all original names replaced with
+pointers to the canonical declaration of the semantic object.
+Lightened declarations (seen to the left of the holes for \texttt{A} and
+\texttt{B} in \texttt{q} and \texttt{p}) specify requirements which
+were subsequently filled by instantiation or signature merging.}
+\label{fig:typing-example-diagram}
+\end{figure}
+
+After mixin linking has produced a \unit{} definition from a \ccomp{}
+definition, the component can now be \emph{typechecked} (moving us into
+the domain of the compiler).  The result of
+typechecking is a collection of \emph{interface files}
+(Figure~\ref{fig:haskell-semantics}), each of which records the type
+information of all top-level declarations in a
+module.\footnote{Interface files in GHC can also come with unfoldings,
+which carry term-level expressions to be used by the optimizer, but
+these can always be discarded without affecting the type checking
+process.}  These declarations closely resemble Haskell source code,
+except that all declarations have been annotated with full type and kind
+information and all identifiers have been renamed into \emph{original
+names} which identify the exact module which originally defined the
+entity.  The interface files of our running example can be found
+in Figure~\ref{fig:typing-example}.
+
+Although interface files fully describe the output of typechecking, the
+semantic representation that GHC uses internally differs in an important
+way: it replaces original names with direct pointers to the semantic
+object it refers to. We call this representation the \emph{graph
+representation}, in contrast to the syntactic \emph{interface
+representation}; for example, Figure~\ref{fig:typing-example-diagram}
+illustrates the graph representation of the types of our running
+example.  Although the graph representation was originally motivated by
+implementation concerns---the pointer representation obviates the need
+for a symbol table mapping original names to their semantic object---it
+happens to be a more expressive semantic representation, which we will
+make use of to define the semantics of signature merging.
+
+In the rest of this section, we'll describe the interface and semantic
+representations in more detail, and outline how each type of declaration
+in a \unit{} can be typechecked.  The modules and signatures of a
+component are collectively typechecked into a component type
+$\Xi$, a function type $\Sigma_R \rightarrow \Sigma_P$,
+mapping from the required types $\Sigma_R$ to the provided types
+$\Sigma_P$.
+
+\subsection{Typechecking a module}
+
 A module is typechecked to produce a \emph{module
 type} $\Umty$, consisting of an \emph{export
-specification} $\UNs$---what gets brought into scope when
-you import this module---and a set of \emph{defined entity specifications}
-$\overline{\Uty}$---the types and values defined by
-this module.  Syntactically, these are represented with
-a notation reminiscent of Haskell module declarations:
-$\UobjTau{\UNs}{\overline{\Uty}}$.
+specification} $\UNs$ (what gets brought into scope when
+you import this module) a set of \emph{defined entity specifications}
+$\overline{\Uty}$ (the types and values defined by
+this module) and a set of \emph{instances} (which get
+applied to type class and type family resolution).
+
+%   Syntactically, these are represented with
+%   a notation reminiscent of Haskell module declarations:
+%   $\UobjTau{\UNs}{\overline{\Uty}}$.
 
 For example, the module
 \modname{W} in \cidl{base} (Figure~\ref{fig:linked-example}) type
@@ -290,43 +587,50 @@ checks to the following module type (also given syntactically
 in Figure~\ref{fig:typing-example}):
 
 \begin{figure}[H]
-\center\includegraphics{diagrams/base-types.pdf}
+\center\includegraphics{figures/base-types.pdf}
 \end{figure}
 
 \noindent
-In the diagram, the enboxed references to \texttt{I} and \texttt{f} have
-been wired up to their definitions.  In other words, there are
-no unresolved Haskell-source level names in a module type: all
-names are resolved to \emph{original names} $N ::=
+In the diagram, we have shown the structure of the graph representation
+by wiring up the enboxed references of \texttt{I} and \texttt{f} to their definitions.
+In the interface file representation, \texttt{I} and \texttt{f} are
+specified not as unresolved Haskell-source level names in a module type,
+but as \emph{original names} $N ::=
 M.n$, which serve as unique identifiers for any entities; in the
-diagram, this is shown by wiring them up.  An original name for an entity
-defined in a module is generated by joining the identity
-of the module being compiled---$\MOD{base}{}{W}$ in this case---
-with the Haskell source level name (e.g., \texttt{I}, \texttt{f}).
+diagram, the original names have been abbreviated for concision.  An
+original name for an entity defined in a module is generated by joining
+the identity of the module that defines it---$\MOD{base}{}{W}$ in this
+case--- with the Haskell source level name (e.g., \texttt{I},
+\texttt{f}).
 
-Module types serve two key functions. First, the export
+Module types serve three key functions. First, the export
 specification denotes the entities made available when resolving a
 module import statement of this module.%
 \footnote{ The export specification of this module type should also
   mention the data constructor \texttt{MkI}.  To simplify the
   presentation, we omit such subordinate names in export
   specifications. See the \textit{espc} semantic object of
-  \OldBackpack~\cite{backpack}.  } Second, the defined entity
-specification of $\MOD{base}{}{W}.\texttt{I}$ denotes the ``type'' (or
-rather, the kind) of this Haskell type.  If, when typechecking
+  \OldBackpack~\cite{backpack}.  }
+Second, they define a set of instances which should be available
+for type class and type family resolution when an interface is (transitively) imported.
+Finally, the defined entity
+specification of $\MOD{base}{}{W}.\texttt{I}$ contains all of the
+information about the Haskell declaration necessary to make use of
+it in other modules.  If, when typechecking
 another module, we need to look up the kind of $\MOD{base}{}{W}.\texttt{I}$,
 we look up the module type of $\MOD{base}{}{W}$ from the context
 and then find the defined entity specification for \texttt{I}
 within the module type.
 
-\paragraph{Typechecking a signature}
+\subsection{Typechecking a signature}
+
 Typechecking \cidl{q} (Figure~\ref{fig:linked-example}) from our running example requires
 us to deal with a signature declaration.  Here is a
 representation of the final type of \cidl{q}, which we can think of as
 a zoomed in version of the diagram from Section~\ref{sec:overview-mixin}:
 
 \begin{figure}[H]
-\center\includegraphics{diagrams/q-types.pdf}
+\center\includegraphics{figures/q-types.pdf}
 \end{figure}
 
 \noindent
@@ -334,64 +638,110 @@ In the diagram, the declarations from the signature are
 drawn externally from \cidl{q}.  We do not know what module
 will be used to fill the requirement \texttt{A}, and
 consequently, we don't know what original name will provide an
-implementation of \texttt{I}, although we do have a type which
-it must satisfy once we do know the original names.
+implementation of \texttt{I}, although we do have a declarative
+specification which any implementation must satisfy.  When we type check against the
+signature, we use this required declaration ``as if'' it were
+a declaration of its own.
 
 In mixin linking, we bound a module variable \hv{A} to represent the
 unknown module identity.  In typechecking, we bind a \emph{name
 variable} $\nhv{m.n}$ to represent the unknown entity $n$ required by
 requirement $m$.
-
-In theory, we typecheck a signature source file in much the same way
-that we a typecheck a module, assigning a fresh name variable for each
-defined entity in the signature.  In practice, we want to avoid
-forcing the user to explicitly write the full requirement of the
-component; rather, we'd rather infer the requirement from the local signature as well
-as the dependencies of the component.  We lack a good formal model for
-this process (see Section~\ref{sec:merging}), so in the formal development
-in Section~\ref{sec:compiler}, we assume that the inferred requirement
-type is given nondeterministically.
-
 You may be wondering why name variables are not simply defined as
 $\hv{m}.n$.  In fact, names of this form demand that $n$ be defined
 by $\hv{A}$ itself, ruling out the possibility that it \emph{reexports}
 $n$ from another module.
 
-\paragraph{Typechecking a dependency}
+In the diagram above, the results of typechecking the module \texttt{X}
+are also shown.  As before, entities that are defined in the module
+are given original names combining the module identity (\MOD{q}{\subst{A}{\hv{A}}}{X})
+and their source level name, while reexported entities retain the original
+name of their source.
+
+\subsection{Typechecking a dependency}
+
 Now we can define the key operation for typechecking in \Backpack{}:
 how to compute the type of \cidl{q} instantiated with an implementation
 for its requirements.  These instantiations are specified to the
 compiler via \textsf{dependency} declarations.
-Let's consider a simple one: filling \cidl{q}'s
+Let's first consider a simple one: filling \cidl{q}'s
 requirement with \modname{W} from \cidl{base}, i.e., $\UsynDepEmpty{\cidl{q}[\subst{A}{\Mod{\cidl{base}[]}{W}}]}$.
 
 \begin{figure}[H]
-\center\includegraphics{diagrams/q-base-types.pdf}
+\center\includegraphics{figures/base-q-types.pdf}
+\end{figure}
+
+\noindent There are two key steps. First, we take the
+required export specification from \cidl{q}, and the provided export
+specification from \cidl{base}, and we perform \emph{export matching},
+matching every required entity with an exported entity with the same
+name from the implementing module.  In our example, we learn that
+\nhv{A.I} is instantiated with \MOD{base}{}{W}.\texttt{I}; in the graph
+representation, all previous references to \nhv{A.I} are rewritten so
+that they now point to the declaration for \MOD{base}{}{W}.\texttt{I}.
+Additionally, we must apply the module substitution to the original names of all
+entities defined in the instantiated component: e.g., we apply the
+substitution $\subst{A}{\Mod{\cidl{base}[]}{W}}$ to the original name
+\MOD{q}{\subst{A}{\hv{A}}}{X}.\texttt{K}.
+
+The second step is \emph{signature matching}, where we check if the
+declarations provided by \cidl{base} match the required declarations of
+\cidl{q}.  This proceeds by comparing the declarations of each required
+entity with the declaration of the corresponding provided entity.
+In our example, the implementation of \texttt{I} is an algebraic data
+type which matches the required declaration exactly; the implementation
+would also have successfully matched an abstract data type \texttt{data I}.
+
+It is important that export matching happen as a complete pass before
+signature matching, as the process of export matching may reveal more
+type equalities.  This can be seen in the instantiation of \cidl{p} in
+our running example:
+
+\begin{figure}[H]
+\center\includegraphics{figures/instantiation-with-synonyms.pdf}
 \end{figure}
 
 \noindent
-There are two key steps in this diagram: first, we take the required
-export specification from \cidl{q}, and the provided export specification
-from \cidl{base}, and we perform \emph{export matching}, instantiating
-the name variable with its true identity (diagramatically, it's
-just a line.)  Obviously, you can provide more exports than you require, but
-if you don't provide enough this step fails.
+In this example, it is not syntactically obvious that \verb|g :: I|
+and \verb|g :: K| are matching declarations.  \verb|I|
+and \verb|K| are definitionally equal because the abstract data type \verb|K|
+was implemented by the type synonym \verb|type K = I|:
 
-The second step is \emph{signature matching}: we check if the type
-provided by \cidl{base} matches the required type of \cidl{q}.  This
-step must occur after export matching: otherwise, we don't know that
-\texttt{I}s mentioned in the constructor \texttt{MkI} are the same.
+\begin{figure}[H]
+\center\includegraphics{figures/instantiation-with-synonyms-reduced.pdf}
+\end{figure}
 
-The final types of \cidl{q} are the same types as before, but now
-with their module variables and name variables resolved according
-to the module substitution and name matching.
-What the final original names of \texttt{K}
-and \texttt{I} exported by \cidl{q}?  \texttt{I} is easy: it's
-just \MOD{base}{}{W}.\texttt{I}.  \texttt{K} is not too difficult either;
-recall that the uninstantiated original name for \texttt{K} is
-\MOD{q}{\subst{A}{\hv{A}}}{X}.\texttt{K}.  Then, applying the module
-substitution $\subst{A}{\Mod{\cidl{base}[]}{W}}$ will give you the final
-module name.  Alternately, just read it off the diagram!
+\noindent
+By wiring up everything beforehand, we ensure that signature matching
+sees the correct equalities.  This does mean that we may construct some
+types in the graph representation that are ill-kinded before discovering
+that signature matching fails!
+
+\paragraph{Signature merging}  The distinguishing characteristic of mixin
+linking is not just the linking that occurs when a module is brought into
+scope with the same name as a signature, but also the \emph{signature merging}
+that occurs when two signatures are brought into scope under the same name.
+Like dependency instantiation, we must take the required exports of each
+signature being merged, and match every required entity with identically
+named entities from other signatures.  Unlike dependency instantiation,
+this process is \emph{bidirectional}:
+
+\begin{verbatim}
+signature A where
+    data T
+    type U = Int
+    f :: T -> T
+signature A where
+    type T = Bool
+    data U
+    f :: Bool -> Bool
+\end{verbatim}
+
+% So, the point here is we don't bother trying to solve
+% cross-eyed double vision (which requires an import realizer
+% to let us know that U = Int), because our mixin operation is
+% NOT ORDERED so there isn't any well-defined way to do the
+% realizer.  We suggest, if the programmer wants to
 
 %   \paragraph{Signature merging}
 %   There is one final detail: how to merge requirements from

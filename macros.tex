@@ -2,6 +2,7 @@
 \usepackage[T1]{fontenc} % for tt curly braces
 \usepackage{etoolbox} % for various programming stuff
 \usepackage{amsmath}
+\usepackage{listings}
 \usepackage{array}
 \usepackage{relsize}
 \usepackage{amsthm}
@@ -24,6 +25,9 @@
 \usepackage{xcolor}
 \usepackage{url}
 \usepackage{xspace}
+\usepackage[scaled]{beramono}
+
+\lstset{basicstyle=\ttfamily,breaklines=true}
 
 \newmdenv[
     hidealllines=true,
@@ -87,18 +91,24 @@
 \newcommand{\Uhssig}{\mathit{hssig}}
 \newcommand{\Uunitty}{\Xi}
 \newcommand{\Umty}{T}
+\newcommand{\Urole}{R}
 \newcommand{\Uty}{\mathit{decl}}
 \newcommand{\Utys}{\mathit{decls}}
+\newcommand{\Udfun}{\texttt{\$} \I{fn}}
+\newcommand{\Uinst}{\mathit{inst}}
+\newcommand{\Uinsts}{\mathit{insts}}
+\newcommand{\Ufinst}{\mathit{finst}}
+\newcommand{\Ufinsts}{\mathit{finsts}}
 \newcommand{\Umatch}{\mathit{sub}}
 % syntax
 \newcommand{\UsynUnitH}[2]{\ensuremath{\mathsf{component}~#1~#2}}
 \newcommand{\UsynUnit}[3]{\ensuremath{\UsynUnitH{#1}{#2}~\{#3\}}}
 \newcommand{\UsynLet}[2]{\ensuremath{\mathsf{let}~\modnameif{#1} = #2}}
 \newcommand{\UsynLetMod}[3]{\ensuremath{\mathsf{let}~\modnameif{#1} = \Mod{#2}{#3}}}
-\newcommand{\UsynMod}[2]{\ensuremath{\mathsf{module}~\modnameif{#1}~\{#2\}}}
-\newcommand{\UsynSig}[2]{\ensuremath{\mathsf{signature}~\modnameif{#1}~\{#2\}}}
+\newcommand{\UsynMod}[2]{\ensuremath{\mathsf{module}~\modnameif{#1}~\{~#2~\}}}
+\newcommand{\UsynSig}[2]{\ensuremath{\mathsf{signature}~\modnameif{#1}~\{~#2~\}}}
 \newcommand{\UsynESig}[2]{\ensuremath{\mathsf{esignature}~\modnameif{#1}~\{#2\}}}
-\newcommand{\UsynSigWith}[3]{\ensuremath{\mathsf{signature}~\modnameif{#1}~\{#2\}~\textsf{with}~#3}}
+\newcommand{\UsynSigWith}[3]{\ensuremath{\mathsf{signature}~\modnameif{#1}~\{~#2~\}~\textsf{with}~#3}}
 \newcommand{\UsynDep}[2]{\ensuremath{\mathsf{dependency}~#1~(#2)}}
 \newcommand{\UsynDepEmpty}[1]{\ensuremath{\mathsf{dependency}~#1}}
 % semantic objects
@@ -249,7 +259,7 @@
 \newcommand{\Srparen}{\texttt{)}}
 \newcommand{\Sexposed}[2]{\texttt{exposed-module:}~ \modnameif{#1} ~\{ #2 \}}
 \newcommand{\Sother}[2]{\texttt{other-module:}~ \modnameif{#1} ~\{ #2 \}}
-\newcommand{\Srequired}[2]{\texttt{required-signature:}~ \modnameif{#1} ~\{ #2 \}}
+\newcommand{\Srequired}[2]{\texttt{signature:}~ \modnameif{#1} ~\{ #2 \}}
 \newcommand{\Sreexported}[2]{\texttt{reexported-module:}~ \modnameif{#1} ~\texttt{as}~ \modnameif{#2}}
 \newcommand{\Sas}[2]{\modnameif{#1} \;\texttt{as}\; \modnameif{#2}}
 \newcommand{\Scom}{\texttt{,}\,}
@@ -325,6 +335,9 @@
 \newcommand{\highlight}[1]{%
   \colorbox{yellow!50}{$\displaystyle#1$}}
 
+\newcommand{\graybox}[1]{%
+  \colorbox{gray!30}{$\displaystyle#1$}}
+
 \newcommand{\KP}{\mathsf{P}}
 \newcommand{\KM}{\mathsf{M}}
 
@@ -395,3 +408,19 @@
     \renewcommand{\dblfloatpagefraction}{0.7}	% require fuller float pages
 
 	% remember to use [htp] or [htpb] for placement
+        %
+\lstset{language=Haskell,keywords={%  
+    package, module, signature, link, unit, where, data, import, instance, hiding, type, dependency%
+    }%
+}%
+\lstdefinelanguage{Cabal}
+{
+  % list of keywords
+  morekeywords={
+    name,version,library,exposed-modules,signatures,build-depends,main-is,executable,mixins
+  },
+  alsoletter=-,
+  sensitive=false, % keywords are not case-sensitive
+  morecomment=[l]{--}, % l is for line comment
+  morestring=[b]" % defines that strings are enclosed in double quotes
+}
