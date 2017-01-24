@@ -724,24 +724,59 @@ that occurs when two signatures are brought into scope under the same name.
 Like dependency instantiation, we must take the required exports of each
 signature being merged, and match every required entity with identically
 named entities from other signatures.  Unlike dependency instantiation,
-this process is \emph{bidirectional}:
+this matching process is \emph{bidirectional}, as can be seen in the following
+example (which is adapted from the MixML paper):
 
-\begin{verbatim}
+\begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+\begin{lstlisting}
+signature A where
+    type T = Int
+    data U
+    f :: Int -> U
+\end{lstlisting}
+&
+\begin{lstlisting}
 signature A where
     data T
-    type U = Int
-    f :: T -> T
-signature A where
-    type T = Bool
-    data U
-    f :: Bool -> Bool
-\end{verbatim}
+    type U = Bool
+    f :: T -> Bool
+\end{lstlisting}
+\end{tabular}
 
-% So, the point here is we don't bother trying to solve
-% cross-eyed double vision (which requires an import realizer
-% to let us know that U = Int), because our mixin operation is
-% NOT ORDERED so there isn't any well-defined way to do the
-% realizer.  We suggest, if the programmer wants to
+\noindent
+It is not obvious that \verb|Int -> U| has the same type as \verb|T -> Bool|,
+unless we refine \verb|U| to \verb|Bool| and \verb|T| to \verb|Int| in
+both signatures.
+
+Let's walk through how we go about merging these signatures:
+
+\begin{figure}[H]
+\center\includegraphics{figures/signature-merging.pdf}
+\end{figure}
+
+First, we take the required export specifications from each signature, and
+match up required entities which will refer to the same entity after
+merging.  For every entity which occurs in multiple signatures,
+we perform a \emph{syntactic merge}, picking the most-defined
+entity from each signature.  In this example, the choice is easy:
+\verb|type T = Int| is more defined than the abstract \verb|data T|;
+if there is not a unique choice, we pick an arbitrary one.
+
+Second, we form a graph representation of both the syntactic merge,
+as well as the original signatures.  However, original names
+are always resolved to the merged interface.  For example, in the
+second row of the diagram above, there are three definitions of
+\verb|U|, but all enboxed references refer to the middle \verb|type U = Bool|.
+At this point, we also need to reject type synonym cycles.
+
+Finally, we check that each of the original declarations from the signatures
+is compatible with the merged declaration, under the graph representation
+we computed previously.  Because all original names have been resolved to
+the common syntactic merge, both instances of \verb|f| have a type that
+is definitionally equal to \verb|Int -> U|; furthermore, by checking for
+the compatibility of type declarations, we also discover if the merged
+type declarations are consistent with the individual declarations of
+each signature.
 
 %   \paragraph{Signature merging}
 %   There is one final detail: how to merge requirements from
