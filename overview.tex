@@ -61,8 +61,6 @@
 \end{mdframed}
 \end{figure}
 
-\Red{Rewrite this eventually}
-
 The implementation and semantics of \Backpack{} is structured as a
 series of passes (Figure~\ref{fig:pipeline}) on several intermediate
 languages (Figure~\ref{fig:glossary}).  The key idea is that mixin
@@ -175,7 +173,7 @@ that is not mentioned in \verb|mixins|, it simply translates to
     \]
     \[
     \begin{array}{rcll}
-      M   &::=& \Mod{\UP}{m} & \text{Module identity} \\
+      M   &::=& \Mod{\UP}{m} & \text{Module identifier} \\
           &|&   \holevar{m} & \text{Module hole} \\
       \UP &::=& \icid{\Up}{S} & \text{\Uid} \\
       S   &::=& \overline{\subst{m}{M}} & \text{Module substitution} \\
@@ -302,11 +300,11 @@ With this wiring diagram in hand, we can say what the shape of \cidl{r}
 is by successively computing \emph{module identities} ($M$) and
 \emph{\uid{}s} ($P$) for the modules and components defined in the
 component.  In \cidl{r}, we first bind a \emph{module variable} \hv{A}
-(a module identity) for our unfilled requirement \modname{A}.  \hv{A}
+(a module identifier) for our unfilled requirement \modname{A}.  \hv{A}
 feeds into the input port for \cidl{q}: thus we give \cidl{q} the
 \uid{} $\cidl{q}[\subst{A}{\hv{A}}]$, mapping each of its input ports (\modname{A})
-to the module identity (\hv{A}) that filled it.  As \modname{X} is defined
-in \cidl{q}, it then gets the module identity $\Mod{\cidl{q}[\subst{A}{\hv{A}}]}{X}$.
+to the module identifier (\hv{A}) that filled it.  As \modname{X} is defined
+in \cidl{q}, it then gets the module identifier $\Mod{\cidl{q}[\subst{A}{\hv{A}}]}{X}$.
 We continue computing identities until we know the identity of every exported
 or reexported module in \cidl{r}; in this case, \modname{Y} from \cidl{p}
 (which is reexported as \modname{Z}).  Then the component shape of
@@ -644,7 +642,7 @@ signature, we use this required declaration ``as if'' it were
 a declaration of its own.
 
 In mixin linking, we bound a module variable \hv{A} to represent the
-unknown module identity.  In typechecking, we bind a \emph{name
+unknown module identifier.  In typechecking, we bind a \emph{name
 variable} $\nhv{m.n}$ to represent the unknown entity $n$ required by
 requirement $m$.
 You may be wondering why name variables are not simply defined as
@@ -654,7 +652,7 @@ $n$ from another module.
 
 In the diagram above, the results of typechecking the module \texttt{X}
 are also shown.  As before, entities that are defined in the module
-are given original names combining the module identity (\MOD{q}{\subst{A}{\hv{A}}}{X})
+are given original names combining the module identifier (\MOD{q}{\subst{A}{\hv{A}}}{X})
 and their source level name, while reexported entities retain the original
 name of their source.
 
@@ -717,7 +715,9 @@ sees the correct equalities.  This does mean that we may construct some
 types in the graph representation that are ill-kinded before discovering
 that signature matching fails!
 
-\paragraph{Signature merging}  The distinguishing characteristic of mixin
+\subsection{Signature merging}
+
+The distinguishing characteristic of mixin
 linking is not just the linking that occurs when a module is brought into
 scope with the same name as a signature, but also the \emph{signature merging}
 that occurs when two signatures are brought into scope under the same name.

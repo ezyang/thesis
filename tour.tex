@@ -331,8 +331,8 @@ as in Figure~\ref{fig:matcher-bkp}, where every dependency on another library
 is given an \emph{explicit instantiation} specifying how all of its requirements
 are filled; we will call this the \emph{syntactic} interpretation of
 the package description. The name of the library plus an instantiation is referred
-to as a \emph{unit identifier}.  In the case of \verb|regex-indef|, the
-unit identifier indicates that the requirement \verb|Str| is to be filled
+to as a \emph{\uid{}}.  In the case of \verb|regex-indef|, the
+\uid{} indicates that the requirement \verb|Str| is to be filled
 with the module \verb|Str.String| from the library \verb|str-string|.\footnote{In
 fact, GHC 8.2 comes with a mode for directly parsing and compiling this intermediate
 representation, which is used extensively by our test suite.}  This intermediate
@@ -471,7 +471,7 @@ unit regex-program where
         import qualified Regex.ByteString
         ...
 \end{lstlisting}
-\caption{The intermediate representation \texttt{regex-program} with two instantiations of \texttt{regex-indef}.  The unit identifiers after \texttt{dependency} form the type identity of the entities declared in \texttt{Regex.String} and \texttt{Regex.ByteString}.}
+\caption{The intermediate representation \texttt{regex-program} with two instantiations of \texttt{regex-indef}.  The \uid{}s after \texttt{dependency} form the type identity of the entities declared in \texttt{Regex.String} and \texttt{Regex.ByteString}.}
 \label{fig:matcher-twice-bkp}
 \end{figure}
 
@@ -490,7 +490,7 @@ defined in a package based on the identities of the modules that fill
 the signatures of the package.  Diagramatically, the identity
 incorporates the \emph{wiring diagrams} of the components which defined
 the types in question; in the intermediate representation after mix-in
-linking, the identity incorporates the \emph{unit identifier} (which
+linking, the identity incorporates the \uid{} (which
 identifies both the library and how it is instantiated.)
 
 \section{Composing libraries with requirements}

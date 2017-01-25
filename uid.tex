@@ -1,0 +1,296 @@
+\chapter{\Uid{}s}
+
+\begin{figure}[H]
+\center\includegraphics{figures/unit-identifier.pdf}
+\end{figure}
+
+At the core of Backpack is the expression language of \uid{}s.  A \uid{}
+can be thought of in two ways:
+
+\begin{enumerate}
+\item A \uid{} is an \emph{expression} in the language of
+   applicative functor applications, specifying how a
+   library is instantiated.  In this sense, $\uidl{p}{\substMod{A}{q}{B}}$
+   says, $\cidl{p}$ applied with \Mod{q}{B} at its hole (argument) \modname{A}.
+   (This is not entirely accurate in the presence of signature merging,
+   but it is a pretty good approximation.)
+
+\item A \uid{} uniquely \emph{identifies} a library: if
+   two instances of a library are instantiated in the same
+   way, they provide the same types and will be compiled
+   and installed only once in the package database.
+\end{enumerate}
+
+In \Backpack{}, \uid{}s are a concept that is universal across the
+package manager and compiler divide: mixin linking determines the \uid{}s of
+the libraries that are in scope; the compiler subsequently consumes
+these \uid{}s to determine what modules are in scope for import and what
+requirements are inherited.  \Uid{}s are not intended to be written by
+hand, although they are the basis for type equality and thus need to be
+understood to some degree.
+
+\Backpack{}'s \uid{}s are distinguished from \OldBackpack{}'s module
+identities, as they operate on a per-library rather than per-module
+basis.  This change in semantics was motivated in the desire for
+unit identifiers for libraries to be computable without referring to
+source code (which a per-module scheme like \OldBackpack{}'s requires.)
+
+In this chapter, we develop some basic metatheory on \uid{}s, giving
+some graphical intuition for them as well as describing an unimplemented
+extension to recursive \uid{}s.
+
+\section{Syntax}
+
+Here is the syntax of \uid{}s, recapitulated from Figure~\ref{fig:lcomponents}.
+
+\[
+\begin{array}{rcll}
+  m & && \mbox{Module name} \\
+  p, q & && \mbox{\Cid} \\[0.3em]
+  M   &::=& \Mod{\UP}{m} & \text{Module identifier} \\
+      &|&   \holevar{m} & \text{Module hole} \\
+  \UP &::=& \icid{\Up}{S} & \text{\Uid} \\
+  S   &::=& \overline{\subst{m}{M}} & \text{Module substitution} \\
+\end{array}
+\]
+
+\noindent
+We fix a set of \emph{\cid{}s} and \emph{module names}, which serve as
+labels to identify libraries prior to instantiation and the modules
+within them, respectively. \Cid{}s are allocated by the
+package manager after dependency solving and componentization, and
+generally encode the source package name, version, and transitive
+dependency structure.
+
+A \uid{} identifies a library (specified by a \cid{}) and a and how each
+of its holes is to be filled (specified by a \emph{module
+substitution}). A module substitution is a mapping from module name to
+\emph{module identifier}, which specifies a particular module name from
+an instantiated component (specified by a unit identifier), or a hole
+module (indicating that the module is uninstantiated). Each module name
+key of the substitution must be distinct.  In our concrete syntax,
+these entries are given canonically in lexicographically sorted
+order.
+
+\section{A pictorial language}
+
+One way to understand unit identifiers is to visualize a graph of
+component boxes:
+
+\begin{figure}[H]
+\center\includegraphics{figures/unit-identifier-pictorial.pdf}
+\end{figure}
+
+\noindent
+Each component box is labelled with a component identifier and has a
+series of input ports (on the left) and output ports (on the right). The
+input ports represent all of the required module names of the component,
+while the output ports signify a subset of the provided modules from
+this component (output ports can be elided if they are unused). An
+output port can be wired up to an input port to indicate the module is
+being used to instantiate the requirement; if a hole module name is
+wired to an input port, it indicates that this port is uninstantiated.
+In our implementation of \Backpack{}, component graphs are acyclic
+(but see Section \Red{XXX} for the cyclic extension).
+
+A unit identifier represents a specific box in a component graph, while
+a module identifier represents a specific output port on one of these
+boxes. It is worth emphasizing that the inputs to a component box
+determine its identity: for example, the component box for a component
+identifier can appear multiple times with different inputs.
+
+Since \Backpack{} is an \emph{applicative} module system (functor
+application is not generative), we can common up component boxes which
+have the same component identifier and input modules, or (in reverse)
+duplicate a component box and all of its inputs into two identical
+graphs; in all of these cases, the diagrams represent multiple \uid{}s
+which share common sub-expressions.  For example, the following
+two diagrams are equivalent.
+
+\begin{figure}[H]
+\center\includegraphics{figures/unit-identifier-pictorial-equivalence-example-2.pdf}
+\end{figure}
+
+The most expanded representation is always a tree of component boxes, each
+with only a single output port; this representation corresponds exactly
+to the abstract syntax tree of unit identifiers:
+
+\begin{figure}[H]
+\center\includegraphics{figures/module-identifier-pictorial.pdf}
+\end{figure}
+
+\section{Substitutions}
+
+Module substitutions can be applied to both unit and module identifiers, treating hole
+modules as variables:
+
+\[
+\begin{array}{rcl}
+  \substw{(\icid{p}{S})}{S'} &=_P& \icid{p}{\substw{S}{S'}} \\
+  \\
+  \substw{\holevar{m}}{\cdot} &=_M& \holevar{m} \\
+  \substw{\holevar{m}}{\subst{m}{M}, S} &=_M& M \\
+  \substw{\holevar{m}}{\subst{m'}{M}, S} &=_M& \substw{\holevar{m}}{S} \quad (m \neq m') \\
+  \substw{(\Mod{P}{m})}{S} &=_M& \Mod{\substw{P}{S}}{m} \\
+  \\
+  \substw{(\overline{\subst{m}{M}})}{S} &=_{S}& \overline{\subst{m}{\substw{M}{S}}} \\
+\end{array}
+\]
+
+Pictorially, substitution plugs a component into an unfilled
+hole module:
+
+\begin{figure}[H]
+\center\includegraphics{figures/substitution-pictorial-example.pdf}
+\end{figure}
+
+\section{Opaque \uid{}s}
+
+An important implementation consideration is how \uid{}s are
+concretely represented.  The obvious strategy is to always pass
+around a representation of the full abstract syntax tree anywhere
+a \uid{} is needed---the downside is that instantiated \uid{}s
+can be quite large, in part because \cid{}s allocated by the
+package manager can be quite large, as they must record information
+about how dependency resolution was performed for the library.
+
+Fortunately, in some cases, the structure of a \uid{} is not necessary;
+for example, when a unit identifier has no module holes, it is
+invariant under substitution.  A useful optimization in this case
+is to represent the structure opaquely with a \emph{definite unit
+identifiers}.  The abstract structure of a \uid{} now looks like this:
+
+\[
+\begin{array}{rcll}
+  \mathbb{P} &&& \text{Definite \uid{}} \\
+  \UP &::=& \icid{\Up}{S} & \text{\Uid} \\
+      & | & \mathbb{P} \\
+\end{array}
+\]
+
+\noindent
+Notice that definite \uid{}s occur recursively: the intent is that a
+definite \uid{} be allocated for a library when it is fully instantiated
+and compiled.  Thus, a definite \uid{} always corresponds to a \uid{}
+whose module substitution refers all to definite \uid{}s (since those
+libraries had to be compiled first, before this one could be compiled!)
+When compiling a fully instantiated library, the only \uid{}s which the
+compiler needs to interact with are definite \uid{}s, meaning that we
+only have to pay the cost of a full \uid{} when typechecking uninstantiated
+libraries.
+
+Definite \uid{}s are purely an implementation mechanism; if a definite
+\uid{} and a normal \uid{} are compared, the comparison must be done
+up to unfoldings of the definite \uid{}, as seen below (definite \uid{}s
+highlighted in blue):
+
+\begin{figure}[H]
+\center\includegraphics{figures/unit-identifier-improvement.pdf}
+\end{figure}
+
+\section{Recursive \uid{}s}
+
+%   **Warning:** The extension described in this section is not implemented
+%   in GHC 8.2.  It can be skipped upon a first reading.
+
+\Backpack{} with recursive linking requires generalizing unit
+identifiers to be infinite regular trees.  As was the case
+in \OldBackpack{}, these trees can be
+represently finitely using $\mu$-binders (ala recursive types),
+with the following abstract syntax (where $\alpha$ ranges over
+unit identity variables):
+
+\[
+\begin{array}{rcll}
+  \UP &::=& \mu\alpha.\, \icid{\Up}{S} & \text{\Uid} \\
+      & | & \alpha \\
+\end{array}
+\]
+
+%   A more parsimonious extension to the concrete syntax is to
+%   have every ``ComponentId`` "constructor" implicitly introduce
+%   a μ-binding, and represent the variables with de Bruijn indexes.
+%   Let ``UnitIdVar`` range over natural numbers, then:
+
+%   ::
+
+%       UnitId ::= ComponentId "[" ModuleSubst "]"
+%                | UnitIdVar
+
+Pictorially, recursive components simply relax the acyclicity restriction on
+the component graph:
+
+\begin{figure}[H]
+\center\includegraphics{figures/recursive-unit-identifier.pdf}
+\end{figure}
+
+These graphs are equivalent up to unfoldings (i.e., unrolling the
+cycles).
+Although, as observed in \OldBackpack{}, infinite trees of this form
+can be tested for equivalence using Huet's unification algorithm,
+for an implementation, it is more convenient to compute the canonical form
+of a \uid{}, so equality can be checked syntactically.  This can be
+computed by Moore machine minimization.  Canonicalization can be achieved
+in three steps:
+
+\begin{enumerate}
+\item Convert the unit identifier into a Moore machine,
+\item Minimize the Moore machine (the procedure is similar to DFA
+   minimization, except that states with differing outputs are
+   initialized to be in separate equivalence classes initially), and
+\item Convert the Moore machine back into a unit identifier.
+\end{enumerate}
+
+Intuitively, the Moore machine of a unit identifier recognizes paths
+(from right to left) through the component graph, outputting the
+component identifiers of the component boxes it traverses.
+
+\begin{figure}[H]
+\center\includegraphics{figures/moore-description.pdf}
+\end{figure}
+
+Formally, we define the partial Moore machine corresponding to a unit
+identifier as follows:
+
+\begin{enumerate}
+\item The state set ranges over component boxes and hole modules in the
+   graph (in the diagram above, we simply assigned a number to each
+   box/hole).
+\item The input alphabet is the Cartesian product of output module names
+   and input module names.  Intuitively, each member of the alphabet
+   corresponds to a wire labeled with the name of the input and output
+   ports it is wired to.
+\item The output alphabet is the set of component identifiers, as well
+   as a distinguished element \verb|HOLE| for hole modules.
+\item The inital state is the state corresponding to the component box of
+   the unit identifier we want to denote.
+\item A transition from $q$ to $q'$ on the input $(m, m')$ exists
+   if there is a wire from the input port $m'$ of $q$ to the output
+   port $m$ of $q'$ (or a hole module $\hv{m}$, if $q'$ corresponds to a hole
+   module.)
+\item The output of a state is the component identifier of its component
+   box, or \verb|HOLE| if it is a hole module.
+\end{enumerate}
+
+We can complete the partial Moore machine into a total Moore machine by
+adding a new sink state \verb|SINK|, which outputs a new output value
+\verb|SINK|, and directing all undefined transitions to it (not depicted on
+the diagram.)
+
+Here are two examples of recursive components expressed as Moore
+machines:
+
+\begin{figure}[H]
+\center\includegraphics{figures/moore-p.pdf}
+\hspace{3em}
+\includegraphics{figures/moore-pq.pdf}
+\end{figure}
+
+The \uid{} corresponding to a Moore machine is defined by
+recursively traversing the Moore machine, creating unit identifiers
+whose component identifier is the output at a state, and module
+substitution is all of the outgoing transitions to non-sink states. During
+this traversal, we maintain a stack of seen states:  when we reach a
+state that is already on our stack, we emit a variable bound
+for that state on the stack.  This traversal
+is guaranteed to terminate as the size of the state set is finite.
