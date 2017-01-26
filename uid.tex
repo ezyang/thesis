@@ -43,16 +43,8 @@ extension to recursive \uid{}s.
 
 Here is the syntax of \uid{}s, recapitulated from Figure~\ref{fig:lcomponents}.
 
-\[
-\begin{array}{rcll}
-  m & && \mbox{Module name} \\
-  p, q & && \mbox{\Cid} \\[0.3em]
-  M   &::=& \Mod{\UP}{m} & \text{Module identifier} \\
-      &|&   \holevar{m} & \text{Module hole} \\
-  \UP &::=& \icid{\Up}{S} & \text{\Uid} \\
-  S   &::=& \overline{\subst{m}{M}} & \text{Module substitution} \\
-\end{array}
-\]
+\[ \DIGatoms{} \]
+\[ \DIGuid{} \]
 
 \noindent
 We fix a set of \emph{\cid{}s} and \emph{module names}, which serve as
@@ -72,7 +64,7 @@ key of the substitution must be distinct.  In our concrete syntax,
 these entries are given canonically in lexicographically sorted
 order.
 
-\section{A pictorial language}
+\section{Pictorial interpretation}
 
 One way to understand unit identifiers is to visualize a graph of
 component boxes:

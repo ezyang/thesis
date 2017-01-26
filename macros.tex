@@ -424,3 +424,116 @@
   morecomment=[l]{--}, % l is for line comment
   morestring=[b]" % defines that strings are enclosed in double quotes
 }
+
+
+\newcommand{\DIGatoms}{%
+    \begin{array}{rcl}
+    m & & \mbox{Module name} \\
+    p, q & & \mbox{\Cid} \\
+    \end{array}
+}
+
+\newcommand{\DIGsource}{%
+    \begin{array}{rcl}
+    \Uhsbody & & \mbox{Module source} \\
+    \Uhssig & & \mbox{Signature source} \\
+    \end{array}
+}
+
+\newcommand{\DIGresolved}{%
+    \begin{array}{rcl}
+    \Scomp & ::= & \Scomponent{\Up}{\overline{\Sdecl}} \\[0.3em]
+    \Sdecl & ::= & \Sinclude{\Up}{\I{rns}} \\
+           & |   & \Sexposed{m}{\Uhsbody} \\
+           & |   & \Sother{m}{\Uhsbody} \\
+           & |   & \Sreexported{m}{m'} \\
+           & |   & \Srequired{m}{\Uhssig} \\
+    \I{rns} & ::= & [\Slparen\overline{rn}\Srparen]~[\texttt{requires}~ \Slparen\overline{rn'}\Srparen] \\
+    \I{rn} & ::= & \Sas{m}{m'} \\
+           & |   & m \\
+    \end{array}
+}
+
+\newcommand{\DIGuid}{%
+    \begin{array}{rcll}
+      M   &::=& \Mod{\UP}{m} & \text{Module identifier} \\
+          &|&   \holevar{m} & \text{Module hole} \\
+      \UP &::=& \icid{\Up}{S} & \text{\Uid} \\
+      S   &::=& \overline{\subst{m}{M}} & \text{Module substitution} \\
+    \end{array}
+}
+
+\newcommand{\DIGshape}{%
+    \begin{array}{lcll}
+    \lctx & ::= & \lctxpairx{\provs}{\reqs} & \mbox{Component shape} \\
+    %r_\textsf{R} & ::= & \overline{m \rightarrow m'} & \mbox{Requirement renaming (total)} \\
+    %r_\textsf{P} & ::= & \overline{m \rightarrow m'} & \mbox{Provision renaming (partial)} \\
+    \reqs  & ::= & \overline{\hv{m}} & \mbox{Required module variables} \\
+    \provs & ::= & \overline{\prov{m}{M}}  & \mbox{Provided modules} \\
+    \shctx & ::= & \overline{\Up \shapeis \lctx} & \mbox{Component shape context} \\
+    \end{array}
+}
+
+\newcommand{\DIGmixed}{%
+    \begin{array}{rcl}
+      \Uunit &::=& \UsynUnit{\Up}{\reqs}{\overline{\Uudecl}} \\
+      \Uudecl &::=& \UsynDep{\UP}{r} \\
+              &|&   \UsynMod{m}{\Uhsbody} \\
+              &|&   \UsynSig{m}{\Uhssig} \\
+              %& &   \qquad \textsf{with}~\overline{P\!:\!m} & \quad\text{(Merges)} \\
+              %&|&   \UsynLet{m}{M} & \text{Let binding} \\
+      %\mprog &::=& \overline{\Uunit} & \text{Mixed program} \\
+      r   &::=& \overline{m \mapsto m'} \\
+    \end{array}
+}
+
+\newcommand{\DIGinterface}{
+\begin{array}{rcll}
+  \Uunitty &::=& \forall \Theta.\, \forall \theta.\, \{\Sigma_R\} \rightarrow \{\Sigma_P\}
+    & \text{Component type} \\
+  \theta &::=& \overline{\hv{m.n}} & \text{Name variable quantifiers} \\
+  \Sigma &::=& \overline{m : \Umty}
+    & \text{Provided/required types} \\
+  \Gamma &::=& \overline{\Up : \Uunitty} & \text{Component typing context} \\
+  &&&\\
+  \Umty &::=& \UobjTau{\UNs}{\overline{\Uty}~\overline{\Uinst}} & \text{Module type} \\
+  % \tau_R &::=& \exists \overline{\hv{m.n}}.\, \tau  & \text{Signature type} \\
+  \UNs &::=& \overline{\UN} & \text{Export specification} \\
+  \Uty &::=& & \text{Defined entity spec} \\
+       &  |& \texttt{data}~\graybox{n}~\overline{(a :: \kappa)} & \qquad\text{Abstract data declaration} \\
+       &  |& \texttt{class}~\graybox{n}~\overline{(a :: \kappa)} & \qquad\text{Abstract type class} \\
+       &  |& \texttt{type family}~\graybox{n} :: \kappa~\texttt{where}~\texttt{..} & \qquad\text{Abstract closed type family} \\
+       &  |& \texttt{data}~\graybox{n}~\overline{(a :: \kappa)}~\texttt{where}~\I{dinfo}& \qquad\text{Data declaration} \\
+       &  |& \texttt{newtype}~\graybox{n}~\overline{(a :: \kappa)} = \I{ntinfo}& \qquad\text{Newtype declaration} \\
+       &  |& \texttt{type}~\graybox{n}~\overline{(a :: \kappa)} :: \kappa = \tau & \qquad\text{Type synonym} \\
+       &  |& \texttt{class}~\graybox{n}~\overline{(a :: \kappa)}~\texttt{where}~\I{clinfo} & \qquad\text{Type class} \\
+       &  |& \texttt{type family}~\graybox{n} :: \kappa~\texttt{where}~\I{tfinfo} & \qquad\text{Closed type family} \\
+       &  |& \texttt{type family}~\graybox{n} & \qquad\text{Open type family} \\
+       % Patterns omitted
+       % Data families omitted
+       &  |& n :: \tau& \qquad\text{Term declaration} \\
+  % Notes: Why are the axioms/names kept separately from the instance
+  % lists, rather than embedded "implicitly" (e.g., like how coercion
+  % for newtype is stored)?  Historically, the DFun was always kept
+  % separate from the instance declaration.
+  \Uinst &::=& \texttt{instance}~n :: \tau & \text{Class instance} \\
+         &  |& \texttt{family instance}~n :: \I{fiinfo} & \text{Family instance} \\
+  &&&\\
+  \Un   && \multicolumn{2}{l}{\text{Haskell source-level entity name}} \\
+  \UN &::=& M.\Un & \text{Original name} \\
+      &|&   \nhv{m.n} & \text{Name hole} \\
+  \USn &::=& \overline{\subst{m.n}{N}} & \text{Name substitution} \\
+  &&&\\
+  a &&& \text{Haskell type variable} \\
+  \tau &::=& \cdots N \cdots & \text{Haskell type} \\
+  \kappa &::=& \cdots N \cdots & \text{Haskell kind} \\
+  \multicolumn{3}{l}{\I{dinfo}, \I{ntinfo}, \I{clinfo}, \I{tfinfo}, \I{fiinfo}} & \text{Haskell declaration metadata} \\
+% R &::=& & \text{Haskell role} \\
+%   & | & \mathsf{P} & \qquad\text{Phantom} \\
+%   & | & \mathsf{R} & \qquad\text{Representational} \\
+%   & | & \mathsf{N} & \qquad\text{Nominal} \\
+\end{array}
+}
+
+
+\DeclareMathOperator{\dom}{dom}
