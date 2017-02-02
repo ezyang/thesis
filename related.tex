@@ -476,6 +476,106 @@ syntax for recursive modules):
       end : SIG
 \end{verbatim}
 
+\section{Unordered syntax}
+
+\Backpack{}, unlike most existing module systems (including \OldBackpack{}
+and most ML variants) has an \emph{unordered} module language.  Compare
+to MixML, where the ordering of linking matters, even in the absence
+of binding constructs:
+
+\begin{figure}[H]
+\begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+\begin{lstlisting}[language=ML,escapechar=@]
+(* REJECTED by paper MixML *)
+{ type t,
+  val f : t -> t,
+  val x = f 2 }
+with
+{ type t = int }
+\end{lstlisting}
+&
+\begin{lstlisting}[language=ML]
+(* ACCEPTED by paper MixML *)
+{ type t = int }
+with
+{ type t,
+  val f : t -> t,
+  val x = f 2 }
+\end{lstlisting}
+\end{tabular}
+\caption{Order matters in MixML.  Note that mixml 0.2.1 accepts both programs, as it has a more general template pass which differs from the journal version of MixML.}
+\label{fig:order-matters-in-mixml}
+\end{figure}
+
+In the first example, the first module is typechecked without knowledge
+that \verb|type t = int|, and so the application \verb|f 2| fails to
+typecheck.  In the second example, the results of bidirectional type
+lookup are applied to \verb|t| before the module is typechecked,
+causing us to accept the module.
+
+When designing an unordered language, we must design our semantics so
+that there is only one behavior which makes sense under any ordering.
+One way to solve this problem is to precompute type information
+(as in \OldBackpack{}) before typechecking proper.  This would resolve
+the MixML issue above, since we would now be obligated to propagate
+knowledge that \verb|type t = int| no matter where that declaration
+occurred in the program.  However, as we've mentioned previously,
+\Backpack{} does \emph{not} do a pre-pass in the interest of
+separate compilation; this means there are a lot more choices available
+to us.
+
+Here are a few litmus tests:
+
+\begin{lstlisting}
+unit p where
+    signature A where
+        data T
+        f :: T
+unit q where
+    signature B where
+        f :: Int
+unit r where
+    dependency p[A=<A>]
+    dependency q[A=<A>]
+    signature A where
+        type T = Int
+\end{lstlisting}
+
+Without the signature in \verb|r|, our matching judgment rejects the
+merge of \verb|p| and \verb|q|'s signatures, since the abstract
+type \verb|T| is not known to be equal to \verb|Int|.  However, if
+we were to merge in \verb|type T = Int| before matching, the merge
+would succeed.  Thus, \Backpack{} will typecheck the local signature
+and merge it in, before checking matching.
+
+The examples proliferate further when we consider a hypothetical,
+recursive variant of \Backpack{}.  We suggested the principle that
+type refinement only occur at the point when we are typechecking a
+module; but should that also incorporate things from dependencies?
+
+\begin{lstlisting}
+unit t where
+    module T where
+        data T = MkT
+unit p where
+    signature A(T) where
+        import T
+    signature B(T) where
+        import A
+unit q where
+    signature A(T) where
+        data T
+    signature C(T) where
+        import B
+unit r where
+    dependency p[A=<A>,B=<B>]
+    signature A(T) where
+        import B
+        import C
+\end{lstlisting}
+
+(By the way, this problem doesn't occur for \OldBackpack{} as it does
+not permit reexports from signatures.)
 
 \section{Comparison with \OldBackpack{}}
 

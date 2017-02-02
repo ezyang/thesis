@@ -1,0 +1,30 @@
+\begin{figure}
+\fbox{\textbf{Export merging:} $\UNs \oplus \UNs = \UNs$}
+
+\[
+\frac{
+\begin{array}{c}
+\forall j.\quad N_j ~\textsf{names}~ n_j \\
+\forall j.\quad N'_j ~\textsf{names}~ n_j \\
+\textsf{names}(\overline{N_i}) \,\#\, \textsf{names}(\overline{N'_k}) \\
+\forall j.\quad N_j \oplus_m N'_j = N''_j
+\end{array}
+}{
+\overline{N_i}\, \overline{N_j} \oplus_m \overline{N'_j}\, \overline{N'_k} = \overline{N_i}\, \overline{N''_j}\, \overline{N'_k}
+}
+\]
+
+\fbox{\textbf{Name merging:} $N \oplus N = N$}
+
+\[
+N \oplus_m \nhv{m.n} = N
+\qquad\qquad
+\nhv{m.n} \oplus_m N = N
+\qquad\qquad
+N \oplus_m N = N
+\]
+
+\fbox{\textbf{Declaration merging:} $\Uty \oplus \Uty' = \Uty''$}
+
+\[\text{If $\Uty$ or $\Uty'$ is abstract, use the other one.  Otherwise, pick one arbitrarily.}\]
+\end{figure}

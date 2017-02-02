@@ -1,0 +1,24 @@
+
+
+Renaming signatures which are not in $\Delta$ (in $\Gamma$).  Functorial on types.  Otherwise defers to usual renaming.
+
+\fbox{$\Gamma \vdash \textsf{renamesig}_{m,S}~ T \leadsto T$}
+\fbox{$\Gamma \vdash \textsf{renamesig}_{m,S}~ N \leadsto N$}
+
+\[
+\frac{
+S(m) = \hv{m'}
+}{
+\Gamma \vdash \textsf{renamesig}_{m,S}~ \nhv{m.n} \leadsto \nhv{m'.n} \\
+}
+\]
+
+\[
+\frac{
+N ~\textsf{names}~ n \qquad
+N \neq \nhv{m.n} \qquad
+\Gamma \vdash \textsf{rename}_S~ N \leadsto N' \
+}{
+\Gamma \vdash \textsf{renamesig}_{m,S}~ N \leadsto N' \\
+}
+\]

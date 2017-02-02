@@ -97,6 +97,8 @@
 \newcommand{\Udfun}{\texttt{\$} \I{fn}}
 \newcommand{\Uinst}{\mathit{inst}}
 \newcommand{\Uinsts}{\mathit{insts}}
+\newcommand{\Uimp}{\mathit{imp}}
+\newcommand{\Uimps}{\mathit{imps}}
 \newcommand{\Ufinst}{\mathit{finst}}
 \newcommand{\Ufinsts}{\mathit{finsts}}
 \newcommand{\Umatch}{\mathit{sub}}
@@ -489,26 +491,29 @@
 
 \newcommand{\DIGinterface}{
 \begin{array}{rcll}
-  \Uunitty &::=& \forall \Theta.\, \forall \theta.\, \{\Sigma_R\} \rightarrow \{\Sigma_P\}
-    & \text{Component type} \\
-  \theta &::=& \overline{\hv{m.n}} & \text{Name variable quantifiers} \\
-  \Sigma &::=& \overline{m : \Umty}
-    & \text{Provided/required types} \\
-  \Gamma &::=& \overline{\Up : \Uunitty} & \text{Component typing context} \\
+  %\Uunitty &::=& \forall \Theta.\, \forall \theta.\, \{\Sigma_R\} \rightarrow \{\Sigma_P\}
+  %  & \text{Component type} \\
+  %\theta &::=& \overline{\hv{m.n}} & \text{Name variable quantifiers} \\
+  %\Sigma &::=& \overline{m : \Umty}
+  %  & \text{Provided/required types} \\
+  %\Gamma &::=& \overline{\Up : \Uunitty} & \text{Component typing context} \\
+  \Phi &::=& \overline{\Mod{p}{m} : T} & \text{External module context} \\
+  \Delta &::=& \overline{m : T} & \text{Home module context} \\
+  \Gamma &::=& \Phi; \Delta; P_0 & \text{Context} \\
   &&&\\
-  \Umty &::=& \UobjTau{\UNs}{\overline{\Uty}~\overline{\Uinst}} & \text{Module type} \\
+  \Umty &::=& \UobjTau{\UNs}{\overline{\Uty}~\overline{\Uinst}~\overline{\Uimp}} & \text{Module type} \\
   % \tau_R &::=& \exists \overline{\hv{m.n}}.\, \tau  & \text{Signature type} \\
   \UNs &::=& \overline{\UN} & \text{Export specification} \\
   \Uty &::=& & \text{Defined entity spec} \\
        &  |& \texttt{data}~\graybox{n}~\overline{(a :: \kappa)} & \qquad\text{Abstract data declaration} \\
        &  |& \texttt{class}~\graybox{n}~\overline{(a :: \kappa)} & \qquad\text{Abstract type class} \\
-       &  |& \texttt{type family}~\graybox{n} :: \kappa~\texttt{where}~\texttt{..} & \qquad\text{Abstract closed type family} \\
+       &  |& \texttt{type family}~\graybox{n}~\overline{(a :: \kappa)} :: \kappa~\texttt{where}~\texttt{..} & \qquad\text{Abstract closed type family} \\
        &  |& \texttt{data}~\graybox{n}~\overline{(a :: \kappa)}~\texttt{where}~\I{dinfo}& \qquad\text{Data declaration} \\
        &  |& \texttt{newtype}~\graybox{n}~\overline{(a :: \kappa)} = \I{ntinfo}& \qquad\text{Newtype declaration} \\
        &  |& \texttt{type}~\graybox{n}~\overline{(a :: \kappa)} :: \kappa = \tau & \qquad\text{Type synonym} \\
        &  |& \texttt{class}~\graybox{n}~\overline{(a :: \kappa)}~\texttt{where}~\I{clinfo} & \qquad\text{Type class} \\
-       &  |& \texttt{type family}~\graybox{n} :: \kappa~\texttt{where}~\I{tfinfo} & \qquad\text{Closed type family} \\
-       &  |& \texttt{type family}~\graybox{n} & \qquad\text{Open type family} \\
+       &  |& \texttt{type family}~\graybox{n}~\overline{(a :: \kappa)} :: \kappa~\texttt{where}~\I{tfinfo} & \qquad\text{Closed type family} \\
+       &  |& \texttt{type family}~\graybox{n}~\overline{(a :: \kappa)} :: \kappa & \qquad\text{Open type family} \\
        % Patterns omitted
        % Data families omitted
        &  |& n :: \tau& \qquad\text{Term declaration} \\
@@ -518,6 +523,7 @@
   % separate from the instance declaration.
   \Uinst &::=& \texttt{instance}~n :: \tau & \text{Class instance} \\
          &  |& \texttt{family instance}~n :: \I{fiinfo} & \text{Family instance} \\
+  \Uimp  &::=& M & \text{Transitive module import} \\
   &&&\\
   \Un   && \multicolumn{2}{l}{\text{Haskell source-level entity name}} \\
   \UN &::=& M.\Un & \text{Original name} \\

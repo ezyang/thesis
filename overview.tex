@@ -345,12 +345,12 @@ with this approach:
 \label{sec:overview-compiler}
 
 
-\begin{figure}
-\[ \DIGinterface{} \]
-\caption{The syntactic \emph{interface file} representation of GHC Haskell's declarations, which is produced after typechecking Haskell source code. Unlike source code, identifiers in these objects have been renamed into \emph{original names} ($N$) which identify the exact module which originally defined an entity.  We call these \emph{syntactic}, because internally, GHC uses a graph (rather than tree) based representation to actually perform semantic operations like type equality.  Every \I{decl} is associated with an entity name $\graybox{n}$, which we have indicated in grey.  We leave some of the details about declaration metadata unspecified, as they are not directly related to Backpack.  Abstract declarations can only occur in signatures.}
-%  We say $\tilde{\tau}$ to refer to the $\UNs$ of a $\tau$. Export specifications $\UNs$ have the invariant that every $n$ is distinct; so we may say $\Un \mapsto \UN \in \UNs$ to match the specific $\UN$ with $\Un$.
-\label{fig:haskell-semantics}
-\end{figure}
+%   \begin{figure}
+%   \[ \DIGinterface{} \]
+%   \caption{The semantic objects of GHC Haskell.}
+%   %  We say $\tilde{\tau}$ to refer to the $\UNs$ of a $\tau$. Export specifications $\UNs$ have the invariant that every $n$ is distinct; so we may say $\Un \mapsto \UN \in \UNs$ to match the specific $\UN$ with $\Un$.
+%   \label{fig:haskell-semantics}
+%   \end{figure}
 
 \begin{figure}
     \[
@@ -420,16 +420,16 @@ with this approach:
     \end{array}
     \]
 
-\caption{Interface representation of our running example (Figure~\ref{fig:linked-example}).
+\caption{Example types of our running example (Figure~\ref{fig:linked-example}).
 Note that the reexported \texttt{Z} from \texttt{r} is not shown in the type of \texttt{r}, as the \emph{type} of a component encompasses only the modules it defines, not those it reexports.}
 \label{fig:typing-example}
 \end{figure}
 
 \begin{figure}
 \center\includegraphics{figures/pqr-type-diagram.pdf}
-\caption{Graph representation of our running example
+\caption{Pictorial depiction of the types in our running example
 (Figure~\ref{fig:linked-example}), with all original names replaced with
-pointers to the canonical declaration of the semantic object.
+pointers to the declaration of the semantic object.
 Lightened declarations (seen to the left of the holes for \texttt{A} and
 \texttt{B} in \texttt{q} and \texttt{p}) specify requirements which
 were subsequently filled by instantiation or signature merging.}
@@ -437,51 +437,36 @@ were subsequently filled by instantiation or signature merging.}
 \end{figure}
 
 After mixin linking has produced a \unit{} definition from a \ccomp{}
-definition, the component can now be \emph{typechecked} (moving us into
-the domain of the compiler).  The result of
-typechecking is a collection of \emph{interface files}
-(Figure~\ref{fig:haskell-semantics}), each of which records the type
-information of all top-level declarations in a
-module.\footnote{Interface files in GHC can also come with unfoldings,
+definition, the component can now be \emph{typechecked}, producing \emph{module types} $M$
+(Figure~\ref{fig:haskell-semantics}) which record the type information
+of all top-level declarations in a module.  In the implementation
+of GHC, these semantic objects correspond to the \emph{interface
+file} representation which GHC uses to cache type information of
+already typechecked modules.\footnote{Interface files in GHC can also come with unfoldings,
 which carry term-level expressions to be used by the optimizer, but
 these can always be discarded without affecting the type checking
-process.}  These declarations closely resemble Haskell source code,
-except that all declarations have been annotated with full type and kind
-information and all identifiers have been renamed into \emph{original
-names} which identify the exact module which originally defined the
-entity.  The interface files of our running example can be found
-in Figure~\ref{fig:typing-example}.
+process.}
 
-Although interface files fully describe the output of typechecking, the
-semantic representation that GHC uses internally differs in an important
-way: it replaces original names with direct pointers to the semantic
-object it refers to. We call this representation the \emph{graph
-representation}, in contrast to the syntactic \emph{interface
-representation}; for example, Figure~\ref{fig:typing-example-diagram}
-illustrates the graph representation of the types of our running
-example.  Although the graph representation was originally motivated by
-implementation concerns---the pointer representation obviates the need
-for a symbol table mapping original names to their semantic object---it
-happens to be a more expressive semantic representation, which we will
-make use of to define the semantics of signature merging.
+GHC Haskell's semantic objects resemble Haskell source code,
+with two differences:
+first, all declarations have been annotated with full type and kind
+information; second, all identifiers have been renamed into \emph{original
+names} which identify the exact module which originally defined the
+entity.  The types of our running example can be found
+in Figure~\ref{fig:typing-example}.
 
 In the rest of this section, we'll describe the interface and semantic
 representations in more detail, and outline how each type of declaration
-in a \unit{} can be typechecked.  The modules and signatures of a
-component are collectively typechecked into a component type
-$\Xi$, a function type $\Sigma_R \rightarrow \Sigma_P$,
-mapping from the required types $\Sigma_R$ to the provided types
-$\Sigma_P$.
+in a \unit{} can be typechecked.
 
 \subsection{Typechecking a module}
 
 A module is typechecked to produce a \emph{module
 type} $\Umty$, consisting of an \emph{export
 specification} $\UNs$ (what gets brought into scope when
-you import this module) a set of \emph{defined entity specifications}
-$\overline{\Uty}$ (the types and values defined by
-this module) and a set of \emph{instances} (which get
-applied to type class and type family resolution).
+you import this module) and a set of \emph{defined entity specifications}
+$\Utys$ (the types and values defined by
+this module).
 
 %   Syntactically, these are represented with
 %   a notation reminiscent of Haskell module declarations:
@@ -489,51 +474,39 @@ applied to type class and type family resolution).
 
 For example, the module
 \modname{W} in \cidl{base} (Figure~\ref{fig:linked-example}) type
-checks to the following module type (also given syntactically
-in Figure~\ref{fig:typing-example}):
+checks to the following module type (see also Figure~\ref{fig:typing-example}):
 
 \begin{figure}[H]
 \center\includegraphics{figures/base-types.pdf}
 \end{figure}
 
 \noindent
-In the diagram, we have shown the structure of the graph representation
+In the diagram, we depicted the type of \verb|box| pictorially
 by wiring up the enboxed references of \texttt{I} and \texttt{f} to their definitions.
-In the interface file representation, \texttt{I} and \texttt{f} are
-specified not as unresolved Haskell-source level names in a module type,
-but as \emph{original names} $N ::=
+The enboxed references \texttt{I} and \texttt{f} are
+not unresolved Haskell-source level names,
+but \emph{original names} $N ::=
 M.n$, which serve as unique identifiers for any entities; in the
 diagram, the original names have been abbreviated for concision.  An
 original name for an entity defined in a module is generated by joining
 the identity of the module that defines it---$\MOD{base}{}{W}$ in this
 case--- with the Haskell source level name (e.g., \texttt{I},
 \texttt{f}).
+If, when typechecking another module, we need to look up the kind of
+$\MOD{base}{}{W}.\texttt{I}$, we look up the module type of
+$\MOD{base}{}{W}$ from the context and then find the defined entity
+specification for \texttt{I} within the module type.
 
-Module types serve three key functions. First, the export
-specification denotes the entities made available when resolving a
-module import statement of this module.%
-\footnote{ The export specification of this module type should also
-  mention the data constructor \texttt{MkI}.  To simplify the
-  presentation, we omit such subordinate names in export
-  specifications. See the \textit{espc} semantic object of
-  \OldBackpack~\cite{backpack}.  }
-Second, they define a set of instances which should be available
-for type class and type family resolution when an interface is (transitively) imported.
-Finally, the defined entity
-specification of $\MOD{base}{}{W}.\texttt{I}$ contains all of the
-information about the Haskell declaration necessary to make use of
-it in other modules.  If, when typechecking
-another module, we need to look up the kind of $\MOD{base}{}{W}.\texttt{I}$,
-we look up the module type of $\MOD{base}{}{W}$ from the context
-and then find the defined entity specification for \texttt{I}
-within the module type.
+An astute reader may have noticed that a module type
+also records defined instances ($\Uinsts$) and set of transitive imports ($\Uimps$);
+these are for type class resolution, and we defer a detailed discussion of these
+to Section~\ref{sec:compiler}.
 
 \subsection{Typechecking a signature}
 
 Typechecking \cidl{q} (Figure~\ref{fig:linked-example}) from our running example requires
 us to deal with a signature declaration.  Here is a
-representation of the final type of \cidl{q}, which we can think of as
-a zoomed in version of the diagram from Section~\ref{sec:overview-mixin}:
+representation of the final type of \cidl{q}:
 
 \begin{figure}[H]
 \center\includegraphics{figures/q-types.pdf}
@@ -598,7 +571,7 @@ In our example, the implementation of \texttt{I} is an algebraic data
 type which matches the required declaration exactly; the implementation
 would also have successfully matched an abstract data type \texttt{data I}.
 
-It is important that export matching happen as a complete pass before
+It is important that export matching happen before
 signature matching, as the process of export matching may reveal more
 type equalities.  This can be seen in the instantiation of \cidl{p} in
 our running example:
@@ -670,16 +643,18 @@ entity from each signature.  In this example, the choice is easy:
 \verb|type T = Int| is more defined than the abstract \verb|data T|;
 if there is not a unique choice, we pick an arbitrary one.
 
-Second, we form a graph representation of both the syntactic merge,
-as well as the original signatures.  However, original names
-are always resolved to the merged interface.  For example, in the
-second row of the diagram above, there are three definitions of
+Second, we put the syntactic merge in the context, so that all original
+names from each signature being merged are resolved with respect to the
+merged interface, rather than their local declarations.  For example, in
+the second row of the diagram above, there are three definitions of
 \verb|U|, but all enboxed references refer to the middle \verb|type U = Bool|.
 At this point, we also need to reject type synonym cycles.
 
 Finally, we check that each of the original declarations from the signatures
-is compatible with the merged declaration, under the graph representation
-we computed previously.  Because all original names have been resolved to
+is compatible with the merged declaration, under the context from
+step two (compatibility checking in Haskell must always be done with
+a context, since any reference to a type synonym must be
+expanded).  Because all original names have been resolved to
 the common syntactic merge, both instances of \verb|f| have a type that
 is definitionally equal to \verb|Int -> U|; furthermore, by checking for
 the compatibility of type declarations, we also discover if the merged

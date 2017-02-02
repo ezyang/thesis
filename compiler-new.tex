@@ -1,0 +1,226 @@
+%!TEX root = paper.tex
+\chapter{Type checking}
+\label{sec:compiler}
+
+We now give a formal model for how our implementation typechecks
+\unit{}s which still have unfilled requirements.  It's not possible to
+give a full semantics, since that would involve formalizing all of
+Haskell as implemented by GHC, but we will informally explain the
+operation of the judgments we assume are given to us.
+
+\section{Semantic objects}
+
+\begin{figure}
+\[ \DIGinterface{} \]
+\caption{Semantic objects of GHC Haskell with \Backpack{}}
+\label{fig:semantic-objects}
+\end{figure}
+
+The semantic objects of GHC Haskell, extended with \Backpack{},
+are given in Figure~\ref{fig:semantic-objects}.
+Unlike source code, identifiers in these objects have been renamed into \emph{original names} ($N$) which identify the exact module which originally defined an entity.  Every \I{decl} is associated with an entity name $\graybox{n}$, which we have indicated in grey.  We leave some of the details about declaration metadata unspecified (e.g., \I{dinfo}, \I{ntinfo}, etc.), as they are not directly related to Backpack.  Abstract declarations can only occur in signatures.
+
+A module type consists of four components:
+
+\begin{enumerate}
+    \item The export specification ($\UNs$), which specifies what entities are brought
+    into scope when a module is imported.
+    \item The defined entity specifications ($\Utys$), which give definitions
+    for each entity provided by a module.  The defined entity specification for
+    an original name $M.n$ is recorded in the module type for $M$.
+    \item A set of instances ($\Uinsts$), which specifies the type class
+    instances defined in this module.
+    \item The set of modules transitively imported by this module ($\Uimps$),
+    which controls the set of instances which are in scope when performing
+    type class resolution.
+\end{enumerate}
+
+We collect module types into a context $\Phi$, associating a module type
+with an uninstantiated module identity.
+
+\paragraph{Differences from GHC 8.2's representation}  The account of semantic objects
+given here closely corresponds to GHC's \emph{interface file representation}; however
+there are some major differences.
+
+\begin{itemize}
+    \item In our formulation of GHC Haskell's semantic objects, an
+    instance directly records the type representing the constraint that
+    the instance fills.  In GHC Haskell, an instance instead contains a
+    reference to a \emph{dictionary function}, which is just a type of
+    term declaration that is never exported.  The two presentations are
+    equivalent, but embedding the dictionary function in the instance
+    makes it easier to specify the rules instance checking.  Similarly,
+    closed family instances are associated with a coercion axiom, but in
+    our presentation they are embedded in \I{tfinfo}.
+
+    \item Export specification is just a list of names, rather than names with
+    children; the latter is used to support import declarations like
+    \verb|Maybe(..)|.
+
+    \item GHC doesn't record the set of modules transitively imported (which would
+    mean that interface files take quadratic space to store); instead
+    it records only those modules which define orphan instances for family instances.
+\end{itemize}
+
+\section{Auxiliary definitions}
+
+Projection out of interfaces
+
+\fbox{$T ~\mathsf{exports}~ \UNs$}
+
+\[ \UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps} ~\mathsf{exports}~ \UNs \]
+
+Projection out of $N$
+
+\fbox{$N ~\mathsf{names}~ n$}
+
+\[ \nhv{m.n} ~\mathsf{names}~ n \]
+\[ M.n ~\mathsf{names}~ n \]
+
+Interpreting export list $\UNs$ as mapping on $n$. ($n$ is deterministic as $\UNs$ is non-overlapping)
+
+\[ \frac{
+N \in \UNs \qquad
+N ~\mathsf{names}~ n
+}{
+\UNs(n) = N
+} \]
+
+Lifting export list $\UNs$ to name substitution $\USn$
+
+\[
+\frac{
+\forall i.\, N_i ~\mathsf{names}~ n_i
+}{
+\mathsf{nsubst}(m, \overline{N_i}) = \overline{\nhv{m.n_i} \mapsto N_i}
+}
+\]
+
+\subsection{Typing rules}
+
+
+% Key points:
+%   - Type lookup is always done by finding it in the context.
+%     Only situation this doesn't happen is primitive typechecking of
+%     module or signature.  Important, because when we check
+%     compatibility, type lookup might be done with regards to
+%     something strange.  (Things get even stranger with
+%     recursion; then we preemptively put the types in the
+%     context.)
+%   - Signatures process one-by-one, as an earlier signature
+%     can cause a later one to merge.  Same with exports.
+% Properties we want: (1) signature can import other signature, (2) signature sees the same view of an import A as other modules would, (3) semantics should be forwards compatible with a recursive semantics, (4) signature should be able to refine type so that merging that would otherwise fail succeeds
+%   - Non-recursive case is easier because we don't have to preemptively
+%     merge all types (running afowl of (4))
+%   - Thinning doesn't work too well: want to thin BEFORE you typecheck
+%   so that you avoid typechecking things you don't know.
+%   - Thinning has a relationship with explicit signature exports
+
+
+Context: $\Gamma ::= \Phi; \Delta; P_0$
+
+EPS is $\Phi ::= \overline{\Mod{p}{m} : T}$. HPT is $\Delta ::= \overline{m : T}$.
+
+$P_0$ is ``self''.  Invariant: it is always fully uninstantiated or fully instantiated. (Does it work with partial instantiation?)
+
+
+\textsf{rename} is functorial on interface.  Key case is handling name.
+
+\fbox{$\Gamma \vdash \textsf{rename}_S~ N \leadsto N$}
+
+\begin{itemize}
+
+\item
+Ordinary names just have substitution applied to them.
+
+\[
+\Gamma \vdash \textsf{rename}_S~ M.n \leadsto M[S].n
+\]
+
+\item
+A hole name must be substituted by consulting the exports
+of the module substituted in.  (This assumes that the export
+list is sufficient, which it will be if we checked if the
+substitution matches.)
+
+\[
+\frac{
+\Gamma \vdash S(m) : T \qquad
+T ~\textsf{exports}~ \UNs
+}{
+\Gamma \vdash \textsf{rename}_S~ \nhv{m.n} \leadsto \UNs(n)
+}
+\]
+
+\end{itemize}
+
+% TODO: Need to also update transitively reachable modules when this
+% occurs
+
+Typing module identities
+
+\fbox{$\Gamma \vdash M : T$}
+
+\[
+\frac{
+m : T \in \Delta
+}{
+\Phi; \Delta; P_0 \vdash \hv{m} : T
+}
+\]
+
+\[
+\frac{
+m : T \in \Delta
+}{
+\Phi; \Delta; P_0 \vdash \Mod{P_0}{m} : T
+}
+\]
+
+\[
+\frac{
+\Mod{p}{m} : T \in \Phi \qquad
+\Phi; \Delta; P_0 \vdash \textsf{rename}_S~ T \leadsto T'
+}{
+\Phi; \Delta; P_0 \vdash \Mod{p[S]}{m} : T'
+}
+\]
+
+
+Get the types of all signatures
+
+\fbox{$\Gamma \vdash M ~\textsf{requires}~ T$}
+
+\[
+\frac{
+\begin{array}{c}
+% Look up each signature
+\Mod{p}{m} : T \in \Gamma \\
+% And do the provisional renaming (without assuming m in Delta)
+\Gamma \vdash \textsf{renamesig}_{m,S}~ T \leadsto T' \\
+\end{array}
+}{
+\Gamma \vdash \Mod{p[S]}{m} ~\textsf{requires}~ T' \\
+}
+\]
+
+
+\input{typing/main}
+\input{typing/renaming}
+\input{typing/haskell}
+\input{typing/merging}
+\input{typing/kinding}
+\input{typing/subtyping}
+
+Collect holes.  Given $p[S]$, for each $\hv{m}$, emit $p[S]$ requires $m$; and for each $\Mod{P'}{m'}$ otherwise, recursively handle $P'$.
+
+% Things to talk about:
+%   - Temporary bogus types. MixML and Backpack have this problem
+%     (Backpack in particular: if you define a type and refer to it,
+%     but that type is already in context, which do you use.  Name
+%     is consistent, but not necessarily definition!)
+%   - Cyclic exports when you add signature reexports to recursive
+%   Backpack
+%   - Recursive design space is big. hs-boot for hsigs? Do signature
+%   declarations become before or after dependencies?  Signature
+%   should see anything, but also refine recursive occurences of self?
