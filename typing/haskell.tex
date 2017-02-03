@@ -1,14 +1,14 @@
 \begin{figure}
 
-\fbox{\textbf{Instance resolution:} $\Gamma \vdash \Uimps ~\textsf{solves}~ \Uinst$}
+\fbox{\textbf{Instance resolution:} $\ctx \vdash \Uimps ~\textsf{solves}~ \Uinst$}
 
-\fbox{\textbf{Type equality:} $\Gamma \vdash \tau =_\textsf{hs} \tau$}
+\fbox{\textbf{Type equality:} $\ctx \vdash \tau =_\textsf{hs} \tau$}
 
-\fbox{\textbf{Kind equality:} $\Gamma \vdash \kappa =_\textsf{hs} \kappa$}
+\fbox{\textbf{Kind equality:} $\ctx \vdash \kappa =_\textsf{hs} \kappa$}
 
-\fbox{\textbf{Signature typechecking:} $\Gamma; \mathcal{L}; m \vdash \I{hssig} : T$}
+\fbox{\textbf{Signature typechecking:} $\ctx; \mathcal{L}; m \vdash \I{hssig} : T$}
 
-\fbox{\textbf{Module typechecking:} $\Gamma; \mathcal{L}; m \vdash \I{hsmod} : T$}
+\fbox{\textbf{Module typechecking:} $\ctx; \mathcal{L}; m \vdash \I{hsmod} : T$}
 
 \caption{Assumed Haskell judgments}
 

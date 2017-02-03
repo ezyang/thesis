@@ -18,6 +18,7 @@
 \usepackage{verbatimbox}
 \usepackage{alltt}
 \usepackage{multicol}
+\usepackage{fixltx2e}
 \usepackage[nooneline,bf]{subfigure}
 % \usepackage[labelformat=simple]{subcaption}
 % \renewcommand\thesubfigure{(\alph{subfigure})}
@@ -25,9 +26,9 @@
 \usepackage{xcolor}
 \usepackage{url}
 \usepackage{xspace}
-\usepackage[scaled]{beramono}
+%\renewcommand*{\ttdefault}{txtt}
 
-\lstset{basicstyle=\ttfamily,breaklines=true}
+\lstset{basicstyle=\ttfamily,breaklines=true,columns=fullflexible}
 
 \newmdenv[
     hidealllines=true,
@@ -103,18 +104,15 @@
 \newcommand{\Ufinsts}{\mathit{finsts}}
 \newcommand{\Umatch}{\mathit{sub}}
 % syntax
-\newcommand{\UsynUnitH}[2]{\ensuremath{\mathsf{component}~#1~#2}}
+\newcommand{\UsynUnitH}[2]{\ensuremath{\texttt{component}~#1~#2}}
 \newcommand{\UsynUnit}[3]{\ensuremath{\UsynUnitH{#1}{#2}~\{#3\}}}
-\newcommand{\UsynLet}[2]{\ensuremath{\mathsf{let}~\modnameif{#1} = #2}}
-\newcommand{\UsynLetMod}[3]{\ensuremath{\mathsf{let}~\modnameif{#1} = \Mod{#2}{#3}}}
-\newcommand{\UsynMod}[2]{\ensuremath{\mathsf{module}~\modnameif{#1}~\{~#2~\}}}
-\newcommand{\UsynSig}[2]{\ensuremath{\mathsf{signature}~\modnameif{#1}~\{~#2~\}}}
-\newcommand{\UsynESig}[2]{\ensuremath{\mathsf{esignature}~\modnameif{#1}~\{#2\}}}
-\newcommand{\UsynSigWith}[3]{\ensuremath{\mathsf{signature}~\modnameif{#1}~\{~#2~\}~\textsf{with}~#3}}
-\newcommand{\UsynDep}[2]{\ensuremath{\mathsf{dependency}~#1~(#2)}}
-\newcommand{\UsynDepEmpty}[1]{\ensuremath{\mathsf{dependency}~#1}}
+\newcommand{\UsynMod}[2]{\ensuremath{\texttt{module}~\modnameif{#1}~\{~#2~\}}}
+\newcommand{\UsynSig}[2]{\ensuremath{\texttt{signature}~\modnameif{#1}~\{~#2~\}}}
+\newcommand{\UsynSigWith}[3]{\ensuremath{\texttt{signature}~\modnameif{#1}~\{~#2~\}~\textsf{with}~#3}}
+\newcommand{\UsynDep}[2]{\ensuremath{\texttt{dependency}~#1~(#2)}}
+\newcommand{\UsynDepEmpty}[1]{\ensuremath{\texttt{dependency}~#1}}
 % semantic objects
-\newcommand{\UobjIface}{\mathsf{iface}}
+\newcommand{\UobjIface}{\texttt{iface}}
 \newcommand{\UobjTau}[2]{\ensuremath{\UobjIface\:(#1)~\{#2\}}}
 \newcommand{\UobjUnitTy}[4]{\ensuremath{\forall~#1.\, \forall~#2 .\, #3 \rightarrow #4}}
 \newcommand{\UobjUnitTyN}[3]{\ensuremath{\forall~#1 .\, #2 \rightarrow #3}}
@@ -125,7 +123,7 @@
 \newcommand{\doubleplus}{\ensuremath{\mathbin{+\mkern-8mu+}}}
 \newcommand{\scomp}[2]{\ensuremath{#2 \circ #1}}
 
-\newcommand{\modname}[1]{\ensuremath{\mathtt{#1}}}%
+\newcommand{\modname}[1]{\ensuremath{\texttt{#1}}}%
 \newcommand{\modnameif}[1]{%
   % make the argument a modname if it is not a macro (invocation)
   % and if it is capitalized
@@ -497,11 +495,11 @@
   %\Sigma &::=& \overline{m : \Umty}
   %  & \text{Provided/required types} \\
   %\Gamma &::=& \overline{\Up : \Uunitty} & \text{Component typing context} \\
-  \Phi &::=& \overline{\Mod{p}{m} : T} & \text{External module context} \\
-  \Delta &::=& \overline{m : T} & \text{Home module context} \\
-  \Gamma &::=& \Phi; \Delta; P_0 & \text{Context} \\
+  \Gamma &::=& \overline{p : \Xi} & \text{Package environment} \\
+  \Delta, \Xi &::=& \overline{m : T^s} & \text{Package type} \\
   &&&\\
   \Umty &::=& \UobjTau{\UNs}{\overline{\Uty}~\overline{\Uinst}~\overline{\Uimp}} & \text{Module type} \\
+  s &:=& + ~|~ -  & \text{Polarities} \\
   % \tau_R &::=& \exists \overline{\hv{m.n}}.\, \tau  & \text{Signature type} \\
   \UNs &::=& \overline{\UN} & \text{Export specification} \\
   \Uty &::=& & \text{Defined entity spec} \\
@@ -543,3 +541,15 @@
 
 
 \DeclareMathOperator{\dom}{dom}
+
+\newcommand{\ctx}{\Gamma; \Delta; P_0}
+
+\newenvironment{twocol}
+  {
+    \setlength{\abovedisplayskip}{0pt}
+    \setlength{\belowdisplayskip}{0pt}
+    \begin{tabular}{ m{0.45\textwidth} m{0.45\textwidth} }
+  }
+  { \end{tabular} }
+
+\newcommand\defeq{\mathrel{\overset{\makebox[0pt]{\mbox{\normalfont\tiny def}}}{=}}}

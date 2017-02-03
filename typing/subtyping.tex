@@ -1,19 +1,19 @@
 \begin{figure}
 
-\fbox{\textbf{Module subtyping:} $\Gamma \vdash M \le T$}
+\fbox{\textbf{Module subtyping:} $\ctx \vdash M \le T$}
 
 \[
 \frac{
 \begin{array}{c}
-\Gamma \vdash M : \UobjTau{\UNs'}{\Utys'~\Uinsts'~\Uimps'} \\
+\ctx \vdash M : \UobjTau{\UNs'}{\Utys'~\Uinsts'~\Uimps'} \\
 \UNs' \le \UNs \qquad
 \Uimps' \le \Uimps \\
-\forall n \in \UNs.\quad n \in \I{decls} \Rightarrow \Gamma \vdash \UNs(n) \le \I{decls}(n) \\
-\forall \I{inst} \in \I{insts}.\quad \Gamma \vdash \{ M \} \cup \Uimps \cup \Uimps' ~\textsf{solves}~ \I{inst}
+\forall n \in \UNs.\quad n \in \I{decls} \Rightarrow \ctx \vdash \UNs(n) \le \I{decls}(n) \\
+\forall \I{inst} \in \I{insts}.\quad \ctx \vdash \{ M \} \cup \Uimps \cup \Uimps' ~\textsf{solves}~ \I{inst}
 \end{array}
 }{
-%\Gamma \vdash \UobjTau{\overline{N_i}\, \overline{N_j}}{\Utys\, \Uinsts} \le \UobjTau{\overline{N_i}}{\overline{\Uty'}\, \overline{\Uinst'}}
-\Gamma \vdash M \le \UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps}
+%\ctx \vdash \UobjTau{\overline{N_i}\, \overline{N_j}}{\Utys\, \Uinsts} \le \UobjTau{\overline{N_i}}{\overline{\Uty'}\, \overline{\Uinst'}}
+\ctx \vdash M \le \UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps}
 }
 \]
 
@@ -33,42 +33,42 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 
 \begin{figure}
 
-\fbox{\textbf{Declaration subtyping:} $\Gamma \vdash N \le \Uty$}
+\fbox{\textbf{Declaration subtyping:} $\ctx \vdash N \le \Uty$}
 
 \[
 \frac{
 \begin{array}{c}
-\Gamma \vdash N : \Uty \qquad
+\ctx \vdash N : \Uty \qquad
 \Uty :: \kappa \qquad
 \Uty' :: \kappa' \\
-\Gamma \vdash \kappa =_\mathsf{hs} \kappa' \qquad
-\Gamma \vdash \Uty \le_\textsf{pre} \Uty'
+\ctx \vdash \kappa =_\mathsf{hs} \kappa' \qquad
+\ctx \vdash \Uty \le_\textsf{pre} \Uty'
 \end{array}
 }{
-\Gamma \vdash N \le \Uty'
+\ctx \vdash N \le \Uty'
 }
 \quad(\textsc{SubDecl})
 \]
 
-\fbox{\textbf{Declaration pre-subtyping:} $\Gamma \vdash \Uty \le_\textsf{pre} \Uty$}
+\fbox{\textbf{Declaration pre-subtyping:} $\ctx \vdash \Uty \le_\textsf{pre} \Uty$}
 
 \[
-\Gamma \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
 \quad(\textsc{SubAbsData})
 \]
 \[
-\Gamma \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
 \quad(\textsc{SubAbsClass})
 \]
 \[
 \begin{array}{c}
-\Gamma \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~\texttt{where ..} \\
+\ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~\texttt{where ..} \\
 \qquad\qquad\le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)} :: \kappa' ~\texttt{where ..}
 \end{array}
 \quad(\textsc{SubAbsClosedTF})
 \]
 \[
-\Gamma \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)}
 \quad(\textsc{SubOpenTF})
 \]
 
@@ -76,46 +76,46 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 
 \[
 \frac{
-\Gamma;\, \overline{a_i :: \kappa_i} \vdash \I{dinfo} =_\textsf{hs} \I{dinfo}'
+\ctx;\, \overline{a_i :: \kappa_i} \vdash \I{dinfo} =_\textsf{hs} \I{dinfo}'
 }{
-\Gamma \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} ~\textsf{where}~ \I{dinfo} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)} ~\textsf{where}~ \I{dinfo}'
+\ctx \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} ~\textsf{where}~ \I{dinfo} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)} ~\textsf{where}~ \I{dinfo}'
 }
 \quad(\textsc{SubData})
 \]
 
 \[
 \frac{
-\Gamma;\, \overline{a_i :: \kappa_i} \vdash \I{ntinfo} =_\textsf{hs} \I{ntinfo}'
+\ctx;\, \overline{a_i :: \kappa_i} \vdash \I{ntinfo} =_\textsf{hs} \I{ntinfo}'
 }{
-\Gamma \vdash \texttt{newtype}~n~\overline{(a_i :: \kappa_i)} = \I{ntinfo} \le_\textsf{pre} \texttt{newtype}~n~\overline{(a_i :: \kappa'_i)} = \I{ntinfo}'
+\ctx \vdash \texttt{newtype}~n~\overline{(a_i :: \kappa_i)} = \I{ntinfo} \le_\textsf{pre} \texttt{newtype}~n~\overline{(a_i :: \kappa'_i)} = \I{ntinfo}'
 }
 \quad(\textsc{SubNewtype})
 \]
 
 \[
 \frac{
-\Gamma;\, \overline{a_i :: \kappa_i} \vdash \tau =_\textsf{hs} \tau'
+\ctx;\, \overline{a_i :: \kappa_i} \vdash \tau =_\textsf{hs} \tau'
 }{
-\Gamma \vdash \texttt{type}~n~\overline{(a_i :: \kappa_i)} = \tau \le_\textsf{pre} \texttt{type}~n~\overline{(a_i :: \kappa'_i)} = \tau'
+\ctx \vdash \texttt{type}~n~\overline{(a_i :: \kappa_i)} = \tau \le_\textsf{pre} \texttt{type}~n~\overline{(a_i :: \kappa'_i)} = \tau'
 }
 \quad(\textsc{SubType})
 \]
 
 \[
 \frac{
-\Gamma;\, \overline{a_i :: \kappa_i} \vdash \I{clinfo} =_\textsf{hs} \I{clinfo}'
+\ctx;\, \overline{a_i :: \kappa_i} \vdash \I{clinfo} =_\textsf{hs} \I{clinfo}'
 }{
-\Gamma \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)} ~\textsf{where}~ \I{clinfo} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)} ~\textsf{where}~ \I{clinfo}'
+\ctx \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)} ~\textsf{where}~ \I{clinfo} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)} ~\textsf{where}~ \I{clinfo}'
 }
 \quad(\textsc{SubClass})
 \]
 
 \[
 \frac{
-\Gamma;\, \overline{a_i :: \kappa_i} \vdash \I{tfinfo} =_\textsf{hs} \I{tfinfo}'
+\ctx;\, \overline{a_i :: \kappa_i} \vdash \I{tfinfo} =_\textsf{hs} \I{tfinfo}'
 }{
 \begin{array}{l}
-\Gamma \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} ~\textsf{where}~ \I{tfinfo}
+\ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} ~\textsf{where}~ \I{tfinfo}
 \\ \qquad \le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)} ~\textsf{where}~ \I{tfinfo}'
 \end{array}
 }
@@ -124,9 +124,9 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 
 \[
 \frac{
-\Gamma \vdash \tau =_\textsf{hs} \tau'
+\ctx \vdash \tau =_\textsf{hs} \tau'
 }{
-\Gamma \vdash n :: \tau \le_\textsf{pre} n :: \tau'
+\ctx \vdash n :: \tau \le_\textsf{pre} n :: \tau'
 }
 \quad(\textsc{SubValue})
 \]
@@ -135,33 +135,33 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 
 \begin{mdframed}
 \[
-\Gamma \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} ~\texttt{where}~ \I{dinfo} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} ~\texttt{where}~ \I{dinfo} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
 \quad(\textsc{SubDataAbsData})
 \]
 \[
-\Gamma \vdash \texttt{newtype}~n~\overline{(a_i :: \kappa_i)} :: \kappa = \tau \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{newtype}~n~\overline{(a_i :: \kappa_i)} :: \kappa = \tau \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
 \quad(\textsc{SubNewtypeAbsData})
 \]
 % Nullary type synonym!
 \[
 \frac{
-\Gamma \vdash \tau ~\textsf{has no type family applications}
+\ctx \vdash \tau ~\textsf{has no type family applications}
 }{
-\Gamma \vdash \texttt{type}~n :: \kappa = \tau \le_\textsf{pre} \texttt{data}~n~\overline{a_i :: \kappa'_i}
+\ctx \vdash \texttt{type}~n :: \kappa = \tau \le_\textsf{pre} \texttt{data}~n~\overline{a_i :: \kappa'_i}
 }
 \quad(\textsc{SubTypeAbsData})
 \]
 \[
-\Gamma \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)}~\texttt{where}~ \I{clinfo} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)}~\texttt{where}~ \I{clinfo} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
 \quad(\textsc{SubClassAbsClass})
 \]
 \[
-\Gamma \vdash \texttt{type}~n :: \kappa = \tau \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{type}~n :: \kappa = \tau \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
 \quad(\textsc{SubTypeAbsClass})
 \]
 \[
 \begin{array}{c}
-\Gamma \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~\texttt{where}~ \I{tfinfo} \\
+\ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~\texttt{where}~ \I{tfinfo} \\
 \le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)} :: \kappa' ~\texttt{where ..}
 \end{array}
 \quad(\textsc{SubClosedTFAbsClosedTF})

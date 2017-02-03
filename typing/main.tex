@@ -1,22 +1,54 @@
 \begin{figure}
 
-\fbox{\textbf{Top-level typing:} $\Phi \vdash \mcomp : \Delta$}
+\fbox{\textbf{Top-level typing:} $\Gamma \vdash \mcomp : \Gamma$}
 
 \[
 \frac{
-1
+\begin{array}{c}
+%\shctx \vdash \overline{\I{dep_i}} \leadsto (\mathcal{L}, \mathcal{D}) \qquad
+\mathcal{L} = \bigoplus_i \textsf{exposes}(\shctx, P, r) \qquad
+\mathcal{D} = \bigoplus_i \textsf{inherits}(P) \qquad
+P_0 = p[\overline{m_i=\hv{m_i}}] \\
+\Gamma; P_0; \mathcal{L}; \mathcal{D} \vdash \overline{\I{decl}} : \Xi \qquad
+\Gamma; \Xi; P_0 \vdash \overline{\I{dep}} ~\textsf{well-typed}
+\end{array}
 }{
-\Phi \vdash \UsynUnit{p}{\Theta}{\mdecls}
+\shctx; \Gamma \vdash \UsynUnit{p}{\overline{\hv{m_i}}}{\overline{\I{\UsynDep{P_i}{r_i}}}; \overline{\I{decl}}} : \{ p : \Xi \}
 }
 \]
+\\
+\[
+\begin{array}{rcl}
+\textsf{exposes}(\shctx, p[S], \overline{m_i \mapsto m'_i}) &\defeq& \overline{m'_i \mapsto \substw{\shctx(p)(m_i)}{S}} \\
+\textsf{inherits}(p[S]) &\defeq& \bigoplus_j \textsf{inherits}(P'_j) \oplus (\overline{m'_i \mapsto \Mod{p[S]}{m_i}}) \\
+\multicolumn{3}{c}{\qquad\textsf{where}~S = \overline{m_i = \hv{m'_i}}, \overline{m_j = \Mod{P'_j}{m'_j}}} \\
+\qquad
+\end{array}
+\]
+\fbox{\textbf{Declaration sequencing:} $\Gamma; P_0 \vdash \overline{\I{decl}} : \Xi$}
 
-\fbox{\textbf{Declaration typing:} $\Gamma; \mathcal{L}; \mathcal{D} \vdash \Uudecl : T$}
+\begin{twocol}
+\[
+\Gamma; P_0 \vdash \varnothing : \varnothing
+\]
+&
+\[
+\frac{
+\Gamma; P_0 \vdash \overline{\I{decl}} : \Xi_1 \qquad
+\Gamma; \Xi_1; P_0 \vdash \I{decl} : \Xi_2
+}{
+\Gamma; P_0 \vdash \overline{\I{decl}}; \I{decl} : \Xi_1, \Xi_2
+}
+\]
+\end{twocol}
+
+\fbox{\textbf{Declaration typing:} $\ctx; \mathcal{L}; \mathcal{D} \vdash \I{decl} : T$}
 
 \[
 \frac{
-\Gamma; \mathcal{L}; m \vdash \Uhsbody : T \\
+\ctx; \mathcal{L}; m \vdash \Uhsbody : T \\
 }{
-\Gamma; \mathcal{L}; \mathcal{D} \vdash \UsynMod{m}{\Uhsbody} : T
+\ctx; \mathcal{L}; \mathcal{D} \vdash \UsynMod{m}{\Uhsbody} : T
 }
 \]
 
@@ -24,23 +56,41 @@
 \frac{
 \begin{array}{c}
 % Typecheck the local signature
-\Phi; \Delta; P_0; \mathcal{L}; m \vdash \Uhssig : T_0 \\
+\Gamma; \Delta; P_0; \mathcal{L}; m \vdash \Uhssig : T_0 \\
 % Retrieve the signatures to merge in
 \forall M_i \in \mathcal{D}(m).\quad
-    \Phi; \Delta; P_0 \vdash M_i ~\textsf{requires}~ T_i \\
+    \Gamma; \Delta; P_0 \vdash M_i ~\textsf{requires}~ T_i \\
 % Get the exports
 \forall i.\quad T_i ~\textsf{exports}~ \UNs_i \\
 % Shape and apply it
-\forall i.\quad T'_i = \substw{T_i}{\textsf{nsubst}(m, \sideset{}{_m}\bigoplus\limits_i \overline{\UNs_i})} \\
+\forall i.\quad T'_i = \substw{T_i}{\textsf{nsubst}(m, \bigoplus\limits_i{}_m \overline{\UNs_i})} \\
 % Pre-merge the signatures
 \bigoplus\limits_i T'_i = T_M \\
 % Check compatibility, with merged context
-\forall i.\quad \Phi; \Delta, m : T_M; P_0 \vdash \hv{m} \le T'_i \\
+\forall i.\quad \Gamma; \Delta, m : T_M; P_0 \vdash \hv{m} \le T'_i \\
 \end{array}
 }{
-\Phi; \Delta; P_0; \mathcal{L}; \mathcal{D} \vdash \UsynSig{m}{\Uhssig} : T_M
+\Gamma; \Delta; P_0; \mathcal{L}; \mathcal{D} \vdash \UsynSig{m}{\Uhssig} : T_M
 }
 \]
+
+\fbox{\textbf{Signature lookup:} $\ctx \vdash M ~\textsf{requires}~ T$}
+
+\[
+\frac{
+\begin{array}{c}
+% Look up each signature
+p : \Xi \in \Gamma \qquad
+m : T^- \in \Xi \qquad
+% And do the provisional renaming (without assuming m in Delta)
+\Gamma; \Delta; P_0 \vdash \textsf{renamesig}_{m,S}~ T \leadsto T' \\
+\end{array}
+}{
+\Gamma; \Delta; P_0 \vdash \Mod{p[S]}{m} ~\textsf{requires}~ T' \\
+}
+\]
+
+
 
 \caption{Typing rules}
 \end{figure}

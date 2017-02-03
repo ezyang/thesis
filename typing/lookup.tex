@@ -1,0 +1,33 @@
+\begin{figure}
+
+Typing module identities
+
+\fbox{$\ctx \vdash M : T$}
+
+\[
+\frac{
+m : T \in \Delta
+}{
+\Gamma; \Delta; P_0 \vdash \hv{m} : T
+}
+\]
+
+\[
+\frac{
+m : T \in \Delta
+}{
+\Gamma; \Delta; P_0 \vdash \Mod{P_0}{m} : T
+}
+\]
+
+\[
+\frac{
+p : \Xi \in \Gamma \qquad
+m : T \in \Xi \qquad
+\Gamma; \Delta; P_0 \vdash \textsf{rename}_S~ T \leadsto T'
+}{
+\Gamma; \Delta; P_0 \vdash \Mod{p[S]}{m} : T'
+}
+\]
+
+\end{figure}
