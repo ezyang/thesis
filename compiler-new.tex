@@ -64,36 +64,14 @@ there are some major differences.
 
 \section{Auxiliary definitions}
 
-Projection out of interfaces
-
-\fbox{$T ~\mathsf{exports}~ \UNs$}
-
-\[ \UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps} ~\mathsf{exports}~ \UNs \]
-
-Projection out of $N$
-
-\fbox{$N ~\mathsf{names}~ n$}
-
-\[ \nhv{m.n} ~\mathsf{names}~ n \]
-\[ M.n ~\mathsf{names}~ n \]
-
-Interpreting export list $\UNs$ as mapping on $n$. ($n$ is deterministic as $\UNs$ is non-overlapping)
-
-\[ \frac{
-N \in \UNs \qquad
-N ~\mathsf{names}~ n
-}{
-\UNs(n) = N
-} \]
-
-Lifting export list $\UNs$ to name substitution $\USn$
-
 \[
-\frac{
-\forall i.\, N_i ~\mathsf{names}~ n_i
-}{
-\mathsf{nsubst}(m, \overline{N_i}) = \overline{\nhv{m.n_i} \mapsto N_i}
-}
+\begin{array}{rcl}
+\textsf{exports}(\UobjTau{\UNs}{\ldots}) &\defeq& \UNs \\
+\textsf{occname}(\nhv{m.n}) &\defeq& n \\
+\textsf{occname}(M.n) &\defeq& n \\
+\UNs(n) &\defeq& N ~\textsf{where}~ N \in \UNs \land \textsf{occname}(N) = n \\
+\textsf{nsubst}(m, \overline{N_i}) &\defeq& \overline{\nhv{m.{\sf occname}(N_i)} \mapsto N_i}
+\end{array}
 \]
 
 EPS is $\Gamma ::= \overline{p : \Xi}$. HPT is $\Delta ::= \overline{m : T^s}$.
@@ -128,8 +106,8 @@ $P_0$ is ``self''.  Invariant: it is always fully uninstantiated or fully instan
 
 \newpage
 \input{typing/main}
-\input{typing/renaming}
 \input{typing/lookup}
+\input{typing/renaming}
 \input{typing/haskell}
 \input{typing/merging}
 \input{typing/kinding}

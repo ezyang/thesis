@@ -1,33 +1,50 @@
 \begin{figure}
 
-Typing module identities
+\fbox{\textbf{Type lookup:} $\ctx \vdash M : T$}
 
-\fbox{$\ctx \vdash M : T$}
-
+\begin{twocol}
 \[
 \frac{
-m : T \in \Delta
+m : T^- \in \Delta
 }{
 \Gamma; \Delta; P_0 \vdash \hv{m} : T
 }
 \]
-
+&
 \[
 \frac{
-m : T \in \Delta
+m : T^+ \in \Delta
 }{
 \Gamma; \Delta; P_0 \vdash \Mod{P_0}{m} : T
 }
 \]
+\end{twocol}
 
 \[
 \frac{
 p : \Xi \in \Gamma \qquad
-m : T \in \Xi \qquad
+m : T^+ \in \Xi \qquad
 \Gamma; \Delta; P_0 \vdash \textsf{rename}_S~ T \leadsto T'
 }{
 \Gamma; \Delta; P_0 \vdash \Mod{p[S]}{m} : T'
 }
 \]
 
+\fbox{\textbf{Signature type lookup:} $\ctx \vdash M :_\textsf{sig} T$}
+
+\[
+\frac{
+\begin{array}{c}
+% Look up each signature
+p : \Xi \in \Gamma \qquad
+m : T^- \in \Xi \qquad
+% And do the provisional renaming (without assuming m in Delta)
+\Gamma; \Delta; P_0 \vdash \textsf{renamesig}_{m,S}~ T \leadsto T' \\
+\end{array}
+}{
+\Gamma; \Delta; P_0 \vdash \Mod{p[S]}{m} :_\textsf{sig} T' \\
+}
+\]
+
+\caption{Type lookup rules}
 \end{figure}

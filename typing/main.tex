@@ -10,7 +10,7 @@
 \mathcal{D} = \bigoplus_i \textsf{inherits}(P) \qquad
 P_0 = p[\overline{m_i=\hv{m_i}}] \\
 \Gamma; P_0; \mathcal{L}; \mathcal{D} \vdash \overline{\I{decl}} : \Xi \qquad
-\Gamma; \Xi; P_0 \vdash \overline{\I{dep}} ~\textsf{well-typed}
+\forall i.~ \Gamma; \Xi; P_0 \vdash P_i ~\textsf{well-typed}
 \end{array}
 }{
 \shctx; \Gamma \vdash \UsynUnit{p}{\overline{\hv{m_i}}}{\overline{\I{\UsynDep{P_i}{r_i}}}; \overline{\I{decl}}} : \{ p : \Xi \}
@@ -25,22 +25,6 @@ P_0 = p[\overline{m_i=\hv{m_i}}] \\
 \qquad
 \end{array}
 \]
-\fbox{\textbf{Declaration sequencing:} $\Gamma; P_0 \vdash \overline{\I{decl}} : \Xi$}
-
-\begin{twocol}
-\[
-\Gamma; P_0 \vdash \varnothing : \varnothing
-\]
-&
-\[
-\frac{
-\Gamma; P_0 \vdash \overline{\I{decl}} : \Xi_1 \qquad
-\Gamma; \Xi_1; P_0 \vdash \I{decl} : \Xi_2
-}{
-\Gamma; P_0 \vdash \overline{\I{decl}}; \I{decl} : \Xi_1, \Xi_2
-}
-\]
-\end{twocol}
 
 \fbox{\textbf{Declaration typing:} $\ctx; \mathcal{L}; \mathcal{D} \vdash \I{decl} : T$}
 
@@ -59,13 +43,11 @@ P_0 = p[\overline{m_i=\hv{m_i}}] \\
 \Gamma; \Delta; P_0; \mathcal{L}; m \vdash \Uhssig : T_0 \\
 % Retrieve the signatures to merge in
 \forall M_i \in \mathcal{D}(m).\quad
-    \Gamma; \Delta; P_0 \vdash M_i ~\textsf{requires}~ T_i \\
-% Get the exports
-\forall i.\quad T_i ~\textsf{exports}~ \UNs_i \\
+    \Gamma; \Delta; P_0 \vdash M_i :_\textsf{sig} T_i \\
 % Shape and apply it
-\forall i.\quad T'_i = \substw{T_i}{\textsf{nsubst}(m, \bigoplus\limits_i{}_m \overline{\UNs_i})} \\
+\forall i.\quad T'_i = \substw{T_i}{\textsf{nsubst}(m, \bigoplus_{m,i} \textsf{exports}(T_i))} \\
 % Pre-merge the signatures
-\bigoplus\limits_i T'_i = T_M \\
+\bigoplus_i T'_i = T_M \\
 % Check compatibility, with merged context
 \forall i.\quad \Gamma; \Delta, m : T_M; P_0 \vdash \hv{m} \le T'_i \\
 \end{array}
@@ -74,23 +56,51 @@ P_0 = p[\overline{m_i=\hv{m_i}}] \\
 }
 \]
 
-\fbox{\textbf{Signature lookup:} $\ctx \vdash M ~\textsf{requires}~ T$}
+\fbox{\textbf{Dependency typing:} $\ctx \vdash P ~\textsf{well-typed} \qquad \ctx \vdash M ~\textsf{well-typed}$}
 
 \[
 \frac{
 \begin{array}{c}
-% Look up each signature
-p : \Xi \in \Gamma \qquad
-m : T^- \in \Xi \qquad
-% And do the provisional renaming (without assuming m in Delta)
-\Gamma; \Delta; P_0 \vdash \textsf{renamesig}_{m,S}~ T \leadsto T' \\
+p : (\overline{m_i : T_i^-}, \overline{m_j : T_j^+}) \in \Gamma \\
+\forall i.\quad \ctx \vdash M_i ~\textsf{well-typed} \quad\land\quad
+\ctx \vdash M_i \le T_i
 \end{array}
 }{
-\Gamma; \Delta; P_0 \vdash \Mod{p[S]}{m} ~\textsf{requires}~ T' \\
+\ctx \vdash p[\overline{m_i = M_i}] ~\textsf{well-typed}
 }
 \]
 
+\begin{twocol}
+\[
+\ctx \vdash \hv{m} ~\textsf{well-typed}
+\]
+&
+\[
+\frac{
+\ctx \vdash P ~\textsf{well-typed}
+}{
+\ctx \vdash \Mod{P}{m} ~\textsf{well-typed}
+}
+\]
+\end{twocol}
+
+\fbox{\textbf{Declaration sequencing:} $\Gamma; P_0 \vdash \overline{\I{decl}} : \Xi$}
+
+\begin{twocol}
+\[
+\Gamma; P_0 \vdash \varnothing : \varnothing
+\]
+&
+\[
+\frac{
+\Gamma; P_0 \vdash \overline{\I{decl}} : \Xi_1 \qquad
+\Gamma; \Xi_1; P_0 \vdash \I{decl} : \Xi_2
+}{
+\Gamma; P_0 \vdash \overline{\I{decl}}; \I{decl} : \Xi_1, \Xi_2
+}
+\]
+\end{twocol}
 
 
-\caption{Typing rules}
+\caption{Top-level typing rules}
 \end{figure}
