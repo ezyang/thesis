@@ -354,69 +354,61 @@ with this approach:
 
 \begin{figure}
     \[
-    \begin{array}{l}
     \cidl{base}
-        : \left\{\right\} \rightarrow
-          \left\{
+        : \left\{
             \modname{W}
-            : \begin{array}{l}
+            : T_W^+
+          \right\},\,
+    \cidl{p}~:
+    \left\{
+        \modname{A}~:T_{PA}^-,\,
+        \modname{B}~:T_{PB}^-,\,
+        \modname{Y}~:T_Y^+
+    \right\},\,
+    \cidl{q}~:
+    \left\{
+        \modname{A}~:T_{QA}^-,\,
+        \modname{X}~:T_X^+
+    \right\},\,
+    \cidl{r}~:
+    \left\{
+        \modname{A}~:T_{RA}^-
+    \right\}
+    \]
+
+    \[
+    \begin{array}{rcl}
+    T_W &=& \begin{array}{l}
                 \UobjIface\: (\MOD{base}{}{W}.\texttt{I}, \MOD{base}{}{W}.\texttt{f} ) \\
                 \qquad\texttt{data I = MkI}\ \MOD{base}{}{W}.\texttt{I} \\
                 \qquad\texttt{f ::}~\MOD{base}{}{W}.\texttt{I}~\rightarrow~\MOD{base}{}{W}.\texttt{I}
-            \end{array}
-          \right\}
-    \\[2em]
-    \cidl{p}~:~\forall\hv{A} \hv{B}.\, \forall\nhv{\texttt{A.J}} \nhv{\texttt{B.K}}. \\
-    \qquad
-    \left\{
-        \modname{A}~:~\begin{array}{l}
+            \end{array} \\
+    T_{PA} &=& \begin{array}{l}
                 \UobjIface\: (\nhv{\texttt{A.J}}) \\
                 \qquad\texttt{data J}
-            \end{array},\quad
-        \modname{B}~:~\begin{array}{l}
+            \end{array} \\
+    T_{PB} &=& \begin{array}{l}
                 \UobjIface\: (\nhv{\texttt{B.K}}, \nhv{\texttt{B.g}}) \\
                 \qquad\texttt{data K} \\
                 \qquad\texttt{g ::}~\nhv{\texttt{B.K}}
-            \end{array}
-    \right\}
-    \rightarrow\\
-    \qquad
-    \left\{
-        \modname{Y}~:~\begin{array}{l}
+            \end{array} \\
+    T_Y &=& \begin{array}{l}
                 \UobjIface\: (\MOD{p}{\substHole{A}, \substHole{B}}{Y}.\texttt{L}) \\
                 \qquad\texttt{data L = MkL \nhv{\texttt{A.J}} \nhv{\texttt{B.K}}}
-            \end{array}
-    \right\}
-    \\[2em]
-    \cidl{q}~:~\forall\hv{A}.\, \forall\nhv{\texttt{A.I}}. \\
-    \qquad
-    \left\{
-        \modname{A}~:~\begin{array}{l}
+            \end{array} \\
+    T_{QA} &=& \begin{array}{l}
                 \UobjIface\: (\nhv{\texttt{A.I}}) \\
                 \qquad\texttt{data I = MkI}\ \nhv{\texttt{A.I}}
-            \end{array}
-    \right\}
-    \rightarrow\\
-    \qquad
-    \left\{
-        \modname{X}~:~\begin{array}{l}
+            \end{array} \\
+    T_X &=& \begin{array}{l}
                 \UobjIface\: (\nhv{\texttt{A.I}}, \MOD{q}{\substHole{A}}{X}.\texttt{K}) \\
                 \qquad\texttt{type K = \nhv{\texttt{A.I}}} \\
                 \qquad\texttt{g ::}~\nhv{\texttt{A.I}}
-            \end{array}
-    \right\}
-    \\[2em]
-    \cidl{r}~:~\forall\hv{A}.\, \forall\nhv{\texttt{A.J}}. \\
-    \qquad
-    \left\{
-        \modname{A}~:~\begin{array}{l}
+            \end{array} \\
+    T_{RA} &=& \begin{array}{l}
                 \UobjIface\: (\MOD{base}{}{W}.\texttt{I}, \nhv{\texttt{A.J}}) \\
                 \qquad\texttt{data J }
-            \end{array}
-    \right\}
-    \rightarrow%
-    \left\{
-    \right\}
+            \end{array} \\
     \end{array}
     \]
 

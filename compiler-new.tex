@@ -3,10 +3,12 @@
 \label{sec:compiler}
 
 We now give a formal model for how our implementation typechecks
-\unit{}s which still have unfilled requirements.  It's not possible to
-give a full semantics, since that would involve formalizing all of
-Haskell as implemented by GHC, but we will informally explain the
-operation of the judgments we assume are given to us.
+\unit{}s which still have unfilled requirements.
+
+%   It's not possible to
+%   give a full semantics, since that would involve formalizing all of
+%   Haskell as implemented by GHC, but we will informally explain the
+%   operation of the judgments we assume are given to us.
 
 \section{Semantic objects}
 
@@ -16,11 +18,16 @@ operation of the judgments we assume are given to us.
 \label{fig:semantic-objects}
 \end{figure}
 
-The semantic objects of GHC Haskell, extended with \Backpack{},
-are given in Figure~\ref{fig:semantic-objects}.
-Unlike source code, identifiers in these objects have been renamed into \emph{original names} ($N$) which identify the exact module which originally defined an entity.  Every \I{decl} is associated with an entity name $\graybox{n}$, which we have indicated in grey.  We leave some of the details about declaration metadata unspecified (e.g., \I{dinfo}, \I{ntinfo}, etc.), as they are not directly related to Backpack.  Abstract declarations can only occur in signatures.
+The semantic objects of GHC Haskell, extended with \Backpack{}, are
+given in Figure~\ref{fig:semantic-objects}.  These semantic objects
+correspond closely to the top-level declarations supported by
+Haskell's syntax, but with a few key differences: first, every
+identifier is resolved to an \emph{original name} ($N$) which identifies
+the exact module that holds the declaration describing this identifier;
+second, all declarations are explicitly typed and kinded.
 
-A module type consists of four components:
+The most important semantic object is the module type ($T$).  A module
+type consists of four components:
 
 \begin{enumerate}
     \item The export specification ($\UNs$), which specifies what entities are brought
@@ -34,9 +41,18 @@ A module type consists of four components:
     which controls the set of instances which are in scope when performing
     type class resolution.
 \end{enumerate}
+A module type represents either a module (indicated with the $+$ polarity)
+or a signature (indicated with $-$); a collection of module types forms
+a package ($\Xi$).
+
+
+
 
 We collect module types into a context $\Gamma$, associating a module type
 with an uninstantiated module identity.
+
+
+Unlike source code, identifiers in these objects have been renamed into \emph{original names} ($N$) which identify the exact module which originally defined an entity.  Every \I{decl} is associated with an entity name $\graybox{n}$, which we have indicated in grey.  We leave some of the details about declaration metadata unspecified (e.g., \I{dinfo}, \I{ntinfo}, etc.), as they are not directly related to Backpack.  Abstract declarations can only occur in signatures.
 
 \paragraph{Differences from GHC 8.2's representation}  The account of semantic objects
 given here closely corresponds to GHC's \emph{interface file representation}; however
