@@ -2,20 +2,20 @@
 \fbox{\textbf{Kinding:} $\Uty :: \kappa$}
 
 \[
-\begin{array}{lcl}
-\texttt{data}~n~\overline{(a_i :: \kappa_i)} ~[\textsf{where}~ \I{dinfo}] &::& \overline{\kappa_i} \rightarrow \star
+\begin{array}{lcll}
+\texttt{data}~n~\overline{(a_i :: \kappa_i)} ~[\textsf{where}~ \I{dinfo}] &::& \overline{\kappa_i} \rightarrow \star & \textsc{(KData)}
 \\
-\texttt{newtype}~n~\overline{(a_i :: \kappa_i)} = \tau &::& \overline{\kappa_i} \rightarrow \star
+\texttt{newtype}~n~\overline{(a_i :: \kappa_i)} = \tau &::& \overline{\kappa_i} \rightarrow \star & \textsc{(KNewtype)}
 \\
-\texttt{type}~n~\overline{(a_i :: \kappa_i)} :: \kappa = \tau &::& \overline{\kappa_i} \rightarrow \kappa
+\texttt{type}~n~\overline{(a_i :: \kappa_i)} :: \kappa = \tau &::& \overline{\kappa_i} \rightarrow \kappa & \textsc{(KType)}
 \\
-\texttt{class}~n~\overline{(a_i :: \kappa_i)} ~[\textsf{where}~ \I{clinfo}] &::& \overline{\kappa_i} \rightarrow \textsf{Constraint}
+\texttt{class}~n~\overline{(a_i :: \kappa_i)} ~[\textsf{where}~ \I{clinfo}] &::& \overline{\kappa_i} \rightarrow \textsf{Constraint} & \textsc{(KClass)}
 \\
-\texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~[\texttt{where ..} \,|\, \I{tfinfo}] &::& \overline{\kappa_i} \rightarrow \kappa
+\texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~[\texttt{where ..} \,|\, \I{tfinfo}] &::& \overline{\kappa_i} \rightarrow \kappa & \textsc{(KClosedTF)}
 \\
-\texttt{type family}~n~\overline{(a_i :: \kappa_i)} &::& \overline{\kappa_i} \rightarrow \kappa
+\texttt{type family}~n~\overline{(a_i :: \kappa_i)} &::& \overline{\kappa_i} \rightarrow \kappa & \textsc{(KTF)}
 \\
-n :: \tau &::& \star
+n :: \tau &::& \star & \textsc{(KVal)}
 \end{array}
 \]
 \caption{Defined entity kinding, where $\overline{\kappa_i} \rightarrow \kappa$ is interpreted as $\kappa_1 \rightarrow \kappa_2 \rightarrow \cdots \rightarrow \kappa$.  Note that no context is needed as the kind is fully encoded in declaration.}

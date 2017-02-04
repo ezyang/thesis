@@ -1,40 +1,33 @@
 
 \begin{figure}
 
-\textsf{rename} is functorial on interface.  Key case is handling name.
+\fbox{\textbf{Renaming:} $\ctx \vdash \textsf{rename}_S~ T \leadsto T$}
 
-\fbox{$\ctx \vdash \textsf{rename}_S~ N \leadsto N$}
-
-\begin{itemize}
-
-\item
-Ordinary names just have substitution applied to them.
-
-\[
-\ctx \vdash \textsf{rename}_S~ M.n \leadsto M[S].n
-\]
-
-\item
-A hole name must be substituted by consulting the exports
-of the module substituted in.  (This assumes that the export
-list is sufficient, which it will be if we checked if the
-substitution matches.)
+%   A hole name must be substituted by consulting the exports
+%   of the module substituted in.  (This assumes that the export
+%   list is sufficient, which it will be if we checked if the
+%   substitution matches.)
 
 \[
 \frac{
 \ctx \vdash S(m) : T \qquad
-T ~\textsf{exports}~ \UNs
+\UNs = \textsf{exports}(T)
 }{
 \ctx \vdash \textsf{rename}_S~ \nhv{m.n} \leadsto \UNs(n)
 }
+\quad(\textsc{RNameHole})
 \]
 
-\end{itemize}
+%Ordinary names just have substitution applied to them.
 
-Renaming signatures which are not in $\Delta$ (in $\ctx$).  Functorial on types.  Otherwise defers to usual renaming.
+\[
+\ctx \vdash \textsf{rename}_S~ M.n \leadsto M[S].n
+\quad(\textsc{RName})
+\]
 
-\fbox{$\ctx \vdash \textsf{renamesig}_{m,S}~ T \leadsto T$}
-\fbox{$\ctx \vdash \textsf{renamesig}_{m,S}~ N \leadsto N$}
+% Renaming signatures which are not in $\Delta$ (in $\ctx$).  Functorial on types.  Otherwise defers to usual renaming.
+
+\fbox{\textbf{Signature renaming:} $\ctx \vdash \textsf{renamesig}_{m,S}~ T \leadsto T$}
 
 \[
 \frac{
@@ -42,18 +35,19 @@ S(m) = \hv{m'}
 }{
 \ctx \vdash \textsf{renamesig}_{m,S}~ \nhv{m.n} \leadsto \nhv{m'.n} \\
 }
+\quad(\textsc{RNameHoleSig})
 \]
 
 \[
 \frac{
-N ~\textsf{names}~ n \qquad
-N \neq \nhv{m.n} \qquad
+N \neq \nhv{m.{\sf occname}(N)} \qquad
 \ctx \vdash \textsf{rename}_S~ N \leadsto N' \
 }{
 \ctx \vdash \textsf{renamesig}_{m,S}~ N \leadsto N' \\
 }
+\quad(\textsc{RNameSig})
 \]
 
-\caption{Renaming}
+\caption{Renaming rules (only key case on $N$ is shown)}
 
 \end{figure}

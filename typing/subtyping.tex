@@ -15,12 +15,13 @@
 %\ctx \vdash \UobjTau{\overline{N_i}\, \overline{N_j}}{\Utys\, \Uinsts} \le \UobjTau{\overline{N_i}}{\overline{\Uty'}\, \overline{\Uinst'}}
 \ctx \vdash M \le \UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps}
 }
+\quad(\textsc{SMod})
 \]
 
 \fbox{\textbf{Export subtyping:} $\UNs \le \UNs$}
 
 \[
-\UNs\, \UNs' \le \UNs
+\UNs\, \UNs' \le \UNs \quad(\textsc{SExport})
 \]
 
 \caption{
@@ -47,29 +48,29 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 }{
 \ctx \vdash N \le \Uty'
 }
-\quad(\textsc{SubDecl})
+\quad(\textsc{SDecl})
 \]
 
 \fbox{\textbf{Declaration pre-subtyping:} $\ctx \vdash \Uty \le_\textsf{pre} \Uty$}
 
 \[
 \ctx \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
-\quad(\textsc{SubAbsData})
+\quad(\textsc{SAbsData})
 \]
 \[
 \ctx \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
-\quad(\textsc{SubAbsClass})
+\quad(\textsc{SAbsClass})
 \]
 \[
 \begin{array}{c}
 \ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~\texttt{where ..} \\
 \qquad\qquad\le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)} :: \kappa' ~\texttt{where ..}
 \end{array}
-\quad(\textsc{SubAbsClosedTF})
+\quad(\textsc{SAbsClosedTF})
 \]
 \[
 \ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)}
-\quad(\textsc{SubOpenTF})
+\quad(\textsc{SOpenTF})
 \]
 
 % Only slightly non-trivial pre-subtyping relations
@@ -78,9 +79,9 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 \frac{
 \ctx;\, \overline{a_i :: \kappa_i} \vdash \I{dinfo} =_\textsf{hs} \I{dinfo}'
 }{
-\ctx \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} ~\textsf{where}~ \I{dinfo} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)} ~\textsf{where}~ \I{dinfo}'
+\ctx \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} ~\texttt{where}~ \I{dinfo} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)} ~\texttt{where}~ \I{dinfo}'
 }
-\quad(\textsc{SubData})
+\quad(\textsc{SData})
 \]
 
 \[
@@ -89,7 +90,7 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 }{
 \ctx \vdash \texttt{newtype}~n~\overline{(a_i :: \kappa_i)} = \I{ntinfo} \le_\textsf{pre} \texttt{newtype}~n~\overline{(a_i :: \kappa'_i)} = \I{ntinfo}'
 }
-\quad(\textsc{SubNewtype})
+\quad(\textsc{SNewtype})
 \]
 
 \[
@@ -98,16 +99,16 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 }{
 \ctx \vdash \texttt{type}~n~\overline{(a_i :: \kappa_i)} = \tau \le_\textsf{pre} \texttt{type}~n~\overline{(a_i :: \kappa'_i)} = \tau'
 }
-\quad(\textsc{SubType})
+\quad(\textsc{SType})
 \]
 
 \[
 \frac{
 \ctx;\, \overline{a_i :: \kappa_i} \vdash \I{clinfo} =_\textsf{hs} \I{clinfo}'
 }{
-\ctx \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)} ~\textsf{where}~ \I{clinfo} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)} ~\textsf{where}~ \I{clinfo}'
+\ctx \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)} ~\texttt{where}~ \I{clinfo} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)} ~\texttt{where}~ \I{clinfo}'
 }
-\quad(\textsc{SubClass})
+\quad(\textsc{SClass})
 \]
 
 \[
@@ -115,11 +116,11 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 \ctx;\, \overline{a_i :: \kappa_i} \vdash \I{tfinfo} =_\textsf{hs} \I{tfinfo}'
 }{
 \begin{array}{l}
-\ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} ~\textsf{where}~ \I{tfinfo}
-\\ \qquad \le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)} ~\textsf{where}~ \I{tfinfo}'
+\ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} ~\texttt{where}~ \I{tfinfo}
+\\ \qquad \le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)} ~\texttt{where}~ \I{tfinfo}'
 \end{array}
 }
-\quad(\textsc{SubClosedTF})
+\quad(\textsc{SClosedTF})
 \]
 
 \[
@@ -128,7 +129,7 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 }{
 \ctx \vdash n :: \tau \le_\textsf{pre} n :: \tau'
 }
-\quad(\textsc{SubValue})
+\quad(\textsc{SValue})
 \]
 
 % Nontrivial pre-subtyping relations
@@ -136,11 +137,11 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 \begin{mdframed}
 \[
 \ctx \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} ~\texttt{where}~ \I{dinfo} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
-\quad(\textsc{SubDataAbsData})
+\quad(\textsc{SDataAbsData})
 \]
 \[
 \ctx \vdash \texttt{newtype}~n~\overline{(a_i :: \kappa_i)} :: \kappa = \tau \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
-\quad(\textsc{SubNewtypeAbsData})
+\quad(\textsc{SNewtypeAbsData})
 \]
 % Nullary type synonym!
 \[
@@ -149,26 +150,27 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 }{
 \ctx \vdash \texttt{type}~n :: \kappa = \tau \le_\textsf{pre} \texttt{data}~n~\overline{a_i :: \kappa'_i}
 }
-\quad(\textsc{SubTypeAbsData})
+\quad(\textsc{STypeAbsData})
 \]
 \[
 \ctx \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)}~\texttt{where}~ \I{clinfo} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
-\quad(\textsc{SubClassAbsClass})
+\quad(\textsc{SClassAbsClass})
 \]
 \[
 \ctx \vdash \texttt{type}~n :: \kappa = \tau \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
-\quad(\textsc{SubTypeAbsClass})
+\quad(\textsc{STypeAbsClass})
 \]
 \[
 \begin{array}{c}
 \ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~\texttt{where}~ \I{tfinfo} \\
 \le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)} :: \kappa' ~\texttt{where ..}
 \end{array}
-\quad(\textsc{SubClosedTFAbsClosedTF})
+\quad(\textsc{SClosedTFAbsClosedTF})
 \]
 \end{mdframed}
-\caption{Subtyping relations.  For concision, this relation is factored into
-subtyping relation, and a pre-subtyping relation which doesn't consider kind
-equality.  The boxed relations are the nontrivial subtyping relations, while
-the rest are reflexive up to kind and type equivalence in Haskell.}
+\caption{Subtyping relations.}
+%   For concision, this relation is factored into
+%   subtyping relation, and a pre-subtyping relation which doesn't consider kind
+%   equality.  The boxed relations are the nontrivial subtyping relations, while
+%   the rest are reflexive up to kind and type equivalence in Haskell.
 \end{figure}

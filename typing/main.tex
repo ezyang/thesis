@@ -15,6 +15,7 @@ P_0 = p[\overline{m_i=\hv{m_i}}] \\
 }{
 \shctx; \Gamma \vdash \UsynUnit{p}{\overline{\hv{m_i}}}{\overline{\I{\UsynDep{P_i}{r_i}}}; \overline{\I{decl}}} : \{ p : \Xi \}
 }
+\quad(\textsc{TComp})
 \]
 \\
 \[
@@ -34,6 +35,7 @@ P_0 = p[\overline{m_i=\hv{m_i}}] \\
 }{
 \ctx; \mathcal{L}; \mathcal{D} \vdash \UsynMod{m}{\Uhsbody} : T
 }
+\quad(\textsc{TModule})
 \]
 
 \[
@@ -54,6 +56,7 @@ P_0 = p[\overline{m_i=\hv{m_i}}] \\
 }{
 \Gamma; \Delta; P_0; \mathcal{L}; \mathcal{D} \vdash \UsynSig{m}{\Uhssig} : T_M
 }
+\quad(\textsc{TSignature})
 \]
 
 \fbox{\textbf{Dependency typing:} $\ctx \vdash P ~\textsf{well-typed} \qquad \ctx \vdash M ~\textsf{well-typed}$}
@@ -68,11 +71,13 @@ p : (\overline{m_i : T_i^-}, \overline{m_j : T_j^+}) \in \Gamma \\
 }{
 \ctx \vdash p[\overline{m_i = M_i}] ~\textsf{well-typed}
 }
+\quad(\textsc{VUnit})
 \]
 
 \begin{twocol}
 \[
 \ctx \vdash \hv{m} ~\textsf{well-typed}
+\quad(\textsc{VHole})
 \]
 &
 \[
@@ -81,16 +86,16 @@ p : (\overline{m_i : T_i^-}, \overline{m_j : T_j^+}) \in \Gamma \\
 }{
 \ctx \vdash \Mod{P}{m} ~\textsf{well-typed}
 }
+\quad(\textsc{VMod})
 \]
 \end{twocol}
 
 \fbox{\textbf{Declaration sequencing:} $\Gamma; P_0 \vdash \overline{\I{decl}} : \Xi$}
 
-\begin{twocol}
 \[
 \Gamma; P_0 \vdash \varnothing : \varnothing
+\quad(\textsc{TNil})
 \]
-&
 \[
 \frac{
 \Gamma; P_0 \vdash \overline{\I{decl}} : \Xi_1 \qquad
@@ -98,8 +103,8 @@ p : (\overline{m_i : T_i^-}, \overline{m_j : T_j^+}) \in \Gamma \\
 }{
 \Gamma; P_0 \vdash \overline{\I{decl}}; \I{decl} : \Xi_1, \Xi_2
 }
+\quad(\textsc{TSeq})
 \]
-\end{twocol}
 
 
 \caption{Top-level typing rules}

@@ -4,14 +4,14 @@
 \[
 \frac{
 \begin{array}{c}
-\forall j.\quad N_j ~\textsf{names}~ n_j \\
-\forall j.\quad N'_j ~\textsf{names}~ n_j \\
-\textsf{names}(\overline{N_i}) \,\#\, \textsf{names}(\overline{N'_k}) \\
+\forall j.\quad \textsf{occname}(N_j) = \textsf{occname}(N'_j) \\
+\textsf{occname}(\overline{N_i}) \,\#\, \textsf{occname}(\overline{N'_k}) \\
 \forall j.\quad N_j \oplus_m N'_j = N''_j
 \end{array}
 }{
 \overline{N_i}\, \overline{N_j} \oplus_m \overline{N'_j}\, \overline{N'_k} = \overline{N_i}\, \overline{N''_j}\, \overline{N'_k}
 }
+\quad(\textsc{MExport})
 \]
 
 \fbox{\textbf{Name merging:} $N \oplus N = N$}
@@ -22,9 +22,13 @@ N \oplus_m \nhv{m.n} = N
 \nhv{m.n} \oplus_m N = N
 \qquad\qquad
 N \oplus_m N = N
+\quad(\textsc{MName})
 \]
 
 \fbox{\textbf{Declaration merging:} $\Uty \oplus \Uty' = \Uty''$}
+\[\text{If $\Uty$ or $\Uty'$ is abstract, use the other one.  Otherwise, pick one arbitrarily.}
+\quad(\textsc{MDecl})
+\]
 
-\[\text{If $\Uty$ or $\Uty'$ is abstract, use the other one.  Otherwise, pick one arbitrarily.}\]
+\caption{Merging rules}
 \end{figure}

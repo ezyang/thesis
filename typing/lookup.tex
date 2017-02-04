@@ -2,24 +2,6 @@
 
 \fbox{\textbf{Type lookup:} $\ctx \vdash M : T$}
 
-\begin{twocol}
-\[
-\frac{
-m : T^- \in \Delta
-}{
-\Gamma; \Delta; P_0 \vdash \hv{m} : T
-}
-\]
-&
-\[
-\frac{
-m : T^+ \in \Delta
-}{
-\Gamma; \Delta; P_0 \vdash \Mod{P_0}{m} : T
-}
-\]
-\end{twocol}
-
 \[
 \frac{
 p : \Xi \in \Gamma \qquad
@@ -28,7 +10,28 @@ m : T^+ \in \Xi \qquad
 }{
 \Gamma; \Delta; P_0 \vdash \Mod{p[S]}{m} : T'
 }
+\quad(\textsc{TUnit})
 \]
+
+\begin{twocol}
+\[
+\frac{
+m : T^- \in \Delta
+}{
+\Gamma; \Delta; P_0 \vdash \hv{m} : T
+}
+\quad(\textsc{THole})
+\]
+&
+\[
+\frac{
+m : T^+ \in \Delta
+}{
+\Gamma; \Delta; P_0 \vdash \Mod{P_0}{m} : T
+}
+\quad(\textsc{TMod})
+\]
+\end{twocol}
 
 \fbox{\textbf{Signature type lookup:} $\ctx \vdash M :_\textsf{sig} T$}
 
@@ -44,6 +47,7 @@ m : T^- \in \Xi \qquad
 }{
 \Gamma; \Delta; P_0 \vdash \Mod{p[S]}{m} :_\textsf{sig} T' \\
 }
+\quad(\textsc{TUnitSig})
 \]
 
 \caption{Type lookup rules}
