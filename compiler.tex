@@ -3,501 +3,449 @@
 \label{sec:compiler}
 
 We now give a formal model for how our implementation typechecks
-\unit{}s which still have unfilled requirements.  It's not possible to
-give a full semantics, since that would involve formalizing all of
-Haskell as implemented by GHC, but we will informally explain the
-operation of the judgments we assume are given to us.
+\unit{}s which still have unfilled requirements.
 
-\section{Preliminaries}
+%   It's not possible to
+%   give a full semantics, since that would involve formalizing all of
+%   Haskell as implemented by GHC, but we will informally explain the
+%   operation of the judgments we assume are given to us.
 
-\paragraph{The context}  There is a bit of accounting to do:
+\section{Semantic objects}
+
+\begin{figure}
+\[ \DIGinterface{} \]
+\caption{Semantic objects of GHC Haskell with \Backpack{}}
+\label{fig:semantic-objects}
+\end{figure}
+
+The semantic objects of GHC Haskell, extended with \Backpack{}, are
+given in Figure~\ref{fig:semantic-objects}.  These semantic objects
+correspond closely to the top-level declarations supported by
+Haskell's syntax, but with a few key differences: first, every
+identifier is resolved to an \emph{original name} ($N$) which identifies
+the exact module that holds the declaration describing this identifier;
+second, all declarations are explicitly typed and kinded.
+
+The most important semantic object is the module type ($T$).  A module
+type consists of four components:
+
+\begin{enumerate}
+
+    \item The export list ($\UNs ::= \overline{N}$), which
+    specifies what entities are brought into scope when a module is
+    imported.  Every original name in an export list has a unique
+    occurrence name (e.g., $\UNs(n) = N$).
+
+    \item The type declarations ($\Utys$), which give
+    definitions for each entity provided by a module.  Every defined
+    entity list defines a particular entity $n$ (shaded in gray
+    in Figure~\ref{fig:semantic-objects}).  Like export lists,
+    each declaration in a module has a unique occurrence name
+    (e.g., $\Utys(n) = \Uty$).
+
+    \item A set of instances ($\Uinsts$), which specifies the type class
+    instances defined in this module.
+
+    \item The set of modules transitively imported by this module
+    ($\Uimps$), which controls the set of \emph{orphan instances}
+    (instances which may not necessarily be in scope) which are in scope
+    when performing type class resolution.  (Non-orphan instances are
+    always assumed to be in scope.)
+
+\end{enumerate}
+
+Below is a simple example of a module's Haskell source code and its
+corresponding module type:
+
+\vspace{-1em}
+\begin{figure}[H]
+\centering
+\begin{shortmath}
+\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth}}
+\begin{lstlisting}
+module A where
+    data T = MkT
+    f = MkT
+    instance Eq T where
+        MkT == MkT = True
+\end{lstlisting}
+&
+\vspace{-12pt}
+\[
+\begin{array}{l}
+    \UobjIface\: (\Mod{P_0}{A}.\texttt{T}, \Mod{P_0}{A}.\texttt{f}) \\
+    \qquad\texttt{data T where MkT} :: \Mod{P_0}{A}.\texttt{T} \\
+    \qquad\texttt{f} :: \Mod{P_0}{A}.\texttt{T} \\
+    \qquad\texttt{instance} :: N_{Eq}~\Mod{P_0}{A}.\texttt{T} \\
+\end{array}
+\]
+\end{tabular}
+\end{shortmath}
+\end{figure}
+
+\vspace{-2em}
+\noindent
+Here, $P_0$ represents the unit identifier that this module was
+being typechecked as a part of (for example, if \verb|module A| was
+in the component \verb|p| with no holes, then $P_0 = \uidl{p}{}$),
+and $N_\texttt{Eq}$ is the original name of the equality type
+class (not shown, but part of Haskell's Prelude, a set of declarations
+which are always in scope.)
+
+There are some slight differences with the module type of a signature:
+
+\vspace{-1em}
+\begin{figure}[H]
+\centering
+\begin{shortmath}
+\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth}}
+\begin{lstlisting}
+signature A where
+    data T
+    f :: T
+\end{lstlisting}
+&
+\[
+\begin{array}{l}
+    \UobjIface\: (\nhv{A.T}, \nhv{A.f}) \\
+    \qquad\texttt{data T} \\
+    \qquad\texttt{f} :: \nhv{A.T}
+\end{array}
+\]
+\end{tabular}
+\end{shortmath}
+\end{figure}
+
+\vspace{-2em}
+\noindent
+Instead of original names based off of the ambient unit identifier $P_0$,
+every defined entity is allocated a fresh name hole (e.g., $\nhv{A.T}$),
+which may be subsequently substituted with the actual original name of the
+implementing declaration.
+
+A collection of module types forms a component ($\Xi$), where each module
+type is annotated with a $+$ or $-$ to indicate if it is a module or
+signature.   Although the syntax of component types suggests that a module
+type can be put into the context at any name, a particular module
+identity is baked into the module type (as can seen in the example
+above); a module type must be placed in the context consistently with
+the module identifier it was typechecked with.  (We could have avoided
+this by applying a ``selfification'' step, ala CITE, prior to adding
+modules to the context, but the current presentation is more direct and
+accurately describes how GHC is implemented.)
+
+\paragraph{Differences from GHC 8.2's representation}  The account of semantic objects
+given here closely corresponds to GHC's \emph{interface file representation}; however
+there are some major differences.
 
 \begin{itemize}
-    \item The component type context $\Gamma ::= \overline{p : \Xi}$
-    records the types of all components we have previously typechecked;
-    these components are typed but not instantiated.  Type lookup will find a
-    component type and the instantiate it to get an actual type.
-    \item The module variable context $\Theta ::= \overline{\hv{m}}$
-    specifies the set of module variables which are in scope.  This context is computed by mixin
-    linking and recorded in the $\Theta$ in $\mcomp$.
-    \item The name variable context $\theta ::= \overline{\nhv{m.n}}$
-    specifies the set of name variables that are in scope.  Each should be
-    ascribed a type
-    in $\Sigma_R$ (described next.)
-    \item The local requirements context $\Sigma_R ::= \overline{m : \Umty}$ specifies the
-    module types of the requirements of the current component.  In this formal
-    development, we assume that $\Sigma_R$ is given to us nondeterministically,
-    see Section~\ref{sec:merging} for more details.
-    \item The local provisions context $\Sigma_P ::= \overline{m : \Umty}$ specifies
-    the module types of modules defined in the current component.
-    Collectively, $\Delta ::= (\Sigma_R; \Sigma_P)$ is the full
-    local context, which  will be transformed into the final type of the overall component.
-    \item The import context $\impctx ::= \overline{\prov{m}{M}}$ maps module names to module
-    identities, and specifies which module is actually imported by an
-    \texttt{import} declaration in Haskell source, bringing the exports
-    of that module into scope.
-    \item The current \cid{} $p_0$ says what the current component is,
-    and is used to generate local module identities and say when a type
-    is local as opposed to global.
+    \item In our formulation of GHC Haskell's semantic objects, an
+    instance directly records the type representing the constraint that
+    the instance fills.  In GHC Haskell, an instance instead contains a
+    reference to a \emph{dictionary function}, which is just a type of
+    term declaration that is never exported.  The two presentations are
+    equivalent, but embedding the dictionary function in the instance
+    makes it easier to specify the rules instance checking.  Similarly,
+    closed family instances are associated with a coercion axiom, but in
+    our presentation they are embedded in \I{tfinfo}.
+
+    \item Export specification is just a list of names, rather than names with
+    children; the latter is used to support import declarations like
+    \verb|Maybe(..)|.
 \end{itemize}
 
-\begin{definition}[Name substitutions] \normalfont{}
-Intuitively, name substitutions refine name variables to more specific
-original names; in Section~\ref{sec:overview-compiler}, this operation
-was shown diagrammatically by drawing a line between two entities.
-Formally, a name substitution $\USn ::= \overline{m.n=N}$ can be applied
-to a semantic object $x$ with notation $\substw{x}{\USn}$ (the
-same notation as module substitution).  The application is also
-functorial; here are the important cases:
-\[
-\begin{array}{rcll}
-  \substw{\nhv{m.n}}{\cdot} &=_\UN& \nhv{m.n} \\
-  \substw{\nhv{m.n}}{\subst{m.n}{N}, \USn} &=_\UN& N\\
-  \substw{\nhv{m.n}}{\subst{m'.n'}{N}, \USn} &=_\UN& \substw{\nhv{m.n}}{\USn} \quad (m.n \neq m'.n')\\
-  \substw{(M.n)}{\USn} &=_\UN& M.n\\
-  \substw{\overline{N}}{\USn} &=_\UNs& \overline{\substw{N}{\USn}}\\
-  \substw{\left\{ \overline{m : \Umty} \right\}}{\USn} &=_\Sigma& \{ \overline{m : \substw{\Umty}{\USn}} \} \\
-  \substw{(\UobjTau{\UNs}{\overline{\Uty}})}{\USn} &=_\Umty&
-  \UobjTau{\substw{\UNs}{\USn}}{\overline{\substw{\Uty}{\USn}}} \\
-\end{array}
-\]
-\end{definition}
+\section{Typing rules}
 
-\section{Assumed Haskell judgments}
+We organize our formalization of \Backpack{} typing into a few
+concerns:
 
-\begin{figure}
-\begin{centering}
-\fbox{$\Gamma; \Theta; \theta; \Delta; \impctx; p_0; m \vdash \Uhsbody : \Umty$}\\
-\fbox{$\Gamma; \Theta; \theta; \Delta; \impctx; p_0; m \vdash \Uhssig$} \\
-\fbox{$ty <: ty'$} \\
-\end{centering}
-\caption{Assumed Haskell judgments.}
-\label{fig:haskell}
+\begin{itemize}
+    \item The assumed Haskell judgments (Figure~\ref{typing:haskell}) are the
+        Haskell type-checking judgments we assume are available, but which
+        we do not formalize.
+
+    \item The top-level typing rules (Figure~\ref{typing:main}) tell us
+        how to typecheck the declarations of a component and form the final
+        component type.
+
+    \item The type lookup and renaming rules (Figure~\ref{typing:lookup}) tell us how to
+        get the type of a module by looking up the original type from
+        the context, and then \emph{renaming} it according to the substitution
+        recorded in the module identifier.  We will explain the difference
+        between type lookup and signature type lookup in more detail later.
+
+    \item The merging rules (Figure~\ref{typing:merging}) specify how the
+        module types are merged together during signature merging.
+
+    \item The subtyping rules (Figures~\ref{typing:top-subtyping}--\ref{typing:subtyping})
+        specify when one module type is a subtype of another, and is used
+        by both signature merging and dependency matching.
+
+\end{itemize}
+Most typing rules require the following three pieces of context:
+
+\begin{itemize}
+    \item The external component type context $\Gamma ::= \overline{p : \Xi}$,
+        which records the types of all components we have previously
+        typechecked.  These components are typed but not instantiated.
+    \item The local type context $\Delta :: \overline{m : T^s}$,
+        which records the types of the modules and signatures we have typechecked
+        from the current package.
+    \item The current unit identifier $P_0$, which identifies the component
+        we are typechecking. It is used to generate the original names
+        of declarations in modules and determine when a lookup should be
+        done in the local type environment.
+\end{itemize}
+Some rules require some extra context:
+
+\begin{itemize}
+    \item The logical context $\mathcal{L} ::= \overline{m \mapsto M}$ specifies
+        which module identity is brought into scope when a module name is imported.
+        It is needed when typechecking unrenamed Haskell source code, but is
+        otherwise not needed for typechecking.
+
+    \item The shape context $\shctx ::= \overline{p : \lctx}$ specifies what
+        module identities are provided by a package; this is used to resolve
+        a list of \texttt{dependency} declarations into the logical context $\mathcal{L}$.
+\end{itemize}
+
+\subsection{Assumed Haskell judgments}
+
+\input{typing/haskell}
+
+We assume some fairly conventional judgments for various operations on
+Haskell, which we do not formalize:
+
+\begin{itemize}
+    \item Module and signature typechecking are judgments which typecheck
+    module (\I{hsmod}) and signature (\I{hssig}) source into module
+    types.  Alongside the usual context, these judgments also require
+    the logical context $\mathcal{L}$ so that they can resolve imports,
+    and the name $m$ of the module they are typechecking (along with $P_0$,
+    this will determine what original names of the declarations in
+    the module and signatures will be: $\Mod{P_0}{m}.n$ in the case
+    of a module, and $\nhv{m.n}$ in the case of a signature.)
+
+    \item We also need judgments for testing type and kind equality.
+    These require a context, because type synonyms and type families
+    can introduce nontrivial definitional equalities between types that
+    are syntactically dissimilar.
+
+    \item Finally, we need a judgment for testing if a type class
+    instance is derivable from the instances available in the context,
+    plus some set of orphan instances (indicated by \I{orphs}).  Informally,
+    this judgment collects all instances which are transitively reachable
+    from \I{orphs}, as well as the modules which define all of the types
+    mentioned in \I{inst}, and then runs the instance constraint solver
+    to see if \I{inst} is implied by these instances.
+\end{itemize}
+
+\subsection{Top-level typing rules}
+
+\input{typing/main}
+
+Broadly speaking, the process of typechecking a component involves
+bringing all of the modules from its dependencies into scope
+($\mathcal{L} ::= \overline{m \mapsto M}$), and then type checking each
+module and signature in this context.  \textsc{TComp} computes the set
+of in-scope modules by looking up the provided modules from the
+component shape context (\textsf{exposes}).  As we typecheck each module
+(\textsc{TModule}) and signature (\textsc{TSignature}), \textsc{TSeq}
+adds their module types to the home module context ($\Delta ::=
+\overline{m : T^s}$), so that their types are available for subsequent
+modules and signatures.
+
+The most complicated rule is the rule for typechecking signatures
+(\textsc{TSignature}).  Like \textsc{TModule}, we first defer to an assumed
+judgment to typecheck the source \I{hssig}.  However, after the module
+type for the \emph{local} signature is computed, we must \emph{merge} it
+with all of the inherited signatures (computed by \textsf{inherits} and
+recorded in $\mathcal{D} ::= \overline{m \mapsto \overline{M}}$).
+
+\subsection{Type lookup rules}
+\label{sec:typing/lookup}
+
+\input{typing/lookup}
+
+During the course of typechecking a Haskell module, we will often have
+to lookup the declaration corresponding to an original name.  In plain
+Haskell, the declarations for each original name are recorded directly
+in the context; in \Backpack{}, we may need to \emph{substitute} the
+declaration, substituting all name holes.  \textsc{TUnit} contains the
+key rule: to determine the type of a module $\Mod{p[S]}{m}$, lookup the
+type and apply its substitution.
+
+Substitutions on semantic objects are not ordinary substitutions: not
+only do we substitute all module identities (as in
+\textsc{SName}), but we must also substitute over names
+(\textsc{SNameHole}), according to the exports of the modules we are
+substituting with: substitution requires us to recursively look up the
+types of these modules.
+
+%   During the course of typechecking, ordinary type lookup will only ever
+%   refer to signature types in $\Delta$; signature types of components are
+%   used only during the process of signature merging, in order to form a
+%   merged signature $m : T^- \in \Delta$, which incorporates the
+%   requirements of all the (transitive) dependencies of the component.
+%   In particular, if we are looking up the type of \nhv{m.n} (\textsc{TNameHole}),
+%   this is done by looking up the type in the \emph{local} requirement
+%   \hv{m}, not the requirement of the package where \nhv{m.n} came
+%   from (indeed, the original name doesn't provide this information!)
+
+The separate signature type lookup judgment is required to accommodate
+the case when we want to look up the type of a signature for signature
+merging: at this point in time, we haven't added any type for this
+signature to the local context $\Delta$, so ordinary module type lookup
+will fail for this signature.  \textsc{SNameHoleSig} handles the
+special case, where if a name hole corresponds to the signature we are
+merging (the $m$ parameter to \textsf{substsig}), we just directly
+rename it without consulting the context.  Otherwise, signature substitution
+proceeds exactly like regular substitution. (\textsc{SNameSig}).
+
+% Key points:
+%   - Signatures process one-by-one, as an earlier signature
+%     can cause a later one to merge.  Same with exports.
+% Properties we want: (1) signature can import other signature, (2) signature sees the same view of an import A as other modules would, (3) semantics should be forwards compatible with a recursive semantics, (4) signature should be able to refine type so that merging that would otherwise fail succeeds
+%   - Non-recursive case is easier because we don't have to preemptively
+%     merge all types (running afowl of (4))
+%   - Thinning doesn't work too well: want to thin BEFORE you typecheck
+%   so that you avoid typechecking things you don't know.
+%   - Thinning has a relationship with explicit signature exports
+
+
+% TODO: Need to also update transitively reachable modules when this
+% occurs
+
+\subsection{Merging rules}
+
+\input{typing/merging}
+
+Merging occurs when we merge $n$ signatures together, forming a new
+signature which is a subtype of all the original signatures (or failing
+if no such signature exists).  The key rule is \textsc{MSigType}, which performs
+the following operations:
+
+\begin{itemize}
+    \item First, we perform \emph{export matching}, computing the merged
+    export list, where name holes are subsumed by reexported original
+    names. (Line 1) The new export list induces a name substitution, which we apply
+    to each of the signature types. (Line 2)
+
+    \item Next, we merge all of the entities of the interface together,
+    producing a candidate merged signature $T_M$ (Line 3); it is a candidate signature
+    because during this step, we do \emph{not} check if the merged types match.
+
+    \item Finally, we check that the merged type is a subtype of each of the
+    (substituted) input signature types. (Line 4)
+\end{itemize}
+
+There are two subtleties in this procedure.  First, the declaration
+merge is \emph{nondeterministic} (``pick an arbitrary one'').  This
+nondeterminism is benign, as after merging we show that $\Uty_1
+=_\textsf{hs} \Uty_2$ (via the subtyping check): the choice didn't
+matter in the first place.
+
+Second, because of the above nondeterminism, we must be a little careful
+how we formulate the check for type synonym cycles.  Consider:
+
+\vspace{-1em}
+\begin{figure}[H]
+\centering
+\begin{shortmath}
+\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth}}
+\begin{lstlisting}
+signature A where
+    data A
+    type B = A
+\end{lstlisting}
+&
+\begin{lstlisting}
+signature A where
+    type A = B
+    type B = Int
+\end{lstlisting}
+\end{tabular}
+\end{shortmath}
 \end{figure}
 
-In Figure~\ref{fig:haskell}, we give the black box judgments which we
-assume the compiler provides for us.
-The module typechecking judgment synthesizes a module type
-for the given $\Uhsbody$. Each entity $n$ freshly defined in this module
-is given the original name $\Mod{p_0[\Theta]}{m}.n$, which will appear in
-the module type $\Umty$. For example, the type of module \modname{Y}, defined in
-the component \cidl{p} from~\ref{fig:linked-example}, exports the freshly
-named $\MOD{p}{\substHole{A}, \substHole{B}}{Y}.\texttt{L}$.
+\vspace{-2em}
+\noindent
+If we prefer the declarations from the second signature, there is no cycle;
+but if we take \verb|type A = B| and \verb|type B = A|, there is a cycle.
+The acyclicity check verifies that under \emph{all} possible merges, there
+are no type synonym cycles.
 
-The signature judgment does not synthesize a type for a signature $\Uhssig$,
-in contrast to the module typechecking judgment.
-Instead it merely checks that the given $\Uhssig$ is \emph{consistent} with the
-requirement types provided by the local context $\Delta$, which
-were nondeterministically chosen.  In a type system where requirement
-types from dependencies automatically merge together, there is no
-reason to expect the syntactic $\Uhssig$ specifies the full requirement
-for all the dependencies of the component (the user may have omitted it
-for it to be inferred.)
+\paragraph{Behavior with ill-typed signatures}  In our implementation,
+we noticed that the typing rules we have
+described above have some surprising behavior when typechecking signatures that
+are not well-typed: we may temporarily end up with types in our context
+that are ill-kinded, or generally nonsensical.  For example, we might
+merge \verb|data T; f :: T| and \verb|data T a; f :: T a| to get
+\verb|data T; f :: T a|, which is obviously ill-kinded.  It seems difficult
+to avoid behavior like this in the presence of mutual recursion (both MixML
+and \OldBackpack{} also exhibit this behavior); fortunately,
+this does not affect soundness (eventually we notice that \verb|data T|
+and \verb|T a| are incompatible and reject the merge).
 
-Finally, the subtyping judgment specifies whether or not a
-defined entity specification is a subtype of another specification.
-Generally, this is simply equality, except that any type is a subtype
-of a same-kinded abstract type (\verb|data A| with no constructors.)
+\subsection{Subtyping rules}
 
-\section{Type lookup and export/signature matching}
+\input{typing/subtyping}
+\input{typing/kinding}
 
-We now define the mutually recursive judgments for \emph{type lookup}
-(Figure~\ref{fig:ty-instantiate}) and \emph{export/signature matching}
-(Figure~\ref{fig:ty-match}), arguably the most important rules of our
-type system.  Intuitively, computing the type of $p[S]$ simply involves
-taking the component type for $p$, wiring it up according to $S$, and
-then reading off the provided types under this wiring diagram.
-Formally, the wiring diagram represents a name substitution $\USn$ which
-refines the name variables in $p$'s type; we must compute this
-substitution by export/signature matching.  The export matching rule, in
-turn, requires us to compute the types of the module identities in $S$
-(we are traversing the whole wiring diagram).
-Assuming that module identities are finite, this process is guaranteed
-to terminate.
+Last but not least, the subtyping judgment specifies when one module type
+is a subtype of another.  The main judgment \textsc{SubMod} tests if
+a module type is a subtype of another, under some context.  Both module
+types are assumed to have had a name substitution applied to them, so that
+subtyping on exports can be checked using a simple superset operation.
 
-The rules for type lookup are fairly straightforward.  There are special
-cases for looking up (1) the component type of the local component
-$p_0$, (2) the module type of a module variable $\hv{m}$, and (3) the
-Haskell type of a name variable $\nhv{m.n}$.
+Unusually, when we check for subtyping of declarations, we add $T_M$
+to the context.  To see why this is necessary, consider if we were
+checking that \verb|type T = Int; f :: Int| was a subtype of \verb|data T; f :: T|.
+When checking that \verb|f :: Int| is a subtype of \verb|f :: T|, we must lookup
+the declaration of \verb|T| in the context: $m : T_M^-$ precisely provides
+information that \verb|T| is a type synonym \verb|type T = Int|.  If
+instead the lookup gave us the abstract definition of \verb|T|, we would conclude
+that \verb|Int| and \verb|T| were not equal.  We similarly add $T_M$ to
+the context when testing if instances are solvable.
 
-The rule for export and signature matching is slightly more intricate.
-The export matching rule takes as input both the module substitution
-being applied $S$, as well as the component requirement $\Sigma_R$ that
-the substitution is being applied to.  We first must compute the types
-for every module in the substitution (the recursive process), and then
-compute an appropriate name substitution $\USn$ induced by the entire
-substitution which unifies the export lists (intuitively, we just look
-at the export lists and unify the ones which have the same $n$).  Finally, we perform
-signature matching, which simply checks that required type $\Umty$,
-after name substitution, is consistent with all the types in the context.
-It does this by going through each export of the requirement which is
-locally defined and checking the local type.
+In our presentation, declaration subtyping is organized in a subtyping
+relation (\textsc{SubDecl}) and a pre-subtyping relation: the subtyping
+relation tests if the kinds of the declarations are equal, and then
+defers to the pre-subtyping relation for case-by-case subtyping on each
+different type of declaration.  The non-reflexive rules are boxed,
+and specify which declarations can validly implement abstract data,
+classes and closed type families.
 
-\begin{figure}
-\fbox{$\Gamma; \Theta; \theta; \Delta; p_0 \vdash \UP : \Sigma_P$}
-\[
-\frac{
-\begin{array}{c}
-p \neq p_0  \qquad  p : \forall \Theta_R.\, \forall \theta_R.\, \Sigma_R \rightarrow \Sigma_P \in \Gamma \\
-\JMatch{S}{\Theta_R}{\theta_R}{\Sigma_R}{\USn} \\
-\end{array}
-}{
-\Gamma; \Theta; \theta; \Delta; p_0 \vdash \icid{p}{S} : \substww{\Sigma_P}{S}{Sn}
-}
-\]
-\[
-\Gamma; \Theta; \theta; (\Sigma_R; \Sigma_P); p_0 \vdash p_0[\overline{\subst{m_i}{\hv{m_i}}}] : \Sigma_P
-\]
-\\
+The subtyping rules for type synonyms (\textsc{SubTypeAbsData} and
+\textsc{SubTypeAbsClass}) are worth extra comment, because the implementing
+type synonyms are required to be \emph{nullary}: for example, \verb|type M a = a|
+is not a valid implementation of the abstract \verb|data M a|,
+but \verb|type M = Maybe :: * -> *| is.  This restriction
+stems from an old design decision in Haskell to not support \emph{type level
+lambdas}.  This restriction greatly helps type inference, since given the
+type equality $t~a = s~b$, we can now conclude that $t = s$ and $a = b$
+(this property is called \emph{generativity}).  Thus, GHC restricts type
+synonym applications to be fully saturated (unlike data declarations, which can
+be partially applied); similarly, a type synonym can only be used in place
+of a data declaration if this could not result in partially applied type
+synonyms.
 
-\fbox{$\Gamma; \Theta; \theta; \Delta; p_0\vdash M : \Umty$}
-\[
-\frac{
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \UP : \Sigma_P \qquad
-m : \Umty \in \Sigma_P
-}{
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \Mod{\UP}{m} : \Umty
-}
-\]
+% Things that are missing
+%   - Component sequencing OK
+%   - Functorial rules for rename/renamesig OK
+%   - Import subtyping / instantiation
+%   - Info equality OK
+%   - Acyclicity OK
+%
+% Should add labels
 
-\[
-\frac{
-\hv{m} \in \Theta \qquad
-\Delta = \Sigma_R; \Sigma_P \qquad
-m : \Umty \in \Sigma_R
-}{
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \holevar{m} : \Umty
-}
-\]
-\\
-
-\fbox{$\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \UN :: \Uty$}
-\[
-\frac{
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash M : \Umty \qquad
-n :: \Uty \in \Umty
-}{
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash M.n :: \Uty
-}
-\]
-
-\[
-\frac{
-\begin{array}{c}
-\nhv{m.n} \in \theta \qquad
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \holevar{m} : \Umty \qquad
-n :: \Uty \in \Umty
-\end{array}
-}{
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \nhv{m.n} :: \Uty
-}
-\]
-\caption{Rules for type lookup}
-\label{fig:ty-instantiate}
-\end{figure}
-
-\begin{figure}
-
-\fbox{$\JMatch{S}{\Theta_R}{\theta_R}{\Sigma_R}{\USn}$}
-\[
-\frac{
-% \begin{array}{c}
-% S = \overline{\subst{m_i}{M_i}} \qquad
-% \forall i. \quad \Gamma; \Theta; \theta; \Delta; p_0 \vdash M_i : \Umty'_i \\
-% \Tsubg{\cdot}{\overline{\tilde{\Umty}'_i <:_{m_i} \tilde{\Umty}_i}}{Sn} \\
-% \forall i. \quad \Gamma; \Theta; \theta; \Delta; p_0 \vdash \substww{\Umty_i}{S}{Sn}~\textsf{valid} \\
-% \end{array}
-  \begin{array}{@{}l@{\;=\;}l@{}}
-    S & (\overlinei{\subst{m_i}{M_i}}) \\
-    \Theta_R & \{\overlinei{m_i}\} \\
-    \theta_R & \Fdom{\USn} \\
-  \end{array}
-  \quad
-  \forall i:\;
-    \begin{cases}
-      \Gamma; \Theta; \theta; \Delta; p_0 \vdash M_i : \Umty'_i \\
-      \Fexports{\Umty_i'} \supseteq \Fexports{\substww{\Umty_i}{S}{\USn}} \\
-      \Gamma; \Theta; \theta; \Delta; p_0 \vdash \substww{\Umty_i}{S}{Sn}~\textsf{valid} \\
-    \end{cases}
-}{
-\JMatch{S}{\Theta_R}{\theta_R}{(\overlinei{m_i:\Umty_i})}{\USn}
-}
-\] \\
-
-% \fbox{$\Tsubg{\USn}{\overline{\Tmatch{\I{Ns}}{m}{\I{Ns}'} }}{\USn'}$}
-% \[
-% \frac{
-% \begin{array}{c}
-% \substw{\UNs'}{\USn} = \overline{\nhv{m.n_i}}, \overline{N_j} \\
-% \overline{N_j} \subseteq \UNs \qquad
-% \forall i. \quad n_i \mapsto N_i \in \UNs \\
-% \end{array}
-% }{
-% \Tsubg{\USn}{\Tmatch{\UNs}{m}{\UNs'}}{\USn, \overline{\nhv{m.n_i} = N_i}}
-% }
-% \]
-% \[
-% \frac{
-% \begin{array}{c}
-% \Tsubg{\USn}{\overline{ \Tmatch{\I{Ns}_i}{m}{\I{Ns}'_i} }}{\USn'} \\
-% \Tsubg{\USn'}{\overline{ \Tmatch{\I{Ns}_j}{m}{\I{Ns}'_j} }}{\USn''}
-% \end{array}
-% }{
-% \Tsubg{\USn}{   \Tmatch{\I{Ns}_i}{m}{\I{Ns}'_i} ;  \Tmatch{\I{Ns}_j}{m}{\I{Ns}'_j}  }{\USn''}
-% }
-% \]\\
-
-\fbox{$\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \Umty~\textsf{valid}$}
-\[
-\frac{
-\forall i: \quad \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash M_i.n_i :: ty_i' \quad \land \quad
-ty_i' <: ty_i
-}{
-\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash \UobjTau{\overline{M_i.n_i}, \overline{N_j}}{ \overline{n_i :: ty_i} }~\textsf{valid}
-}
-\]
-
-\caption{Rules for export matching and signature matching.  $\Fexports{\Umty}$ refers to the
-the export specification of the type $\Umty$.}
-\label{fig:ty-match}
-\end{figure}
-
-% A declaration $n$
-%   is assigned identity $M.n$ in $\Uhsbody$, but $\{m.n\}$ in $\Uhssig$.
-%   The subtyping relation on types is simply equality, except that
-%   concrete types are subtypes of abstract types when the kinds are equal.
-%   Note that imports in the source code are resolved by first checking if
-%   the module is defined in $\Delta$, and otherwise consulting $\impctx$.
-
-%   \begin{figure}
-%   \fbox{$\Gamma; \Theta; \theta; \Delta; \Up_0 \vdash P~\textsf{requires}~m : \Umty_R$}
-%   \[
-%   \frac{
-%   \begin{array}{c}
-%   \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash p : \forall\Theta'.\,\forall\theta'.\,\Sigma_R \rightarrow \Sigma_P \\
-%   \Gamma; \Theta; \theta; \Delta; p_0 \vdash S : \Sigma_R \induces \USn \\
-%   m : \Umty_R \in \Sigma_R
-%   \end{array}
-%   }{
-%   \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash p[S]~\textsf{requires}~m : \Umty_R
-%   }
-%   \]
-%   \caption{Signature merging}
-%   \end{figure}
-
-\begin{figure}[t]
-
-\fbox{$\shctx; \Gamma; \Theta; \Up_0 ; \theta; \Sigma_R \vdash \{ \Sigma_P; \impctx \} \quad \Uudecl \quad \{ \Sigma_P'; \impctx' \}$}
-\[
-\frac{
-  \begin{array}{c}
-    % \Delta = \Sigma_R; \Sigma_P
-    % \qquad
-    \Gamma; \Theta; \theta; (\Sigma_R; \Sigma_P); \impctx; \Up_0; m \vdash \Uhsbody : \Umty
-  \end{array}
-}{
-  \shctx; \Gamma; \Theta; \Up_0 ; \theta; \Sigma_R \vdash
-  \declst%
-    {\theta}%
-    {\Sigma_P}%
-    {\impctx}
-  \UsynMod{m}{\Uhsbody}
-  \declst%
-    {\theta}%
-    {\Sigma_P, m : \Umty}%
-    {\impctx}
-}
-\]
-\[
-\frac{
-  % \begin{array}{ll}
-  %   % \Delta = \Sigma_R; \Sigma_P
-  %   % \qquad
-  %   %\hv{m} \in \Theta \\
-  %   \Gamma; \Theta; \theta; (\Sigma_R; \Sigma_P); \impctx; \Up_0; m \vdash \Uhssig : \exists \theta_0.\, \Umty_0
-  %   &
-  %   %\forall i.\quad \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash P_i~\textsf{requires}~m'_i : \Umty'_{Ri} \\
-  %   %\Umty_R \oplus \overline{\Umty'_{Ri}} = \exists \theta'.\, \Umty
-  %   S_0 = (\subst{m}{\hv{m}})
-  %   \\
-  %   \JMatch[\Gamma;\Theta;\thetaOR;(\SigmaOR;\cdot);\Up_0]{S_0}{\hv{m}}{\theta_0}{(m:\Umty_0)}{\USn_0}
-  %   &
-  %   \Umty'_0 = \substww{\Umty_0}{S_0}{\USn_0}
-  %   \\
-  %   \forall i. \quad \JReqType[\Gamma;\Theta;\thetaOR;(\SigmaOR;\cdot);\Up_0]{m_i}{P_i}{\Umty_i}
-  %   &
-  %   \Umty' = \bigoplus_i \Umty_i
-  %   \\
-  %   \multicolumn{2}{c}{\Umty = \Ftrim{m}{\Umty'_0 \oplus \Umty'}}
-  % \end{array}
-  \begin{array}{c}
-    \Gamma; \Theta; \theta; (\Sigma_R;\Sigma_P); \impctx; \Up_0; m
-      \vdash \Uhssig
-  \end{array}
-}{
-  \shctx; \Gamma; \Theta; p_0 ; \theta; \Sigma_R \vdash
-    \declst%
-      {\theta}%
-      {\Sigma_P}%
-      {\impctx}
-    \;\UsynSig{m}{\Uhssig}\;
-    \declst%
-      {\theta}%
-      {\Sigma_P}%
-      {\impctx}
-}
-\]
-\[
-\frac{
-  \begin{array}{c}
-    p \haspr \lctxpair{\provs}{\reqs'} \in \shctx
-    \qquad
-    \Gamma; \Theta; \theta; \Delta; \Up_0 \vdash p[S] : \Sigma
-    \\
-    r = \overline{m \mapsto m'}
-    \qquad
-    \overline{M} = \overline{\substw{\provs(m')}{S}}
-    % \reqs' \subseteq \textsf{dom}(\Delta)
-  \end{array}
-}{
-  \shctx; \Gamma; \Theta; \Up_0 ; \theta; \Sigma_R \vdash
-  \declst%
-    {\theta}%
-    {\Sigma_P}%
-    {\impctx}
-  \UsynDep{p[S]}{r}
-  \declst%
-    {\theta}%
-    {\Sigma_P}%
-    {\impctx, \overline{m \mapsto M}}
-}
-\]\\
-
-\fbox{$\shctx; \Gamma; \Theta; \Up_0 ; \theta; \Sigma_R \vdash \{ \Sigma_P; \impctx \} \quad \overline{\Uudecl} \quad \{ \Sigma_P'; \impctx' \}$}
-\[
-\frac{}{
-  \shctx; \Gamma; \Theta; \Up_0 ; \theta; \Sigma_R \vdash \{\Sigma_P;\impctx\} \quad \cdot \quad \{\Sigma_P; \impctx \}
-}
-\]
-\[
-\frac{
-  \begin{array}{c}
-    \shctx; \Gamma; \Theta; \Up_0 ; \theta; \Sigma_R \vdash \{\Sigma_P;\impctx\} \quad mdecl \quad \{\Sigma_P'; \impctx' \} \\
-    \shctx; \Gamma; \Theta; \Up_0 ; \theta; \Sigma_R \vdash \{\Sigma_P';\impctx'\} \quad \overline{mdecl'} \quad \{\Sigma_P''; \impctx'' \}
-  \end{array}
-}{
-  \shctx; \Gamma; \Theta; \Up_0 ; \theta; \Sigma_R \vdash \{\Sigma_P;\impctx\} \quad mdecl, \overline{mdecl'} \quad \{\Sigma_P''; \impctx'' \}
-}
-\]\\
-
-% \fbox{$\JReqType{m}{P}{\Umty}$} \\
-% \Scott{Typing of (external) requirement}
-% \[
-% \frac{
-%   \begin{array}{c}
-%     p \neq p_0 \qquad
-%     p : \forall \Theta_R.\, \forall \theta_R.\, \Sigma_R \rightarrow \Sigma_P \in \Gamma \\
-%     \JMatch{S}{\Theta_R}{\theta_R}{\Sigma_R}{\USn} \\
-%   \end{array}
-% }{
-%   \JReqType{m}{p[S]}{\substww{\Sigma_R(m)}{S}{\USn}}
-% }
-% \]\\
-
-\fbox{$\shctx; \Gamma \vdash \Uunit : \Uunitty$}
-\[
-\frac{
-  \begin{array}{@{}l@{}}
-    (\forall\theta.\,\Sigma_R) ~\textsf{most general s.t.}\\
-    \;
-    \begin{cases}
-      \Theta = \Fdom{\Sigma_R}
-        \;\wedge\; \theta = \Ffnv{\Sigma_R}
-        \;\wedge\; \forall \nhv{m.n} \in \theta: \hv{m} \in \Theta \\
-      \shctx; \Gamma; \Theta; p ; \theta; \Sigma_R \vdash
-        \{\cdot; \cdot\} \; \overline{\Uudecl} \; \{\Sigma_P; \impctx\}
-    \end{cases}
-    %\shctx; \Gamma; \Theta; p \vdash \declst{\cdot}{\cdot}{\cdot} \quad \overline{\Uudecl} \quad \declst{\theta}{\Sigma_R; \Sigma_P}{ \impctx}
-    
-  \end{array}
-}{
-  \begin{array}{c}
-    \shctx; \Gamma \vdash
-    \UsynUnit{p}{\Theta}{\overline{\Uudecl}} : \forall\Theta.\,\forall\theta.\,\{\Sigma_R\} \rightarrow \{\Sigma_P\}
-  \end{array}
-}
-\]\\
-
-% \[
-% \begin{array}{l}
-%   \Ftrim{m}{\UobjTau{\UNs}{\overline{\Uty}}} \quad =
-%   \\
-%   \qquad
-%   \textsf{iface}~(\UNs)~
-%     \left\{\begin{array}{@{}c@{\;\;}|@{\;\;}c@{}}
-%       \Uty
-%       &
-%       \begin{array}{@{}l@{}}
-%         \Uty\in\overline{\Uty},\\
-%         (\Uty ~\textsf{named}~ n) \Rightarrow \UNs(n) = \nhv{m.n}\\
-%       \end{array}
-%     \end{array}\right\}
-% \end{array}
-% \]
-
-% \Red{Definition of $\Umty \oplus \Umty$ \dots}
-
-\fbox{$\square \;\le\; \square$ \quad \textsf{less general than}}
-\[
-  \forall\theta_1.\Sigma_1 \;\;\le\;\; \forall\theta_2.\Sigma_2
-  \quad\Leftrightarrow\quad
-  \exists \USn :\;
-    \begin{cases}
-      \Fdom{\USn} = \theta_2 \\
-      \Sigma_1 \;\le\; \substw{\Sigma_2}{\USn}
-    \end{cases}
-\]
-\[
-\begin{array}{@{}r@{\;\;}c@{\;\;}l@{\;\;}c@{\;\;}l}
-  (\overline{m':\Umty'},\overline{m:\Umty_1})
-    &\le&
-    (\overline{m:\Umty_2})
-      &\Leftrightarrow&
-      \overline{\Umty_1 \le \Umty_2}
-  \\
-  \UobjTau{\UNs',\UNs}{\overline{\Uty'},\overline{\Uty_1}}
-    &\le&
-    \UobjTau{\UNs}{\overline{\Uty_2}}
-      &\Leftrightarrow&
-      \overline{\Uty_1 <: \Uty_2}
-\end{array}
-\]
-
-\caption{Rules for \unit{} language.}
-\label{fig:unit-ty-rules}
-\end{figure}
-
-\section{Typechecking a mixed component}
-
-The rest of the typechecking process (Figure~\ref{fig:unit-ty-rules})
-involves processing each declaration of a \unit{} in order, modifying
-the local contexts as we process the each declaration of the \unit{}.
-Most per-declaration rules are fairly straightforward: module
-typechecking produces a $\Umty$ which is added to $\Sigma_P$ and signature
-typechecking just checks for consistency with $\Sigma_R$.
-
-However, the dependency rule is a little subtle.  First, we eagerly
-typecheck $p[S]$ to ensure that it indeed has a type; not because we
-need to use the type, but because there is no guarantee that $p[S]$
-is a well-typed instantiation; we need to check.  Second, we need
-to consult the shape context in order to determine what set of modules
-(substituted according to $S$) we actually bring into scope for import.
-
-Finally, the overall rule for $\mcomp$ nondeterministically synthesizes
-the local requirement context $\Sigma_R$ and then runs successively
-typechecks each declaration, starting with the empty local contexts.
-The results are all bundled up into the final component type of a component.
-The synthesized requirement has the following properties: (1) it is specific
-enough to permit the component to typecheck, (2) it doesn't contain
-unnecessary exports or type declarations, and (3) it is as abstract as possible
-with respect to original names (the more name variables, the better.)
+% Things to talk about:
+%   - Temporary bogus types. MixML and Backpack have this problem
+%     (Backpack in particular: if you define a type and refer to it,
+%     but that type is already in context, which do you use.  Name
+%     is consistent, but not necessarily definition!)
+%   - Cyclic exports when you add signature reexports to recursive
+%   Backpack
+%   - Recursive design space is big. hs-boot for hsigs? Do signature
+%   declarations become before or after dependencies?  Signature
+%   should see anything, but also refine recursive occurences of self?
