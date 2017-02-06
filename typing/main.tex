@@ -1,6 +1,6 @@
 \begin{figure}
 
-\fbox{\textbf{Top-level typing:} $\Gamma \vdash \mcomp : \Gamma$}
+\fbox{\textbf{Top-level typing:} $\shctx; \Gamma \vdash \mcomp : \Gamma$}
 
 \[
 \frac{
@@ -46,18 +46,15 @@ P_0 = p[\overline{m_i=\hv{m_i}}] \\
 % Retrieve the signatures to merge in
 \forall M_i \in \mathcal{D}(m).\quad
     \Gamma; \Delta; P_0 \vdash M_i :_\textsf{sig} T_i \\
-% Shape and apply it
-\forall i.\quad T'_i = \substw{T_i}{\textsf{nsubst}(m, \bigoplus_{m,i} \textsf{exports}(T_i))} \\
-% Pre-merge the signatures
-\bigoplus_i T'_i = T_M \\
-% Check compatibility, with merged context
-\forall i.\quad \Gamma; \Delta, m : T_M; P_0 \vdash \hv{m} \le T'_i \\
+% Merge the signatures
+\Gamma; \Delta; P_0; m \vdash \bigoplus_i T_i \leadsto T' \\
 \end{array}
 }{
-\Gamma; \Delta; P_0; \mathcal{L}; \mathcal{D} \vdash \UsynSig{m}{\Uhssig} : T_M
+\Gamma; \Delta; P_0; \mathcal{L}; \mathcal{D} \vdash \UsynSig{m}{\Uhssig} : T'
 }
 \quad(\textsc{TSignature})
 \]
+\\
 
 \fbox{\textbf{Dependency typing:} $\ctx \vdash P ~\textsf{well-typed} \qquad \ctx \vdash M ~\textsf{well-typed}$}
 
@@ -108,4 +105,5 @@ p : (\overline{m_i : T_i^-}, \overline{m_j : T_j^+}) \in \Gamma \\
 
 
 \caption{Top-level typing rules}
+\label{typing:main}
 \end{figure}

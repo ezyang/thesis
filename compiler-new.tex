@@ -30,29 +30,109 @@ The most important semantic object is the module type ($T$).  A module
 type consists of four components:
 
 \begin{enumerate}
-    \item The export specification ($\UNs$), which specifies what entities are brought
-    into scope when a module is imported.
-    \item The defined entity specifications ($\Utys$), which give definitions
-    for each entity provided by a module.  The defined entity specification for
-    an original name $M.n$ is recorded in the module type for $M$.
+
+    \item The export list ($\UNs ::= \overline{N}$), which
+    specifies what entities are brought into scope when a module is
+    imported.  Every original name in an export list has a unique
+    occurrence name (e.g., $\UNs(n) = N$).
+
+    \item The type declarations ($\Utys$), which give
+    definitions for each entity provided by a module.  Every defined
+    entity list defines a particular entity $n$ (shaded in gray
+    in Figure~\ref{fig:semantic-objects}).  Like export lists,
+    each declaration in a module has a unique occurrence name
+    (e.g., $\Utys(n) = \Uty$).
+
     \item A set of instances ($\Uinsts$), which specifies the type class
     instances defined in this module.
-    \item The set of modules transitively imported by this module ($\Uimps$),
-    which controls the set of instances which are in scope when performing
-    type class resolution.
+
+    \item The set of modules transitively imported by this module
+    ($\Uimps$), which controls the set of \emph{orphan instances}
+    (instances which may not necessarily be in scope) which are in scope
+    when performing type class resolution.  (Non-orphan instances are
+    always assumed to be in scope.)
+
 \end{enumerate}
-A module type represents either a module (indicated with the $+$ polarity)
-or a signature (indicated with $-$); a collection of module types forms
-a package ($\Xi$).
 
+Below is a simple example of a module's Haskell source code and its
+corresponding module type:
 
+\vspace{-1em}
+\begin{figure}[H]
+\centering
+\begin{shortmath}
+\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth}}
+\begin{lstlisting}
+module A where
+    data T = MkT
+    f = MkT
+    instance Eq T where
+        MkT == MkT = True
+\end{lstlisting}
+&
+\vspace{-12pt}
+\[
+\begin{array}{l}
+    \UobjIface\: (\Mod{P_0}{A}.\texttt{T}, \Mod{P_0}{A}.\texttt{f}) \\
+    \qquad\texttt{data T where MkT} :: \Mod{P_0}{A}.\texttt{T} \\
+    \qquad\texttt{f} :: \Mod{P_0}{A}.\texttt{T} \\
+    \qquad\texttt{instance} :: N_{Eq}~\Mod{P_0}{A}.\texttt{T} \\
+\end{array}
+\]
+\end{tabular}
+\end{shortmath}
+\end{figure}
 
+\vspace{-2em}
+\noindent
+Here, $P_0$ represents the unit identifier that this module was
+being typechecked as a part of (for example, if \verb|module A| was
+in the component \verb|p| with no holes, then $P_0 = \uidl{p}{}$),
+and $N_\texttt{Eq}$ is the original name of the equality type
+class (not shown, but part of Haskell's Prelude, a set of declarations
+which are always in scope.)
 
-We collect module types into a context $\Gamma$, associating a module type
-with an uninstantiated module identity.
+There are some slight differences with the module type of a signature:
 
+\vspace{-1em}
+\begin{figure}[H]
+\centering
+\begin{shortmath}
+\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth}}
+\begin{lstlisting}
+signature A where
+    data T
+    f :: T
+\end{lstlisting}
+&
+\[
+\begin{array}{l}
+    \UobjIface\: (\nhv{A.T}, \nhv{A.f}) \\
+    \qquad\texttt{data T} \\
+    \qquad\texttt{f} :: \nhv{A.T}
+\end{array}
+\]
+\end{tabular}
+\end{shortmath}
+\end{figure}
 
-Unlike source code, identifiers in these objects have been renamed into \emph{original names} ($N$) which identify the exact module which originally defined an entity.  Every \I{decl} is associated with an entity name $\graybox{n}$, which we have indicated in grey.  We leave some of the details about declaration metadata unspecified (e.g., \I{dinfo}, \I{ntinfo}, etc.), as they are not directly related to Backpack.  Abstract declarations can only occur in signatures.
+\vspace{-2em}
+\noindent
+Instead of original names based off of the ambient unit identifier $P_0$,
+every defined entity is allocated a fresh name hole (e.g., $\nhv{A.T}$),
+which may be subsequently substituted with the actual original name of the
+implementing declaration.
+
+A collection of module types forms a component ($\Xi$), where each module
+type is annotated with a $+$ or $-$ to indicate if it is a module or
+signature.   Although the syntax of component types suggests that a module
+type can be put into the context at any name, a particular module
+identity is baked into the module type (as can seen in the example
+above); a module type must be placed in the context consistently with
+the module identifier it was typechecked with.  (We could have avoided
+this by applying a ``selfification'' step, ala CITE, prior to adding
+modules to the context, but the current presentation is more direct and
+accurately describes how GHC is implemented.)
 
 \paragraph{Differences from GHC 8.2's representation}  The account of semantic objects
 given here closely corresponds to GHC's \emph{interface file representation}; however
@@ -72,41 +152,157 @@ there are some major differences.
     \item Export specification is just a list of names, rather than names with
     children; the latter is used to support import declarations like
     \verb|Maybe(..)|.
-
-    \item GHC doesn't record the set of modules transitively imported (which would
-    mean that interface files take quadratic space to store); instead
-    it records only those modules which define orphan instances for family instances.
 \end{itemize}
 
-\section{Auxiliary definitions}
+\section{Typing rules}
 
-\[
-\begin{array}{rcl}
-\textsf{exports}(\UobjTau{\UNs}{\ldots}) &\defeq& \UNs \\
-\textsf{occname}(\nhv{m.n}) &\defeq& n \\
-\textsf{occname}(M.n) &\defeq& n \\
-\UNs(n) &\defeq& N ~\textsf{where}~ N \in \UNs \land \textsf{occname}(N) = n \\
-\textsf{nsubst}(m, \overline{N_i}) &\defeq& \overline{\nhv{m.{\sf occname}(N_i)} \mapsto N_i}
-\end{array}
-\]
+We organize our formalization of \Backpack{} typing into a few
+concerns:
 
-EPS is $\Gamma ::= \overline{p : \Xi}$. HPT is $\Delta ::= \overline{m : T^s}$.
+\begin{itemize}
+    \item The assumed Haskell judgments (Figure~\ref{typing:haskell}) are the
+        Haskell type-checking judgments we assume are available, but which
+        we do not formalize.
 
-$\Xi, \Delta$ are the same.
+    \item The top-level typing rules (Figure~\ref{typing:main}) tell us
+        how to typecheck the declarations of a component and form the final
+        component type.
 
-$P_0$ is ``self''.  Invariant: it is always fully uninstantiated or fully instantiated. (Does it work with partial instantiation?)
+    \item The type lookup and renaming rules (Figure~\ref{typing:lookup}) tell us how to
+        get the type of a module by looking up the original type from
+        the context, and then \emph{renaming} it according to the substitution
+        recorded in the module identifier.  We will explain the difference
+        between type lookup and signature type lookup in more detail later.
 
-\subsection{Typing rules}
+    \item The merging rules (Figure~\ref{typing:merging}) specify how the
+        module types are merged together during signature merging.
 
+    \item The subtyping rules (Figures~\ref{typing:top-subtyping}--\ref{typing:subtyping})
+        specify when one module type is a subtype of another, and is used
+        by both signature merging and dependency matching.
+
+\end{itemize}
+Most typing rules require the following three pieces of context:
+
+\begin{itemize}
+    \item The external component type context $\Gamma ::= \overline{p : \Xi}$,
+        which records the types of all components we have previously
+        typechecked.  These components are typed but not instantiated.
+    \item The local type context $\Delta :: \overline{m : T^s}$,
+        which records the types of the modules and signatures we have typechecked
+        from the current package.
+    \item The current unit identifier $P_0$, which identifies the component
+        we are typechecking. It is used to generate the original names
+        of declarations in modules and determine when a lookup should be
+        done in the local type environment.
+\end{itemize}
+Some rules require some extra context:
+
+\begin{itemize}
+    \item The logical context $\mathcal{L} ::= \overline{m \mapsto M}$ specifies
+        which module identity is brought into scope when a module name is imported.
+        It is needed when typechecking unrenamed Haskell source code, but is
+        otherwise not needed for typechecking.
+
+    \item The shape context $\shctx ::= \overline{p : \lctx}$ specifies what
+        module identities are provided by a package; this is used to resolve
+        a list of \texttt{dependency} declarations into the logical context $\mathcal{L}$.
+\end{itemize}
+
+\subsection{Assumed Haskell judgments}
+
+\input{typing/haskell}
+
+We assume some fairly conventional judgments for various operations on
+Haskell, which we do not formalize:
+
+\begin{itemize}
+    \item Module and signature typechecking are judgments which typecheck
+    module (\I{hsmod}) and signature (\I{hssig}) source into module
+    types.  Alongside the usual context, these judgments also require
+    the logical context $\mathcal{L}$ so that they can resolve imports,
+    and the name $m$ of the module they are typechecking (along with $P_0$,
+    this will determine what original names of the declarations in
+    the module and signatures will be: $\Mod{P_0}{m}.n$ in the case
+    of a module, and $\nhv{m.n}$ in the case of a signature.)
+
+    \item We also need judgments for testing type and kind equality.
+    These require a context, because type synonyms and type families
+    can introduce nontrivial definitional equalities between types that
+    are syntactically dissimilar.
+
+    \item Finally, we need a judgment for testing if a type class
+    instance is derivable from the instances available in the context,
+    plus some set of orphan instances (indicated by \I{orphs}).  Informally,
+    this judgment collects all instances which are transitively reachable
+    from \I{orphs}, as well as the modules which define all of the types
+    mentioned in \I{inst}, and then runs the instance constraint solver
+    to see if \I{inst} is implied by these instances.
+\end{itemize}
+
+\subsection{Top-level typing rules}
+
+\input{typing/main}
+
+Broadly speaking, the process of typechecking a component involves
+bringing all of the modules from its dependencies into scope
+($\mathcal{L} ::= \overline{m \mapsto M}$), and then type checking each
+module and signature in this context.  \textsc{TComp} computes the set
+of in-scope modules by looking up the provided modules from the
+component shape context (\textsf{exposes}).  As we typecheck each module
+(\textsc{TModule}) and signature (\textsc{TSignature}), \textsc{TSeq}
+adds their module types to the home module context ($\Delta ::=
+\overline{m : T^s}$), so that their types are available for subsequent
+modules and signatures.
+
+The most complicated rule is the rule for typechecking signatures
+(\textsc{TSignature}).  Like \textsc{TModule}, we first defer to an assumed
+judgment to typecheck the source \I{hssig}.  However, after the module
+type for the \emph{local} signature is computed, we must \emph{merge} it
+with all of the inherited signatures (computed by \textsf{inherits} and
+recorded in $\mathcal{D} ::= \overline{m \mapsto \overline{M}}$).
+
+\subsection{Type lookup rules}
+\label{sec:typing/lookup}
+
+\input{typing/lookup}
+
+During the course of typechecking a Haskell module, we will often have
+to lookup the declaration corresponding to an original name.  In plain
+Haskell, the declarations for each original name are recorded directly
+in the context; in \Backpack{}, we may need to \emph{substitute} the
+declaration, substituting all name holes.  \textsc{TUnit} contains the
+key rule: to determine the type of a module $\Mod{p[S]}{m}$, lookup the
+type and apply its substitution.
+
+Substitutions on semantic objects are not ordinary substitutions: not
+only do we substitute all module identities (as in
+\textsc{SName}), but we must also substitute over names
+(\textsc{SNameHole}), according to the exports of the modules we are
+substituting with: substitution requires us to recursively look up the
+types of these modules.
+
+%   During the course of typechecking, ordinary type lookup will only ever
+%   refer to signature types in $\Delta$; signature types of components are
+%   used only during the process of signature merging, in order to form a
+%   merged signature $m : T^- \in \Delta$, which incorporates the
+%   requirements of all the (transitive) dependencies of the component.
+%   In particular, if we are looking up the type of \nhv{m.n} (\textsc{TNameHole}),
+%   this is done by looking up the type in the \emph{local} requirement
+%   \hv{m}, not the requirement of the package where \nhv{m.n} came
+%   from (indeed, the original name doesn't provide this information!)
+
+The separate signature type lookup judgment is required to accommodate
+the case when we want to look up the type of a signature for signature
+merging: at this point in time, we haven't added any type for this
+signature to the local context $\Delta$, so ordinary module type lookup
+will fail for this signature.  \textsc{SNameHoleSig} handles the
+special case, where if a name hole corresponds to the signature we are
+merging (the $m$ parameter to \textsf{substsig}), we just directly
+rename it without consulting the context.  Otherwise, signature substitution
+proceeds exactly like regular substitution. (\textsc{SNameSig}).
 
 % Key points:
-%   - Type lookup is always done by finding it in the context.
-%     Only situation this doesn't happen is primitive typechecking of
-%     module or signature.  Important, because when we check
-%     compatibility, type lookup might be done with regards to
-%     something strange.  (Things get even stranger with
-%     recursion; then we preemptively put the types in the
-%     context.)
 %   - Signatures process one-by-one, as an earlier signature
 %     can cause a later one to merge.  Same with exports.
 % Properties we want: (1) signature can import other signature, (2) signature sees the same view of an import A as other modules would, (3) semantics should be forwards compatible with a recursive semantics, (4) signature should be able to refine type so that merging that would otherwise fail succeeds
@@ -120,19 +316,126 @@ $P_0$ is ``self''.  Invariant: it is always fully uninstantiated or fully instan
 % TODO: Need to also update transitively reachable modules when this
 % occurs
 
-\input{typing/main}
-\input{typing/lookup}
-\input{typing/renaming}
-\input{typing/haskell}
+\subsection{Merging rules}
+
 \input{typing/merging}
-\input{typing/kinding}
+
+Merging occurs when we merge $n$ signatures together, forming a new
+signature which is a subtype of all the original signatures (or failing
+if no such signature exists).  The key rule is \textsc{MSigType}, which performs
+the following operations:
+
+\begin{itemize}
+    \item First, we perform \emph{export matching}, computing the merged
+    export list, where name holes are subsumed by reexported original
+    names. (Line 1) The new export list induces a name substitution, which we apply
+    to each of the signature types. (Line 2)
+
+    \item Next, we merge all of the entities of the interface together,
+    producing a candidate merged signature $T_M$ (Line 3); it is a candidate signature
+    because during this step, we do \emph{not} check if the merged types match.
+
+    \item Finally, we check that the merged type is a subtype of each of the
+    (substituted) input signature types. (Line 4)
+\end{itemize}
+
+There are two subtleties in this procedure.  First, the declaration
+merge is \emph{nondeterministic} (``pick an arbitrary one'').  This
+nondeterminism is benign, as after merging we show that $\Uty_1
+=_\textsf{hs} \Uty_2$ (via the subtyping check): the choice didn't
+matter in the first place.
+
+Second, because of the above nondeterminism, we must be a little careful
+how we formulate the check for type synonym cycles.  Consider:
+
+\vspace{-1em}
+\begin{figure}[H]
+\centering
+\begin{shortmath}
+\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth}}
+\begin{lstlisting}
+signature A where
+    data A
+    type B = A
+\end{lstlisting}
+&
+\begin{lstlisting}
+signature A where
+    type A = B
+    type B = Int
+\end{lstlisting}
+\end{tabular}
+\end{shortmath}
+\end{figure}
+
+\vspace{-2em}
+\noindent
+If we prefer the declarations from the second signature, there is no cycle;
+but if we take \verb|type A = B| and \verb|type B = A|, there is a cycle.
+The acyclicity check verifies that under \emph{all} possible merges, there
+are no type synonym cycles.
+
+\paragraph{Behavior with ill-typed signatures}  In our implementation,
+we noticed that the typing rules we have
+described above have some surprising behavior when typechecking signatures that
+are not well-typed: we may temporarily end up with types in our context
+that are ill-kinded, or generally nonsensical.  For example, we might
+merge \verb|data T; f :: T| and \verb|data T a; f :: T a| to get
+\verb|data T; f :: T a|, which is obviously ill-kinded.  It seems difficult
+to avoid behavior like this in the presence of mutual recursion (both MixML
+and \OldBackpack{} also exhibit this behavior); fortunately,
+this does not affect soundness (eventually we notice that \verb|data T|
+and \verb|T a| are incompatible and reject the merge).
+
+\subsection{Subtyping rules}
+
 \input{typing/subtyping}
+\input{typing/kinding}
+
+Last but not least, the subtyping judgment specifies when one module type
+is a subtype of another.  The main judgment \textsc{SubMod} tests if
+a module type is a subtype of another, under some context.  Both module
+types are assumed to have had a name substitution applied to them, so that
+subtyping on exports can be checked using a simple superset operation.
+
+Unusually, when we check for subtyping of declarations, we add $T_M$
+to the context.  To see why this is necessary, consider if we were
+checking that \verb|type T = Int; f :: Int| was a subtype of \verb|data T; f :: T|.
+When checking that \verb|f :: Int| is a subtype of \verb|f :: T|, we must lookup
+the declaration of \verb|T| in the context: $m : T_M^-$ precisely provides
+information that \verb|T| is a type synonym \verb|type T = Int|.  If
+instead the lookup gave us the abstract definition of \verb|T|, we would conclude
+that \verb|Int| and \verb|T| were not equal.  We similarly add $T_M$ to
+the context when testing if instances are solvable.
+
+In our presentation, declaration subtyping is organized in a subtyping
+relation (\textsc{SubDecl}) and a pre-subtyping relation: the subtyping
+relation tests if the kinds of the declarations are equal, and then
+defers to the pre-subtyping relation for case-by-case subtyping on each
+different type of declaration.  The non-reflexive rules are boxed,
+and specify which declarations can validly implement abstract data,
+classes and closed type families.
+
+The subtyping rules for type synonyms (\textsc{SubTypeAbsData} and
+\textsc{SubTypeAbsClass}) are worth extra comment, because the implementing
+type synonyms are required to be \emph{nullary}: for example, \verb|type M a = a|
+is not a valid implementation of the abstract \verb|data M a|,
+but \verb|type M = Maybe :: * -> *| is.  This restriction
+stems from an old design decision in Haskell to not support \emph{type level
+lambdas}.  This restriction greatly helps type inference, since given the
+type equality $t~a = s~b$, we can now conclude that $t = s$ and $a = b$
+(this property is called \emph{generativity}).  Thus, GHC restricts type
+synonym applications to be fully saturated (unlike data declarations, which can
+be partially applied); similarly, a type synonym can only be used in place
+of a data declaration if this could not result in partially applied type
+synonyms.
 
 % Things that are missing
 %   - Component sequencing OK
 %   - Functorial rules for rename/renamesig OK
 %   - Import subtyping / instantiation
-%   - Info equality
+%   - Info equality OK
+%   - Acyclicity OK
 %
 % Should add labels
 

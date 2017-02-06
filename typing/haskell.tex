@@ -1,15 +1,16 @@
 \begin{figure}
 
-\fbox{\textbf{Instance resolution:} $\ctx \vdash \Uimps ~\textsf{solves}~ \Uinst$}
+\fbox{\textbf{Module typechecking:} $\ctx; \mathcal{L}; m \vdash \I{hsmod} : T$}
+
+\fbox{\textbf{Signature typechecking:} $\ctx; \mathcal{L}; m \vdash \I{hssig} : T$}
 
 \fbox{\textbf{Type equality:} $\ctx \vdash \tau =_\textsf{hs} \tau$}
 
 \fbox{\textbf{Kind equality:} $\ctx \vdash \kappa =_\textsf{hs} \kappa$}
 
-\fbox{\textbf{Signature typechecking:} $\ctx; \mathcal{L}; m \vdash \I{hssig} : T$}
-
-\fbox{\textbf{Module typechecking:} $\ctx; \mathcal{L}; m \vdash \I{hsmod} : T$}
+\fbox{\textbf{Instance resolution:} $\ctx \vdash \Uimps ~\textsf{solves}~ \Uinst$}
 
 \caption{Assumed Haskell judgments}
+\label{typing:haskell}
 
 \end{figure}

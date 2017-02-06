@@ -1,12 +1,32 @@
 \begin{figure}
 
-\fbox{\textbf{Type lookup:} $\ctx \vdash M : T$}
+\fbox{\textbf{Original name type lookup:} $\ctx \vdash N : \I{decl}$}
+
+\begin{twocol}
+\[
+\frac{
+\ctx \vdash \hv{m} : T
+}{
+\ctx \vdash \nhv{m.n} : \textsf{decls}(T)(n)
+} \quad(\textsc{TNameHole})
+\]
+&
+\[
+\frac{
+\ctx \vdash M : T
+}{
+\ctx \vdash M.n : \textsf{decls}(T)(n)
+} \quad(\textsc{TName})
+\]
+\end{twocol}
+
+\fbox{\textbf{Module type lookup:} $\ctx \vdash M : T$}
 
 \[
 \frac{
 p : \Xi \in \Gamma \qquad
 m : T^+ \in \Xi \qquad
-\Gamma; \Delta; P_0 \vdash \textsf{rename}_S~ T \leadsto T'
+\Gamma; \Delta; P_0 \vdash \textsf{subst}_S~ T \leadsto T'
 }{
 \Gamma; \Delta; P_0 \vdash \Mod{p[S]}{m} : T'
 }
@@ -33,6 +53,30 @@ m : T^+ \in \Delta
 \]
 \end{twocol}
 
+\fbox{\textbf{Substitution:} $\ctx \vdash \textsf{subst}_S~ T \leadsto T$}
+
+%   A hole name must be substituted by consulting the exports
+%   of the module substituted in.  (This assumes that the export
+%   list is sufficient, which it will be if we checked if the
+%   substitution matches.)
+
+\[
+\frac{
+\ctx \vdash S(m) : T \qquad
+\UNs = \textsf{exports}(T)
+}{
+\ctx \vdash \textsf{subst}_S~ \nhv{m.n} \leadsto \UNs(n)
+}
+\quad(\textsc{SNameHole})
+\]
+
+%Ordinary names just have substitution applied to them.
+
+\[
+\ctx \vdash \textsf{subst}_S~ M.n \leadsto M[S].n
+\quad(\textsc{SName})
+\]
+
 \fbox{\textbf{Signature type lookup:} $\ctx \vdash M :_\textsf{sig} T$}
 
 \[
@@ -42,7 +86,7 @@ m : T^+ \in \Delta
 p : \Xi \in \Gamma \qquad
 m : T^- \in \Xi \qquad
 % And do the provisional renaming (without assuming m in Delta)
-\Gamma; \Delta; P_0 \vdash \textsf{renamesig}_{m,S}~ T \leadsto T' \\
+\Gamma; \Delta; P_0 \vdash \textsf{substsig}_{m,S}~ T \leadsto T' \\
 \end{array}
 }{
 \Gamma; \Delta; P_0 \vdash \Mod{p[S]}{m} :_\textsf{sig} T' \\
@@ -50,5 +94,30 @@ m : T^- \in \Xi \qquad
 \quad(\textsc{TUnitSig})
 \]
 
-\caption{Type lookup rules}
+
+% Renaming signatures which are not in $\Delta$ (in $\ctx$).  Functorial on types.  Otherwise defers to usual renaming.
+
+\fbox{\textbf{Signature substitution:} $\ctx \vdash \textsf{substsig}_{m,S}~ T \leadsto T$}
+
+\[
+\frac{
+S(m) = \hv{m'}
+}{
+\ctx \vdash \textsf{substsig}_{m,S}~ \nhv{m.n} \leadsto \nhv{m'.n} \\
+}
+\quad(\textsc{SNameHoleSig})
+\]
+
+\[
+\frac{
+N \neq \nhv{m.{\sf occname}(N)} \qquad
+\ctx \vdash \textsf{subst}_S~ N \leadsto N' \
+}{
+\ctx \vdash \textsf{substsig}_{m,S}~ N \leadsto N' \\
+}
+\quad(\textsc{SNameSig})
+\]
+
+\caption{Type lookup and renaming rules}
+\label{typing:lookup}
 \end{figure}

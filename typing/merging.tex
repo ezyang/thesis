@@ -1,20 +1,37 @@
 \begin{figure}
-\fbox{\textbf{Export merging:} $\UNs \oplus \UNs = \UNs$}
+\fbox{\textbf{Signature type merging:} $\ctx; m \vdash \bigoplus_i T_i \leadsto T$}
 
 \[
 \frac{
 \begin{array}{c}
-\forall j.\quad \textsf{occname}(N_j) = \textsf{occname}(N'_j) \\
-\textsf{occname}(\overline{N_i}) \,\#\, \textsf{occname}(\overline{N'_k}) \\
-\forall j.\quad N_j \oplus_m N'_j = N''_j
+% Shape and apply it
+\UNs' = \bigoplus_{m,i} \textsf{exports}(T_i) \\
+\forall i.\quad T'_i = \substw{T_i}{\textsf{nsubst}(m, \UNs')} = \UobjTau{\UNs'_i}{\Utys'_i;\, \Uinsts'_i;\, \Uimps'_i} \\
+T_M = \UobjTau{\UNs'}{\bigoplus_i \Utys'_i; \bigcup_i \Uinsts'_i; \bigcup_i \Uimps'_i} \qquad
+\overline{\I{decls}'_i} ~\textsf{acyclic}\\
+\forall i.\quad \Gamma; \Delta; P_0 \vdash T_M \le T'_i
 \end{array}
 }{
-\overline{N_i}\, \overline{N_j} \oplus_m \overline{N'_j}\, \overline{N'_k} = \overline{N_i}\, \overline{N''_j}\, \overline{N'_k}
+\begin{array}{c}
+\ctx; m \vdash \bigoplus_i\, T_i \leadsto T_M
+\end{array}
+}
+\quad(\textsc{MSigType})
+\]
+
+\fbox{\textbf{Export list merging:} $\UNs \oplus \UNs = \UNs \qquad N \oplus_m N = N$}
+
+\[
+\frac{
+\begin{array}{c}
+\forall j.\quad \textsf{occname}(N_j) = \textsf{occname}(N'_j) \qquad
+\textsf{occname}(\overline{N_i}) \,\#\, \textsf{occname}(\overline{N'_k}) \\
+\end{array}
+}{
+\overline{N_i}, \overline{N_j} \oplus_m \overline{N'_j}, \overline{N'_k} = \overline{N_i}, \overline{N_j \oplus_m N'_j}, \overline{N'_k}
 }
 \quad(\textsc{MExport})
 \]
-
-\fbox{\textbf{Name merging:} $N \oplus N = N$}
 
 \[
 N \oplus_m \nhv{m.n} = N
@@ -25,10 +42,19 @@ N \oplus_m N = N
 \quad(\textsc{MName})
 \]
 
-\fbox{\textbf{Declaration merging:} $\Uty \oplus \Uty' = \Uty''$}
-\[\text{If $\Uty$ or $\Uty'$ is abstract, use the other one.  Otherwise, pick one arbitrarily.}
-\quad(\textsc{MDecl})
+\fbox{\textbf{Declaration list merging:} $\Utys \oplus \Utys = \Utys \qquad \Uty \oplus \Uty = \Uty$}
+\[
+\frac{
+\forall j.~ \textsf{occname}(\Uty_j) = \textsf{occname}(\Uty'_j) \qquad \textsf{occname}(\overline{\Uty_i}) \,\#\, \textsf{occname}(\overline{\Uty'_k})
+}{
+\overline{\Uty_i}, \overline{\Uty_j} \oplus \overline{\Uty'_j}, \overline{\Uty'_k} = \overline{\Uty_i}, \overline{\Uty_j \oplus \Uty'_j}, \overline{\Uty'_k}
+}
+\quad(\textsc{MDecls})
 \]
 
+Given $\Uty_1$ and $\Uty_2$, $\Uty_1 \oplus \Uty_2$ is the least abstract declaration (pick an arbitrary one if both are/are not abstract).
+$\quad(\textsc{MDecl})$
+
 \caption{Merging rules}
+\label{typing:merging}
 \end{figure}

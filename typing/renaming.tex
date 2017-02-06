@@ -1,52 +1,6 @@
 
 \begin{figure}
 
-\fbox{\textbf{Renaming:} $\ctx \vdash \textsf{rename}_S~ T \leadsto T$}
-
-%   A hole name must be substituted by consulting the exports
-%   of the module substituted in.  (This assumes that the export
-%   list is sufficient, which it will be if we checked if the
-%   substitution matches.)
-
-\[
-\frac{
-\ctx \vdash S(m) : T \qquad
-\UNs = \textsf{exports}(T)
-}{
-\ctx \vdash \textsf{rename}_S~ \nhv{m.n} \leadsto \UNs(n)
-}
-\quad(\textsc{RNameHole})
-\]
-
-%Ordinary names just have substitution applied to them.
-
-\[
-\ctx \vdash \textsf{rename}_S~ M.n \leadsto M[S].n
-\quad(\textsc{RName})
-\]
-
-% Renaming signatures which are not in $\Delta$ (in $\ctx$).  Functorial on types.  Otherwise defers to usual renaming.
-
-\fbox{\textbf{Signature renaming:} $\ctx \vdash \textsf{renamesig}_{m,S}~ T \leadsto T$}
-
-\[
-\frac{
-S(m) = \hv{m'}
-}{
-\ctx \vdash \textsf{renamesig}_{m,S}~ \nhv{m.n} \leadsto \nhv{m'.n} \\
-}
-\quad(\textsc{RNameHoleSig})
-\]
-
-\[
-\frac{
-N \neq \nhv{m.{\sf occname}(N)} \qquad
-\ctx \vdash \textsf{rename}_S~ N \leadsto N' \
-}{
-\ctx \vdash \textsf{renamesig}_{m,S}~ N \leadsto N' \\
-}
-\quad(\textsc{RNameSig})
-\]
 
 \caption{Renaming rules (only key case on $N$ is shown)}
 
