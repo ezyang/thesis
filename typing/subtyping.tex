@@ -5,11 +5,10 @@
 \[
 \frac{
 \begin{array}{c}
-T_M = \UobjTau{\UNs'}{\Utys'~\Uinsts'~\Uimps'} \\
-\UNs' \supseteq \UNs \qquad
-\Uimps' \supseteq \Uimps \\
+T_M = \UobjTau{\UNs'}{\Utys'~\Uinsts'~\Uimps'} \qquad
+\UNs' \supseteq \UNs \qquad \\
 \forall \I{decl} \in \I{decls}.\quad \Gamma; \Delta, m : T_M^-; P_0 \vdash \UNs'(\textsf{occname}(\Uty)) \le \Uty \\
-\forall \I{inst} \in \I{insts}.\quad \Gamma; \Delta, m : T_M^-; P_0 \vdash \Uimps' ~\textsf{solves}~ \I{inst}
+\forall \I{inst} \in \I{insts}.\quad \Gamma; \Delta, m : T_M^-; P_0 \vdash \Uimps \cup \Uimps' ~\textsf{solves}~ \I{inst}
 \end{array}
 }{
 %\ctx \vdash \UobjTau{\overline{N_i}\, \overline{N_j}}{\Utys\, \Uinsts} \le \UobjTau{\overline{N_i}}{\overline{\Uty'}\, \overline{\Uinst'}}

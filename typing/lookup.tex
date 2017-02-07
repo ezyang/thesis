@@ -25,7 +25,7 @@
 \[
 \frac{
 p : \Xi \in \Gamma \qquad
-m : T^+ \in \Xi \qquad
+m : T^s \in \Xi \qquad
 \Gamma; \Delta; P_0 \vdash \textsf{subst}_S~ T \leadsto T'
 }{
 \Gamma; \Delta; P_0 \vdash \Mod{p[S]}{m} : T'
@@ -55,20 +55,12 @@ m : T^+ \in \Delta
 
 \fbox{\textbf{Substitution:} $\ctx \vdash \textsf{subst}_S~ T \leadsto T$}
 
+\fbox{\textbf{Name substitution:} $\ctx \vdash \textsf{subst}_S~ N \leadsto N$}
+
 %   A hole name must be substituted by consulting the exports
 %   of the module substituted in.  (This assumes that the export
 %   list is sufficient, which it will be if we checked if the
 %   substitution matches.)
-
-\[
-\frac{
-\ctx \vdash S(m) : T \qquad
-\UNs = \textsf{exports}(T)
-}{
-\ctx \vdash \textsf{subst}_S~ \nhv{m.n} \leadsto \UNs(n)
-}
-\quad(\textsc{SNameHole})
-\]
 
 %Ordinary names just have substitution applied to them.
 
@@ -77,6 +69,50 @@ m : T^+ \in \Delta
 \quad(\textsc{SName})
 \]
 
+\[
+\frac{
+\ctx \vdash S(m) : T
+}{
+\ctx \vdash \textsf{subst}_S~ \nhv{m.n} \leadsto \textsf{exports}(T)(n)
+}
+\quad(\textsc{SNameHole})
+\]
+
+\begin{grayframe}
+\[
+\frac{
+S(m) = \hv{m'} \qquad m' \not\in \textsf{dom}(\Delta)
+}{
+\ctx \vdash \textsf{subst}_S~ \nhv{m.n} \leadsto \nhv{m'.n}
+}
+\quad(\textsc{SRnNameHole})
+\]
+\end{grayframe}
+
+\fbox{\textbf{Orphan substitution:} $\ctx \vdash \textsf{subst}_S~ \I{orph} \leadsto \I{orphs}$}
+
+\[
+\frac{
+\ctx \vdash S(m) : T
+}{
+\ctx \vdash \textsf{subst}_S~\texttt{orphan}~\hv{m} \leadsto \textsf{orphs}(T)
+}
+\quad(\textsc{SOrphan})
+\]
+
+\begin{grayframe}
+\[
+\frac{
+S(m) = \hv{m'} \qquad m' \not\in \textsf{dom}(\Delta)
+}{
+\ctx \vdash \textsf{subst}_S~ \texttt{orphan}~\hv{m} \leadsto \texttt{orphan}~\hv{m'}
+}
+\quad(\textsc{SRnOrphan})
+\]
+\end{grayframe}
+
+\iffalse%
+\begin{mdframed}
 \fbox{\textbf{Signature type lookup:} $\ctx \vdash M :_\textsf{sig} T$}
 
 \[
@@ -117,6 +153,8 @@ N \neq \nhv{m.{\sf occname}(N)} \qquad
 }
 \quad(\textsc{SNameSig})
 \]
+\end{mdframed}
+\fi
 
 \caption{Type lookup and renaming rules}
 \label{typing:lookup}

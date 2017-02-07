@@ -11,6 +11,7 @@ We now give a formal model for how our implementation typechecks
 %   operation of the judgments we assume are given to us.
 
 \section{Semantic objects}
+\label{sec:semantic-objects}
 
 \begin{figure}
 \[ \DIGinterface{} \]
@@ -49,11 +50,11 @@ type consists of four components:
     \item The set of modules transitively imported by this module
     ($\Uimps$), which controls the set of \emph{orphan instances}
     (instances which may not necessarily be in scope) which are in scope
-    when performing type class resolution.  (Non-orphan instances are
-    always assumed to be in scope.)
+    when performing type class resolution.  If the module in question
+    defines orphan instances, its identity is included in this list.
 
 \end{enumerate}
-
+%
 Below is a simple example of a module's Haskell source code and its
 corresponding module type:
 
@@ -147,11 +148,17 @@ there are some major differences.
     equivalent, but embedding the dictionary function in the instance
     makes it easier to specify the rules instance checking.  Similarly,
     closed family instances are associated with a coercion axiom, but in
-    our presentation they are embedded in \I{tfinfo}.
+    our presentation they are embedded in \I{tfinfo}; because coercion axioms
+    are always associated with another declaration, we omit them from the
+    production $\Uty$.
 
     \item Export specification is just a list of names, rather than names with
     children; the latter is used to support import declarations like
     \verb|Maybe(..)|.
+
+    \item If a module defines orphan instances, GHC doesn't store its module
+    identity in the list of transitive orphans; instead, this is recorded
+    separately in another flag in the interface file.
 \end{itemize}
 
 \section{Typing rules}
@@ -268,19 +275,21 @@ recorded in $\mathcal{D} ::= \overline{m \mapsto \overline{M}}$).
 \input{typing/lookup}
 
 During the course of typechecking a Haskell module, we will often have
-to lookup the declaration corresponding to an original name.  In plain
-Haskell, the declarations for each original name are recorded directly
+to lookup the type of an original name.  In plain
+Haskell, the type of each original name is recorded directly
 in the context; in \Backpack{}, we may need to \emph{substitute} the
-declaration, substituting all name holes.  \textsc{TUnit} contains the
-key rule: to determine the type of a module $\Mod{p[S]}{m}$, lookup the
-type and apply its substitution.
+type declaration, substituting any name holes embedded within it.
+\textsc{TUnit} contains the key rule: to determine the type of a module
+$\Mod{p[S]}{m}$, lookup the type and apply its substitution.
 
 Substitutions on semantic objects are not ordinary substitutions: not
 only do we substitute all module identities (as in
 \textsc{SName}), but we must also substitute over names
 (\textsc{SNameHole}), according to the exports of the modules we are
 substituting with: substitution requires us to recursively look up the
-types of these modules.
+types of these modules.  Additionally, when we do substitutions on
+\I{orphs}, to maintain transitivity, we must substitute in all of
+the transitively imported orphans of the implementing module.
 
 %   During the course of typechecking, ordinary type lookup will only ever
 %   refer to signature types in $\Delta$; signature types of components are
@@ -292,15 +301,16 @@ types of these modules.
 %   \hv{m}, not the requirement of the package where \nhv{m.n} came
 %   from (indeed, the original name doesn't provide this information!)
 
-The separate signature type lookup judgment is required to accommodate
-the case when we want to look up the type of a signature for signature
-merging: at this point in time, we haven't added any type for this
-signature to the local context $\Delta$, so ordinary module type lookup
-will fail for this signature.  \textsc{SNameHoleSig} handles the
-special case, where if a name hole corresponds to the signature we are
-merging (the $m$ parameter to \textsf{substsig}), we just directly
-rename it without consulting the context.  Otherwise, signature substitution
-proceeds exactly like regular substitution. (\textsc{SNameSig}).
+Ordinarily, type lookup will only look up \emph{modules} (types
+with polarity $+$) from the component environment.  However, when merging
+signatures, we must also lookup signatures from the component environment
+for merging.  In this case, there are two further possible cases which
+must be handled: \textsc{SRnOrphan} and \textsc{SRnNameHole} (greyed in
+the figure).  These rules handle the situation when the there is no
+type for the target of the substitution in the local context $\Delta$.
+In these cases, we just directly rename without consulting the context:
+signature merging proper handles updating any name holes into their
+final identities.  Orphans are handled similarly.
 
 % Key points:
 %   - Signatures process one-by-one, as an earlier signature
@@ -408,6 +418,15 @@ instead the lookup gave us the abstract definition of \verb|T|, we would conclud
 that \verb|Int| and \verb|T| were not equal.  We similarly add $T_M$ to
 the context when testing if instances are solvable.
 
+Because every module type records all orphan modules that it transitively
+imports, the most natural subtyping relation for orphans is, in fact, to
+always assume any orphans brought into scope by the signature, no matter
+whether or not the implementing module imported those orphan modules. Thus,
+there is no $\Uimps' \supseteq \Uimps$ rule in the judgment; furthermore, when
+considering instance solvability, we bring into scope both orphans from the
+signature as well as the module.
+
+\paragraph{Declaration subtyping}
 In our presentation, declaration subtyping is organized in a subtyping
 relation (\textsc{SubDecl}) and a pre-subtyping relation: the subtyping
 relation tests if the kinds of the declarations are equal, and then

@@ -136,49 +136,6 @@ hole module:
 \center\includegraphics{figures/substitution-pictorial-example.pdf}
 \end{figure}
 
-\section{Opaque \uid{}s}
-
-An important implementation consideration is how \uid{}s are
-concretely represented.  The obvious strategy is to always pass
-around a representation of the full abstract syntax tree anywhere
-a \uid{} is needed---the downside is that instantiated \uid{}s
-can be quite large, in part because \cid{}s allocated by the
-package manager can be quite large, as they must record information
-about how dependency resolution was performed for the library.
-
-Fortunately, in some cases, the structure of a \uid{} is not necessary;
-for example, when a unit identifier has no module holes, it is
-invariant under substitution.  A useful optimization in this case
-is to represent the structure opaquely with a \emph{definite unit
-identifiers}.  The abstract structure of a \uid{} now looks like this:
-
-\[
-\begin{array}{rcll}
-  \mathbb{P} &&& \text{Definite \uid{}} \\
-  \UP &::=& \icid{\Up}{S} & \text{\Uid} \\
-      & | & \mathbb{P} \\
-\end{array}
-\]
-
-\noindent
-Notice that definite \uid{}s occur recursively: the intent is that a
-definite \uid{} be allocated for a library when it is fully instantiated
-and compiled.  Thus, a definite \uid{} always corresponds to a \uid{}
-whose module substitution refers all to definite \uid{}s (since those
-libraries had to be compiled first, before this one could be compiled!)
-When compiling a fully instantiated library, the only \uid{}s which the
-compiler needs to interact with are definite \uid{}s, meaning that we
-only have to pay the cost of a full \uid{} when typechecking uninstantiated
-libraries.
-
-Definite \uid{}s are purely an implementation mechanism; if a definite
-\uid{} and a normal \uid{} are compared, the comparison must be done
-up to unfoldings of the definite \uid{}, as seen below (definite \uid{}s
-highlighted in blue):
-
-\begin{figure}[H]
-\center\includegraphics{figures/unit-identifier-improvement.pdf}
-\end{figure}
 
 \section{Recursive \uid{}s}
 

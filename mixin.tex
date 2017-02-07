@@ -142,7 +142,7 @@ One alternative design that does work and is compositional is to associate a
 component shapes with a context which accumulates constraints on module
 holes which were not otherwise filled.  When the hole is eventually filled
 by a proper requirement, we check that those constraints are satisfied.
-But in the end, it probably would like to enforce that all constraints are
+But in the end, we probably would like to enforce that all constraints are
 discharged when computing a final component shape, at which point the algorithm
 ends up being the same as the $n$-ary variant above.
 

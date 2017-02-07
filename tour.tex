@@ -6,8 +6,7 @@ In this section, we will walk through a tutorial of taking a Haskell'98
 regular expression matcher taken
 from~\cite{Fischer:2010:PRE:1863543.1863594}, highlighting the main
 features of \Backpack{} as well as introducing some core conceptual
-ideas (specifically, the pictorial and syntactic interpretations
-of mix-in linking) which will be elaborated upon later in this thesis.  We'll assume
+ideas which will be elaborated upon later in this thesis.  We'll assume
 familiarity with Haskell'98 or an ML-like language, but won't assume you
 know anything about Cabal (Haskell's package management system) or
 \OldBackpack{}~\cite{backpack}.
@@ -62,7 +61,7 @@ main = print (accept evencs "acc")
 \label{fig:matcher-haskell98}
 \end{figure}
 
-A few things to note:
+Looking at the source code, we can observe a few things:
 
 \begin{itemize}
     \item The code is organized into two \emph{modules}, each heralded
@@ -85,10 +84,10 @@ A few things to note:
     Haskell: internal implementation details are not exported and thus
     cannot be accessed by end users.
 \end{itemize}
-
 Modules themselves are organized into packages, which are described by
 \emph{Cabal files}.  For example, the modules above might be organized into
 packages with the Cabal files as shown in Figure~\ref{fig:matcher-packages}.
+Each package description describes:
 
 \begin{figure}
 \begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
@@ -115,8 +114,6 @@ of these packages is in Figure~\ref{fig:matcher-haskell98}.}
 \label{fig:matcher-packages}
 \end{figure}
 
-Each package description describes:
-
 \begin{itemize}
     \item The name of the package (\verb|name|),
     \item The version of a package (\verb|version|),
@@ -133,7 +130,6 @@ Each package description describes:
     \texttt{build-depends}, to ensure that the implicitly imported
     \texttt{Prelude} module is in scope.}
 \end{itemize}
-
 Packages serve as the unit of distribution: a set of modules organized
 into a package can be uploaded to a package repository (e.g., Hackage)
 to be shared with other developers.  A \emph{package

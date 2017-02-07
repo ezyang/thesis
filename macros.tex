@@ -55,7 +55,7 @@
 
 % \newcommand{\Backpack}{\texttt{i}Backpack}%
 \newcommand{\OldBackpack}{Backpack'14}%
-\newcommand{\Backpack}{Backpack'16}%
+\newcommand{\Backpack}{Backpack'17}%
 \newcommand{\Ccomp}{Resolved component}%
 \newcommand{\ccomp}{resolved component}%
 \newcommand{\Unit}{Mixed component}%
@@ -542,6 +542,7 @@
 \textsf{exports}(\UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps} &\defeq& \UNs \\
 \textsf{decls}(\UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps} &\defeq& \Utys \\
 \textsf{insts}(\UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps} &\defeq& \Uinsts \\
+\textsf{orphs}(\UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps} &\defeq& \Uimps \\
 \textsf{occname}(\nhv{m.n}) &\defeq& n \\
 \textsf{occname}(M.n) &\defeq& n \\
 \textsf{occname}(\Uty) &\defeq& \graybox{n} \quad(\text{see production for \I{decl}}) \\
@@ -572,3 +573,7 @@
   {  }
 
 \newcommand\defeq{\mathrel{\overset{\makebox[0pt]{\mbox{\normalfont\tiny def}}}{=}}}
+
+\newenvironment{grayframe}%
+  {\begin{mdframed}[backgroundcolor=black!10,linewidth=0,skipabove=0pt,skipbelow=0pt]}%
+  {\end{mdframed}}

@@ -40,7 +40,7 @@ Thus motivated, we describe how to divide
 the compiler; we call our system \Backpack{}.  We consider separately the problem of
 \emph{mixin linking}, which is indifferent to Haskell source code, and
 the problem of \emph{typechecking against interfaces}, which is purely
-the concern of the compiler.  To focus the paper, we do not address
+the concern of the compiler.  In this thesis, we do not address
 mutual recursion between packages, allowing us to avoid some orthogonal
 technical complications. We believe that in practice this is a minor
 limitation.
@@ -63,21 +63,19 @@ Specifically, our contributions are as follows:
     \item To express the results of mixin linking, we introduce the
     \emph{\unit{} language}, an intermediate representation that
     represents all instantiations explicitly.  This language is
-    ``just'' ML-style applicative functors, but with a twist:
+    ML-style applicative functors, but with a twist:
     unfilled requirements of dependency are propagated to the requirements
     of the enclosing package.  The effect is that \Backpack{}, as a
-    whole, has the same mix-in semantics that were pioneered by \OldBackpack{}.
+    whole, has the same overall semantics that were pioneered by \OldBackpack{}.
 
     \item We describe how to modify a real world compiler like GHC to
     implement the necessary instantiation and merging operations
     required by the \unit{} language.  Because the \unit{} language
     specifies instantiations explicitly, it is an easy matter to perform
     syntactic substitutions to form the instantiated versions of a
-    \unit{}.  To handle signature merging in the presence of \emph{type
-    synonyms} (not addressed in \OldBackpack{}), we describe a novel
-    algorithm which takes advantage of lazy evaluation to avoid the need
-    for a type computation pass (as seen in RMC) or bidirectional type
-    lookup (as seen in MixML).
+    \unit{}.  We also prevent a novel generalization of subtyping
+    which allows abstract data to be implement using \emph{type
+    synonyms} (something that was not supported by \OldBackpack{}).
 
 %   \item \Backpack{} stakes out a new point in the design space,
 %   with an emphasis on practicality.  Two particular decisions stand
@@ -102,10 +100,10 @@ Specifically, our contributions are as follows:
 Although the idea of separating the core language and the module/package
 language is not novel~\cite{leroy:modular,milner+:def-of-sml-revised,rossberg+:f-ing}, we are the first to exploit these ideas in service
 of an actual implementation, retrofitting strong modularity to an existing
-programming language.  Some significant tasks remain to complete \Backpack{}
-(Section~\ref{sec:limitations}),
-but we have enough experience working with \Backpack{} that we believe that
-this design is practical.
+programming language.  The true test of \Backpack{} will be whether or not
+the larger Haskell community adopts it, which can only be seen in the
+coming years, but we have enough experience working with \Backpack{}
+that we believe that this design is practical.
 
 
 
