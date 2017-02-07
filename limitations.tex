@@ -1,0 +1,58 @@
+\chapter{Limitations}
+\label{sec:limitations}
+
+Some significant tasks remain to complete \Backpack{}.  We discuss
+some of the limitations of the current system here.
+
+\section{Metatheory}
+\label{sec:metatheory}
+
+We have not rigorously done proofs on \Backpack{}'s metatheory; as such, we can
+only conjecture that in the fragment of Haskell without type classes
+and type families, successful separate typechecking of components
+implies successful linking as well.
+
+One thing that is troublesome about the theorem in \OldBackpack{}, however,
+is that it simply is not true for full Haskell.  Specifically,
+open type families~\cite{schrijvers+:typefamilies} are inherently non-modular, as they
+introduce axioms to Haskell which cannot be hidden by signatures.
+Any module system which supports such open type families must either
+(1) impose a strict \emph{orphan} constraint, so that declared axioms
+in separate modules are guaranteed not to conflict, or (2) allow
+for the possibility that linking can fail, even if the components
+typechecked separately.
+
+There is a soundness result we can report, however: the soundness of
+\emph{compiled} \Backpack{} code reduces to the soundness of GHC
+Haskell.  This is because we retypecheck and compile every instantiation
+of a component, and thus the compilation process reduces to ordinary
+Haskell compilation.  The retypechecking step during compilation is
+where things like incompatible open type family axioms are found.
+Indeed, it would be possible to skip the typechecking step described in
+this paper altogether.
+
+\section{Signature merging}
+\label{sec:merging}
+
+In our tour of Backpack, we stated that requirements from multiple
+components automatically merge together when they are brought into
+scope.  Indeed, we have implemented this; unfortunately, it is unclear
+how to formally specify this process without substantially complicating
+the typechecking rules, which is why our typechecking semantics
+currently nondeterministically guess the ``correct'' requirement type.
+The problem is that in our semantics, when we do component
+instantiation, it is assumed that you know the module types of all of
+the inputs to the component, including the module types of local
+requirements.  However, to determine a type of a requirement to merge
+in, you need to be able to instantiate a component prior to knowing how
+all of its holes are instantiated.
+
+We have not yet found a satisfactory way of formalizing this
+algorithmically.  Of course, using the semantics for \OldBackpack{}, the
+merged type can be determined; however, to implement \OldBackpack{}
+directly would require successively refining the types of modules we
+have already typechecked, which is a poor match for a one source file,
+one output file compilation model.  It is also possible to assume
+that the locally written signature is complete (this is implemented
+as a flag) and not attempt to do any merging.  It would be simple to
+adjust the rules for this case.

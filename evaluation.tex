@@ -1,0 +1,102 @@
+%!TEX root = paper.tex
+
+\chapter{Evaluation}
+\label{sec:evaluation}
+
+How can we tell if \Backpack{} works?  The proof of the pudding is
+in the eating: in this chapter, we describe some of the case studies
+we've implemented using \Backpack{} to help validate our implementation.
+
+\section{An alternate package language}
+
+A benefit of having a separation between mixin linking and typechecking
+is that it is a simple matter to swap the frontend language with
+something else.  To assist in testing Backpack, we implemented a simple
+alternate frontend, based off of \OldBackpack{}, which typechecks
+component definitions of the form:
+
+\begin{verbatim}
+    component p where
+        include base
+        signature H where
+            data T
+        module M where
+            import H
+\end{verbatim}
+%
+Such inlined module and signature definitions
+are extremely handy for test-cases, although
+they are not so helpful for libraries with large modules.
+
+\section{Replacing build-depends with signatures}
+
+To show that
+\Backpack{} supports real-world ``modularity in the large'', we took a few
+packages in the public Hackage repository and rewrote them to deprecate some of
+their \verb|build-depends|
+in favor of signatures instead:
+
+\begin{itemize}
+    \item We rewrote \texttt{binary-0.8.0.0}\footnote{\smaller\url{https://hackage.haskell.org/package/binary-0.8.0.0}}
+          to have signatures
+          for \texttt{byte\-string}, \texttt{containers} and \texttt{array},
+          demonstrating that GHC's core libraries can be modularized
+          over. (23 signatures)
+
+    \item We rewrote \texttt{ghc-simple-0.3}\footnote{\smaller\url{https://hackage.haskell.org/package/ghc-simple-0.3}} to have signatures
+          for \texttt{ghc}, demonstrating that the GHC API (a very
+          complicated API) can be modularized over. (57 signatures)
+\end{itemize}
+
+For example, here is the signature we wrote for \texttt{Data.\allowbreak{}Array.\allowbreak{}IArray}
+in \texttt{binary}, exercising many of Haskell's features including
+type classes:
+
+\begin{verbatim}
+  {-# LANGUAGE ... #-}
+  module Data.Array.IArray(
+    module Data.Array.IArray,
+    module Data.Ix
+    ) where
+
+  import Data.Ix
+
+  type role Array nominal representational
+  class IArray (a :: * -> * -> *) e
+  data Array i e
+  instance IArray Array e
+  bounds :: (IArray a e) => forall i. Ix i
+                         => a i e -> (i, i)
+\end{verbatim}
+%
+Adding signatures to packages was a straightforward (if a little tedious)
+process.  One thing we discovered, however, was that the lack of
+\emph{recursively dependent signatures}~\cite{crary+:recmod-pldi}
+(\ie, signatures that form an import cycle)
+sometimes caused problems when a
+dependency was implemented using \texttt{hs-boot} files to implement
+recursion.  However, this could be easily worked around by adding
+a ``synthetic'' signature which collected all of the mutually dependent
+data types together, and then have the real signatures reexport
+from this signature;  the synthetic signature is then implemented using
+a dummy module.  Here is an example of such a synthetic signature
+from \texttt{ghc-simple}'s signatures for GHC\@:
+
+\begin{verbatim}
+  module RecTypes where
+
+  import ConLike  (ConLike)
+  import CoAxiom  (Branched, CoAxiom)
+  import OccName  (OccName)
+
+  data Id      -- from Id,   imports Name
+  data Name    -- from Name, imports Type
+  data TyCon   -- from Type
+  data TyThing -- from Type, imports Id
+      = AnId Id
+      | AConLike ConLike
+      | ATyCon TyCon
+      | ACoAxiom (CoAxiom Branched)
+\end{verbatim}
+Without this synthetic signature, the signatures for \texttt{Id}, \texttt{Name},
+and \texttt{Type} would form a cycle.
