@@ -449,6 +449,76 @@ be partially applied); similarly, a type synonym can only be used in place
 of a data declaration if this could not result in partially applied type
 synonyms.
 
+\section{Type inference}
+
+It is out of scope of this thesis to show how \Backpack{} interacts
+with GHC Haskell's type inference algorithm in detail, but we did
+discover one interesting interaction.
+Here is a property which must hold for \Backpack{} to be sound: if a
+module is well-typed under some context, then a module is well-typed
+under any context which is a subtype of the original context; e.g., with
+some name holes replaced with concrete original names, or perhaps with
+some abstract types refined to concrete implementations.
+
+In the absence of type classes and type families (see
+Section~\ref{sec:metatheory} for a detailed discussion on these
+features), this property largely holds for Haskell's type system.
+However, we found one subtle case related to GHC's treatment
+of \emph{inaccessible code}.  Inaccessible code occurs when
+GHC is able to prove that a constraint is unsatisfiable; for
+example:
+
+\begin{lstlisting}
+    f :: (Int ~ Bool) => a -> b
+    f x = x
+\end{lstlisting}
+%
+Here, the constraint that \verb|Int| be nominally equal to \verb|Bool|
+can never be fulfilled, so GHC accepts the otherwise ill-typed
+function definition.  In $\mathrm{OutsideIn(X)}$~\cite{Vytiniotis:2011:OMT:2139531.2139533},
+this behavior occurs when we apply the \textsc{faildec} constraint
+solving rule, which states that
+constraint solving should immediately fail if we attempt to unify
+two distinct type constructors (i.e., two type constructors with
+different original names), on a \emph{given
+constraint}: constraint solving failure on a given constraint means that
+the code behind the constraint is inaccessible.
+
+Unfortunately, this rule is unsound in the presence of \Backpack{}:
+
+\begin{lstlisting}
+    signature A where
+        data T
+        data S
+    module B where
+        import A
+        f :: (T ~ S) => a -> b
+        f x = x
+\end{lstlisting}
+
+As \verb|T| and \verb|S|, at the point of typechecking \verb|B|, have
+distinct original names, the constraint solver might conclude that
+\verb|f|'s body is inaccessible.  But if we subsequently set
+\verb|type S = T|, now \verb|T ~ S| does indeed hold!
+
+Fortunately, as the $\mathrm{OutsideIn(X)}$ paper observes, it is sound
+to \emph{not} eagerly fail when simplifying givens.  So the fix is simple:
+don't eagerly fail if the constraint involves an abstract type.
+Intuitively, abstract types in \Backpack{} behave more like \emph{skolem
+variables}, in the sense that they don't unify with anything, but cannot
+be assumed to be distinct from all types (the client will instantiate
+the skolem variable to whatever they please.)
+
+\section{Role subtyping}
+
+Though not formalized above, Haskell's type system also includes the
+concept of \emph{roles}~\cite{Weirich:2011:GTA:1925844.1926411,Breitner:2014:SZC:2692915.2628141}.  The parameters of all type constructor are annotated with roles,
+which mark the distinction of whether or not the type constructor
+cares about the \emph{nominal} or \emph{representational} identity
+of a type at that position.
+
+\Red{Finish this after we decide it's good}
+
 % Things that are missing
 %   - Component sequencing OK
 %   - Functorial rules for rename/renamesig OK

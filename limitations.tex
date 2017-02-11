@@ -1,58 +1,136 @@
-\chapter{Limitations}
+\chapter{Limitations and future directions}
 \label{sec:limitations}
-
-Some significant tasks remain to complete \Backpack{}.  We discuss
-some of the limitations of the current system here.
 
 \section{Metatheory}
 \label{sec:metatheory}
 
-We have not rigorously done proofs on \Backpack{}'s metatheory; as such, we can
-only conjecture that in the fragment of Haskell without type classes
-and type families, successful separate typechecking of components
-implies successful linking as well.
+We have not rigorously done proofs on \Backpack{}'s metatheory; as such,
+we can only conjecture that in the fragment of Haskell without type
+classes and type families, successful separate typechecking of
+components implies successful linking as well.  Conventionally,
+soundness proofs for module systems are done by elaboration to an
+appropriate internal language; however, it is difficult to say what an
+internal language which supports all of GHC Haskell's features would
+look like, and in any case, a proof about this elaboration would say
+little about the actual typechecking algorithm that GHC
+implements.  \OldBackpack{}'s proof
+of soundness gives evidence that \Backpack{} is sound, but we leave
+an actual formalization to future work.
 
-One thing that is troublesome about the theorem in \OldBackpack{}, however,
-is that it simply is not true for full Haskell.  Specifically,
-open type families~\cite{schrijvers+:typefamilies} are inherently non-modular, as they
-introduce axioms to Haskell which cannot be hidden by signatures.
-Any module system which supports such open type families must either
-(1) impose a strict \emph{orphan} constraint, so that declared axioms
-in separate modules are guaranteed not to conflict, or (2) allow
-for the possibility that linking can fail, even if the components
-typechecked separately.
+Note that we stated that \Backpack{} is sound \emph{without} type classes
+and type families.  The soundness result we desire is not true for full
+Haskell, and in fact, it cannot be made to be true.
+Ordinary proofs of soundness rely on weakening: the ability of a signature
+to hide information about its implementation.
+open type families~\cite{schrijvers+:typefamilies}
+introduce axioms to Haskell which cannot be hidden by signatures:
 
-There is a soundness result we can report, however: the soundness of
+\begin{lstlisting}
+    signature A where
+        f :: F Bool
+
+    module B where
+        import A
+        type instance F Bool = Int -> Bool
+        x = f 2
+\end{lstlisting}
+%
+Now, should the following module be a permissible implementation of the
+signature?
+
+\begin{lstlisting}
+    module A where
+        type instance F Bool = Int
+        f :: F Bool
+        f = 42
+\end{lstlisting}
+%
+Comparing only the signature and the module, it might seem that, yes,
+the module is a permissible implementation, as it provides all of the
+declarations required in the signature.  But if we do allow it,
+then \verb|B| is clearly type unsafe, attempting to use an integer
+as a function.
+
+Is this problem fixable?  One ``fix'' is to require signatures to
+specify every type family instance that an implementation could provide:
+but it should be clear that this makes it essentially impossible to
+write instances within a parametrized package.  Another fix is to change the rules for
+permissible type family instances, so that instances defined in separate
+modules are guaranteed not to conflict, no matter what. (\Red{give an
+example?})  But this would constitute a fundamental change to how open
+type families work in Haskell and rule out existing Haskell code.
+
+The upshot is that, without changing how open type families work, we
+must allow for the possibility that linking can fail, even if the
+components typechecked separately.
+
+There is a silver lining: the soundness of
 \emph{compiled} \Backpack{} code reduces to the soundness of GHC
 Haskell.  This is because we retypecheck and compile every instantiation
 of a component, and thus the compilation process reduces to ordinary
 Haskell compilation.  The retypechecking step during compilation is
 where things like incompatible open type family axioms are found.
-Indeed, it would be possible to skip the typechecking step described in
-this paper altogether.
+In general, if one avoids defining instance declarations for non-locally
+defined types inside parametrized components, the problems with type
+classes and open type families should not arise.
 
-\section{Signature merging}
-\label{sec:merging}
+\section{Mutually recursive packages}
 
-In our tour of Backpack, we stated that requirements from multiple
-components automatically merge together when they are brought into
-scope.  Indeed, we have implemented this; unfortunately, it is unclear
-how to formally specify this process without substantially complicating
-the typechecking rules, which is why our typechecking semantics
-currently nondeterministically guess the ``correct'' requirement type.
-The problem is that in our semantics, when we do component
-instantiation, it is assumed that you know the module types of all of
-the inputs to the component, including the module types of local
-requirements.  However, to determine a type of a requirement to merge
-in, you need to be able to instantiate a component prior to knowing how
-all of its holes are instantiated.
+We have not described how to handle mutual recursion in \Backpack{},
+although we believe that \Backpack{} can be extended to accommodate it,
+based off of GHC's existing support for \verb|hs-boot| files.
 
-We have not yet found a satisfactory way of formalizing this
-algorithmically.  Of course, using the semantics for \OldBackpack{}, the
-merged type can be determined; however, to implement \OldBackpack{}
-directly would require successively refining the types of modules we
-have already typechecked, which is a poor match for a one source file,
-one output file compilation model.  It is also possible to assume
-that the locally written signature is complete (this is implemented
-as a flag) and not attempt to do any merging.  It would be simple to
-adjust the rules for this case.
+One challenge that we face is how to handle the ``double vision
+problem'' in the presence of type synonyms.  \OldBackpack{} solved the
+double vision problem for original names via  shaping pass; however,
+languages like MixML which permit transparent type synonyms also have
+required a type pre-computation pass to to solve double-vision at the
+type level.
+
+Interestingly, GHC's type checking algorithm is already designed in
+such a way that it can solve the double vision problem in the following
+way: an abstract type is opaque except within the \emph{implementing
+module} (and any module which imports this module) at which point one
+sees the value of the type synonym.
+
+\begin{lstlisting}[language=Haskell]
+    -- A.hs-boot
+    module A where
+        data T
+        f :: T -> T
+    -- B.hs
+    module B(f) where
+        import {-# SOURCE #-} A
+    -- A.hs
+    module A(T, f) where
+        import qualified B
+        type T = Int
+        f :: Int -> Int
+        f x = B.f x
+\end{lstlisting}
+%
+When typechecking \verb|A.hs|, GHC resolves the type \verb|T| within
+\verb|B.f| to be the type synonym \verb|type T = Int|, \emph{in the very
+same module it is typechecking}.  In a sense, GHC has ``solved'' the
+double vision problem, though it's worth noting that systems like RMC
+and MixML address a stronger version of the double vision problem which
+is inapplicable to Haskell due to the lack of sealing (see
+Appendix~\ref{sec:double-vision}).  (In reality, GHC rejects \verb|A.hs|
+because it does not allow abstract data to be implemented with type
+synonyms, but in principle this restriction could be relaxed.)
+
+\section{The signature language}
+
+It is reasonably well understood how to reuse \emph{code}: functions and
+values that need to be used multiple times are bundled into modules, and then
+used by their downstream clients.  Less clear is how one goes about
+reusing \emph{signatures}.
+
+In \Backpack{}, we offer some limited facilities for signature reuse.
+The most basic, essential form of signature reuse in a package language
+based on mix-ins is \emph{signature merging}; this functionality is
+essential for composing libraries with requirements, since without it,
+we would have to manually rewrite the signature every time we put two
+such libraries together.  In degenerate form, this allows us to place a
+signature in a ``signature package'', to be reused by other packages
+which depend on this package.

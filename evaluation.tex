@@ -3,38 +3,318 @@
 \chapter{Evaluation}
 \label{sec:evaluation}
 
+% Audience:
+%   - Does Backpack work?
+%   - Does it solve my problems?
+%   - Should I use it?
+%   - Is the extension maintainable?
+
 How can we tell if \Backpack{} works?  The proof of the pudding is
 in the eating: in this chapter, we describe some of the case studies
 we've implemented using \Backpack{} to help validate our implementation.
 
-\section{An alternate package language}
+\section{Parametrizing a library}
 
-A benefit of having a separation between mixin linking and typechecking
-is that it is a simple matter to swap the frontend language with
-something else.  To assist in testing Backpack, we implemented a simple
-alternate frontend, based off of \OldBackpack{}, which typechecks
-component definitions of the form:
+A number of well-known packages in the Haskell ecosystem are parametric over
+implementations of certain core types.  To show \Backpack{} is sufficient
+to handle real world examples, we used \Backpack{} to
+reparametrize \verb|unix| and \verb|tagstream-conduit| packages, replacing
+the previous, ad hoc strategies these packages used to support multiple
+implementations of core types.
 
-\begin{verbatim}
-    component p where
-        include base
-        signature H where
-            data T
-        module M where
-            import H
-\end{verbatim}
+\subsection{Removing copy-pasted code from unix}
+
+The \texttt{unix}\footnote{\smaller\url{https://github.com/haskell/unix}} package provides both \verb|String| and
+\verb|ByteString| versions of modules by having multiple copies of the
+module with slight modifications.  For example,  here are the \verb|String|
+and \verb|ByteString| versions of the \verb|getEnv| function:
+
+\begin{lstlisting}
+    -- System.Posix.Env
+    getEnv :: String -> IO (Maybe String)
+    getEnv name = do
+        litstring <- withFilePath name c_getenv
+        if litstring /= nullPtr
+            then liftM Just (peekFilePath litstring)
+            else return Nothing
+\end{lstlisting}
+
+\begin{lstlisting}
+    -- System.Posix.Env.ByteString
+    getEnv :: ByteString -> IO (Maybe ByteString)
+    getEnv name = do
+        litstring <- B.useAsCString name c_getenv
+        if litstring /= nullPtr
+            then liftM Just (B.packCString litstring)
+            else return Nothing
+\end{lstlisting}
 %
-Such inlined module and signature definitions
-are extremely handy for test-cases, although
-they are not so helpful for libraries with large modules.
+The structure of the code between for these modules is essentially identical,
+except for a few identifiers: \verb|String| versus \verb|ByteString|,
+\verb|withFilePath| versus \verb|B.useAsCString|, and \verb|peekFilePath|
+versus \verb|B.packCString|.
+
+To convert this function to use \Backpack{}, we created
+a signature file which covers the identifiers which vary across the
+two implementations:
+
+\begin{lstlisting}
+    signature Str where
+        import Foreign.C.String (CString)
+        data Str
+        useAsOSString :: Str -> (CString -> IO a) -> IO a
+        packOSString :: CString -> IO Str
+        -- ... and more for other functionality
+\end{lstlisting}
+%
+\ldots{}and then rewrote the modules to import the signatures and use
+them instead:
+
+\begin{lstlisting}
+    import Str
+    getEnv :: Str -> IO (Maybe Str)
+    getEnv name = do
+        litstring <- withOSString name c_getenv
+        if litstring /= nullPtr
+            then liftM Just (packOSString litstring)
+            else return Nothing
+\end{lstlisting}
+%
+There were five modules for which there were both \verb|String| and
+\verb|ByteString| variants. We divided these modules into three packages based
+on what functionality they needed:  \verb|unix-env| required \verb|Str|,
+\verb|unix-fs| required \verb|FilePath|, and \verb|unix-process|, which
+required both \verb|Str| and \verb|FilePath|.  We also added a new
+package \verb|unix-common| to store functionality that did not depend
+on strings or filepaths specifically.
+
+Consequently, we were able to delete the five duplicates of these
+modules---removing 954 lines of code including comments and white space.
+The total savings are a bit less, because we added source code for the
+signatures, implementations of the signatures and new Cabal files for
+each of the new packages.  However, the signatures and implementations
+can be reused over multiple packages, and the resulting packages are
+\emph{more} flexible, in the sense that they can be instantiated with
+any string implementation and end user wants.
+
+\subsection{Removing dictionary-passing style from tagstream-conduit}
+
+The \texttt{tagstream-conduit}
+package\footnote{\smaller\url{https://hackage.haskell.org/package/tagstream-conduit}}
+is an HTML tag parser that supports both \verb|Text| and
+\verb|ByteString|, using a record of functions to parametrize over key
+string manipulation functions.  For example, here is the implementation
+of \verb|decodeEntitiesText|, which operates on the \verb|Text| type:
+
+\begin{lstlisting}
+-- | Decode the HTML entities e.g. @&amp;@ in some text into @&@.
+decodeEntitiesText :: Monad m => Conduit Token m Token
+decodeEntitiesText =
+  decodeEntities
+    Dec { decToS     = L.toStrict . B.toLazyText
+        , decBreak   = T.break
+        , decBuilder = B.fromText
+        , decDrop    = T.drop
+        , decEntity  = decodeEntity
+        , decUncons  = T.uncons }
+  where decodeEntity entity =
+          CL.sourceList ["&",entity,";"]
+          $= XML.parseText def { XML.psDecodeEntities = XML.decodeHtmlEntities }
+          $= CL.map snd
+          $$ XML.content
+\end{lstlisting}
+%
+\verb|decodeEntities| is a parametric function which takes the
+\verb|Dec| structure as an argument.  Its type signature is:
+
+\begin{lstlisting}
+    decodeEntities :: (Monad m, Monoid builder, Monoid string,
+                       IsString string, Eq string)
+                   => Dec builder string
+                   -> Conduit (Token' string) m (Token' string)
+\end{lstlisting}
+%
+\verb|Dec| in turn is a structure
+that contains implementations for each of the operations:
+
+\begin{lstlisting}
+    -- | A decoder.
+    data Dec builder string = Dec
+      { decToS     :: builder -> string
+      , decBreak   :: (Char -> Bool) -> string -> (string,string)
+      , decBuilder :: string -> builder
+      , decDrop    :: Int -> string -> string
+      , decEntity  :: string -> Maybe string
+      , decUncons  :: string -> Maybe (Char,string)
+      }
+\end{lstlisting}
+%
+In \Backpack{}, we monomorphized \verb|decodeEntities|, replacing
+it with an implementation that utilized signatures for strings:
+
+\begin{lstlisting}
+    signature Str where
+        import Data.String
+
+        data Str
+
+        instance Monoid Str
+        instance IsString Str
+        instance Eq Str
+
+        drop         :: Int -> Str -> Str
+        decodeEntity :: Str -> Maybe Str
+        uncons       :: Str -> Maybe (Char, Str)
+        break        :: (Char -> Bool) -> Str -> (Str, Str)
+\end{lstlisting}
+%
+\ldots{}and string builders:
+
+\begin{lstlisting}
+    signature Builder where
+        import Str
+
+        data Builder
+        instance Monoid Builder
+
+        builderToStr :: Builder -> Str
+        strToBuilder :: Str -> Builder
+\end{lstlisting}
+%
+Additionally, the \verb|Text| and \verb|ByteString|
+modules also had some copy-pasted code for miscellaneous parsing
+functionality; we extended the string signature with seven more
+functions and added a signature for parsers:
+
+\begin{lstlisting}
+    signature Parser where
+
+    import Control.Applicative
+    import Str
+
+    data Parser a
+    instance Functor Parser
+    instance Applicative Parser
+    instance Monad Parser
+    instance Alternative Parser
+
+    anyChar :: Parser Char
+    takeTill :: (Char -> Bool) -> Parser Str
+    char :: Char -> Parser Char
+    satisfy :: (Char -> Bool) -> Parser Char
+    string :: Str -> Parser Str
+    skipSpace :: Parser ()
+    takeRest :: Parser Str
+    parseOnly :: Parser a -> Str -> Either String a
+\end{lstlisting}
+%
+With this refactor, we removed 258 lines of duplicated implementation
+code and also eliminated the indirection in the implementation
+of \verb|decodeEntities|, making it possible for GHC to inline
+these functions---in the old version of the code, this would only
+be possible if \verb|decodeEntities| was inlined at its call-sites
+in \verb|decodeEntitiesText| and \verb|decodeEntitiesBS|.
+
+\subsection{Removing type class indirection from Reflex}
+
+Reflex is a framework for high-performance functional reactive
+programming.  It has two implementations of its core ``timeline'' (the core
+engine responsible for scheduling and dispatching events):
+a pure but inefficient reference implementation, and a fast
+Spider timeline based on mutable state.  Most real world users
+will only make use of the Spider timeline, but the test suite
+uses the reference implementation to check the correctness of the
+more complicated Spider timeline.
+
+Ordinarily, these implementations are abstracted over the \verb|Reflex|
+type class:
+
+\begin{lstlisting}
+    class ( MonadHold t (PushM t)
+          , MonadSample t (PullM t)
+          , MonadFix (PushM t)
+          , Functor (Dynamic t)
+          , Applicative (Dynamic t)
+          , Monad (Dynamic t)
+          ) => Reflex t where
+      data Behavior t :: * -> *
+      data Event t :: * -> *
+      data Dynamic t :: * -> *
+      data Incremental t :: * -> *
+      type PushM t :: * -> *
+      type PullM t :: * -> *
+      pull :: PullM t a -> Behavior t a
+      -- 19 more methods
+\end{lstlisting}
+%
+However, historically, Reflex has had trouble with GHC not
+specializing away dictionaries\footnote{\url{https://ghc.haskell.org/trac/ghc/ticket/12791}
+and \url{https://mail.haskell.org/pipermail/ghc-devs/2016-October/013170.html}}
+in all cases, causing a huge slowdown when GHC must pass around
+an extra dictionary parameter.
+
+With Reflex, we investigated using \Backpack{} to eliminate all uses of
+the \verb|Reflex| type class, thus eliminating dictionaries altogether.
+Backpack'ing Reflex posed some unique problems.
+
+\begin{itemize}
+    \item The Spider timeline's type is not \verb|SpiderTimeline|
+        but \verb|SpiderTimeline x|---in particular, it takes a phantom
+        type parameter similar to the \verb|s| of the \verb|ST|
+        monad~\cite{Launchbury:1994:LFS:773473.178246} that is used to
+        distinguish between different running instances of the Spider
+        timeline.
+
+        This is not a problem for the \verb|Reflex| type class:
+        if we declare an instance of \verb|Reflex| for \verb|SpiderTimeline x|
+        we get the following type signature for the method \verb|pull|:
+
+        \begin{lstlisting}
+        pull :: PullM (SpiderTimeline x) a -> Behavior (SpiderTimeline x) a
+        \end{lstlisting}
+
+        Here, the signature states that if we call pull on a \verb|PullM|
+        from a Spider timeline, we will get a \verb|Behavior|
+        from the very same Spider timeline.
+
+        However, if in \Backpack{} we existentially quantify
+        the type variable \verb|x| to create a well formed
+        top-level type declaration, we will end up with the
+        following types:
+
+        \begin{lstlisting}
+        data Timeline = forall x. SpiderTimeline x
+        pull :: PullM Timeline a -> Behavior Timeline a
+        \end{lstlisting}
+
+        This doesn't have the intended semantics: here, \verb|pull|
+        accepts a \verb|PullM| from some timeline, and then gives
+        you a \verb|Behavior| from another timeline, but doesn't tell
+        you if they are the same or not, making it impossible to tell
+        statically if you are mixing up two different timelines or not.
+
+    \item Unlike the previous two case studies, we wanted to build
+        the \Backpack{} interfaces on top of the existing Reflex
+        library without modifying it at all, so that clients could
+        choose between the old-style type-class based interface, or
+        the new-style \Backpack{} interface.  This meant, as much
+        as possible, we wanted to reuse types and classes from
+        Reflex, as long as they did not depend on the \verb|Reflex|
+        type class.  (We can't reuse declarations which depend
+        on \verb|Reflex|, since our intention is to specialize the
+        type class away.)
+
+    \item Reflex defines many type classes and instances which
+        refer to the concrete types
+\end{itemize}
 
 \section{Replacing build-depends with signatures}
 
-To show that
-\Backpack{} supports real-world ``modularity in the large'', we took a few
-packages in the public Hackage repository and rewrote them to deprecate some of
-their \verb|build-depends|
-in favor of signatures instead:
+One of the future applications we envision for \Backpack{} is subsuming
+traditional version bounds in packages.  To show that \Backpack{} is up
+to the task, we took a few packages in the public Hackage repository and
+rewrote them to deprecate some of their \verb|build-depends| in favor of
+signatures instead:
 
 \begin{itemize}
     \item We rewrote \texttt{binary-0.8.0.0}\footnote{\smaller\url{https://hackage.haskell.org/package/binary-0.8.0.0}}
@@ -47,30 +327,47 @@ in favor of signatures instead:
           for \texttt{ghc}, demonstrating that the GHC API (a very
           complicated API) can be modularized over. (57 signatures)
 \end{itemize}
-
-For example, here is the signature we wrote for \texttt{Data.\allowbreak{}Array.\allowbreak{}IArray}
-in \texttt{binary}, exercising many of Haskell's features including
-type classes:
+%
+For example, here is the signature we wrote for
+\texttt{Data.\allowbreak{}Array.\allowbreak{}IArray} in \texttt{binary},
+exercising many of Haskell's features including type classes:
 
 \begin{verbatim}
-  {-# LANGUAGE ... #-}
-  module Data.Array.IArray(
-    module Data.Array.IArray,
-    module Data.Ix
-    ) where
+    {-# LANGUAGE RoleAnnotations #-}
+    {-# LANGUAGE FlexibleInstances #-}
+    {-# LANGUAGE MultiParamTypeClasses #-}
+    {-# LANGUAGE KindSignatures #-}
+    {-# LANGUAGE ExplicitForAll #-}
+    module Data.Array.IArray (
+        module Data.Array.IArray,
+        module Data.Ix
+        ) where
 
-  import Data.Ix
+    import Data.Ix
 
-  type role Array nominal representational
-  class IArray (a :: * -> * -> *) e
-  data Array i e
-  instance IArray Array e
-  bounds :: (IArray a e) => forall i. Ix i
-                         => a i e -> (i, i)
+    type role Array nominal representational
+    data Array i e
+    class IArray (a :: * -> * -> *) e
+    instance IArray Array e
+    bounds :: (IArray a e) => forall i. Ix i => a i e -> (i, i)
 \end{verbatim}
 %
-Adding signatures to packages was a straightforward (if a little tedious)
-process.  One thing we discovered, however, was that the lack of
+Adding signatures to packages is a straightforward (if a little tedious)
+process.  However, we made two interesting observations.
+
+First, there is a certain amount of human judgment that needs to be
+exercised when writing these signatures, because of the convention in
+Haskell where a type may be defined in an ``internal'' module, and then
+reexported by a more public module.  For example, the strict
+\verb|ByteString| type is defined not in \verb|Data.ByteString|,
+but in \verb|Data.ByteString.Internal|.  So, which signature should
+be declared in?  In our case, \verb|binary| needed access to the
+internal implementation details of \verb|ByteString|, so \verb|Data.ByteString.Internal|
+was the correct place to put the declaration; however, there
+were other cases (e.g., \verb|Map| from \verb|Data.Map|, originally
+from \verb|Data.Map.Internal|) where we only used the public interface.
+
+Second, the lack of
 \emph{recursively dependent signatures}~\cite{crary+:recmod-pldi}
 (\ie, signatures that form an import cycle)
 sometimes caused problems when a
@@ -83,20 +380,93 @@ a dummy module.  Here is an example of such a synthetic signature
 from \texttt{ghc-simple}'s signatures for GHC\@:
 
 \begin{verbatim}
-  module RecTypes where
+    module RecTypes where
 
-  import ConLike  (ConLike)
-  import CoAxiom  (Branched, CoAxiom)
-  import OccName  (OccName)
+    import ConLike  (ConLike)
+    import CoAxiom  (Branched, CoAxiom)
+    import OccName  (OccName)
 
-  data Id      -- from Id,   imports Name
-  data Name    -- from Name, imports Type
-  data TyCon   -- from Type
-  data TyThing -- from Type, imports Id
-      = AnId Id
-      | AConLike ConLike
-      | ATyCon TyCon
-      | ACoAxiom (CoAxiom Branched)
+    data Id      -- from Id,   imports Name
+    data Name    -- from Name, imports Type
+    data TyCon   -- from Type
+    data TyThing -- from Type, imports Id
+        = AnId Id
+        | AConLike ConLike
+        | ATyCon TyCon
+        | ACoAxiom (CoAxiom Branched)
 \end{verbatim}
 Without this synthetic signature, the signatures for \texttt{Id}, \texttt{Name},
 and \texttt{Type} would form a cycle.
+
+We also have a negative result to report: we were unable to parametrize
+the \verb|array| package over \verb|base|.  The primary difficulty is
+that GHC hard-wires references to various types and entities defined in
+\verb|base|, which means that it's not possible to overload their
+implementation merely by changing what module names are in scope.  This
+affected a number of things:
+
+\begin{itemize}
+    \item Deriving type class instances,
+    \item Rebindable syntax (e.g., do notation, integer literals
+          and string literals),
+    \item Foreign call marshalling, and
+    \item Built-in types (e.g., \verb|Integer| for \verb|[0..n]|
+          syntax, and booleans for pattern guards).
+\end{itemize}
+%
+As \verb|base| is quite a large package, we think it would be beneficial
+if users could write signatures for it; probably the most practical
+way forward is to refactor \verb|base| into two packages, one that
+contains wired-in entities, and one that does not.
+
+\section{A signature for strings}
+
+One of the motivating applications of \Backpack{} is handling the
+so-called ``string problem'', where the Haskell ecosystem has
+many implementations of string-like data types, and it is difficult
+to write code that is parametric over the implementation of strings.
+Indeed, both of the example parametrizations from the previous section
+are dealing with strings of one form or another.
+
+While a package can write a signature for all the functions on strings they
+require from scratch, it is also useful to be able to reuse signatures
+between packages.  To this effect, I created a string signature which
+represented the union of the APIs provided for:
+
+\begin{itemize}
+    \item \verb|String| from \verb|base|,
+    \item Strict/lazy ASCII/binary \verb|ByteString| from \verb|bytestring|,
+    \item Strict/lazy UTF-8 \verb|ByteString| from \verb|utf8-string|,
+    \item Strict/lazy \verb|Text| from \verb|text|, and
+    \item \verb|String| from \verb|foundation|
+\end{itemize}
+
+\Red{finish this section}
+
+\section{An alternate package language}
+
+A benefit of having a separation between mixin linking and typechecking
+is that it is a simple matter to swap the frontend language with
+something else.  To assist in testing Backpack, we implemented a simple
+alternate frontend that operates on mixed components (i.e., post mixin
+linking):
+
+\begin{verbatim}
+    unit p where
+        dependency base
+        signature H where
+            data T
+        module M where
+            import H
+    unit q where
+        dependency p[H=<H>]
+        module N where
+            import M
+\end{verbatim}
+%
+The above source code can be run using the \verb|--backpack| major mode
+in GHC\@.  This frontend language is used extensively in our test suite
+(of over a hundred test cases): in particular, the inline module and
+signature syntax is extremely convenient.  This format is not intended
+for real world use, since it is difficult to get accurate recompilation
+avoidance when source code is all in one file.
