@@ -82,7 +82,7 @@ applications of modularity:
     harder to use than monomorphic code.  For an inexperienced
     Haskeller, the proliferation of constraints and type parameters in the
     type signatures of functions can make an otherwise straightforward
-    API impenetrable:
+    API impenetrable:\footnote{\url{https://hackage.haskell.org/package/regex-posix-0.95.2/docs/Text-Regex-Posix-Wrap.html#v:-61--126-}}
     \begin{lstlisting}
     (=~) :: (RegexMaker Regex CompOption ExecOption source,
              RegexContext Regex source1 target)
@@ -92,9 +92,10 @@ applications of modularity:
     parameter is involved in instance resolution; when this isn't the
     case, extra work is often necessary. If there aren't any type
     parameters, you must introduce a proxy type to drive resolution; if
-    there are multiple parameters, you often need to resolve ambiguity
-    by introducing functional dependencies or replacing parameters with
-    associated types.
+    there are multiple parameters~\cite{lfp92}, you often need to resolve ambiguity
+    by introducing functional
+    dependencies~\cite{Jones:2000:TCF:645394.651909} or replacing
+    parameters with associated types~\cite{towards-open-type-functions-haskell}.
 
     \item Type classes work best when it is clear what methods they
     should support.  However, for many interfaces, it is not obvious
@@ -108,11 +109,11 @@ applications of modularity:
     is initially compiled without knowledge of how the type class's
     methods are implemented.  This can be quite costly in a language
     like Haskell, where inlining definitions is essential to achieving
-    good performance.  This problem can be mitigated specializing
+    good performance.~\cite{PeytonJones:2002:SGH:968417.968422}  This problem can be mitigated specializing
     the code to a particular instance of the type class, but this
     is awkward and can lead to the compiler must repeatedly reoptimizing
     code that is specialized the same way, blowing up code size of
-    programs. (C++ templates suffer from similar problems.)
+    programs. (C++ templates suffer from similar problems.\footnote{\url{https://gcc.gnu.org/onlinedocs/gcc/Template-Instantiation.html}})
 \end{itemize}
 %
 In short, Haskell would be well served by a proper module system for
@@ -125,12 +126,12 @@ packages} could be a good fit for providing modularity in Haskell.
 The two words ``mixin'' and ``package'' capture the key properties of \OldBackpack{}:
 
 \begin{itemize}
-    \item \emph{Mixin}. Mixin modules are characterized by the
+    \item \emph{Mixin}. Mixin modules~\cite{bracha+:modularity,ancona+:cms,flatt+:units,duggan:mixin} are characterized by the
     presence of both provided and required modules in a namespace:
     these requirements can be instantiated by ``mixing'' namespaces
     together, linking together provisions and requirements which have
     the same name.  Unlike the more conventional approach of
-    \emph{parametrized} modules (ala ML),
+    \emph{parametrized} modules (ala ML~\cite{milner+:def-of-sml-revised}),
     mixin modules support recursive linking;  furthermore, mixins avoid
     the preponderance of \emph{sharing constraints} that occur with ML
     functors, since requirements can be mixed together by name, automatically
@@ -140,7 +141,7 @@ The two words ``mixin'' and ``package'' capture the key properties of \OldBackpa
     to the compiler, \OldBackpack{} proposed that mixins be added to
     Haskell's package system, allowing us to retrofit Haskell with
     a package language without requiring ``yet another type system extension.''
-    After all, ``modularity matters most'' for software development in
+    After all, ``modularity matters most''~\cite{mmm} for software development in
     the large, and what is the universal organizing principle for large
     software systems but the package?  Because packages can be easily
     parametrized, \OldBackpack{} lets users write code naturally, without
@@ -171,12 +172,12 @@ Specifically, our contributions are as follows:
 
     \item We describe a package language which can be \emph{mixin
     linked} without knowing anything about the Haskell programming
-    language.  This gives us a language agnostic mechanism for
+    language. (Section~\ref{sec:mix-in})  This gives us a language agnostic mechanism for
     expressing separate modular development, in contrast to
     \OldBackpack{}, which relies on critically on the import structure
     of Haskell modules in its semantics.  As a result, \Backpack{}
     employs a far simpler mixin linking procedure essentially equivalent
-    to early descriptions of mixin linking in the literature.
+    to early descriptions of mixin linking in the literature.~\cite{cardelli:linksets}
     In doing so, we adjust \OldBackpack{}'s primary technical device,
     the \emph{module identity} into a new concept, the \emph{unit identity},
     which can be computed by language agnostic mixin linking.
@@ -194,7 +195,7 @@ Specifically, our contributions are as follows:
     semantics that were pioneered by \OldBackpack{}.
 
     \item We describe how to typecheck \emph{\unit{} language} in the
-    real world, typechecking the source into semantic objects that
+    real world (Section~\ref{sec:compiler}), typechecking the source into semantic objects that
     faithfully reflect the full glory of GHC Haskell's surface syntax.
     We give a pragmatic workaround for the \emph{type classes} problem
     (it is unsolvable in the presence of open type families) and support
@@ -208,14 +209,14 @@ Specifically, our contributions are as follows:
     required by the \unit{} language, as well as the architectural
     changes that were necessary in Cabal (the package manager)
     to orchestrate the typechecking and building of the mixin
-    packages.
+    packages. (Section~\ref{sec:implementation})
 
     Does \Backpack{} work?
     The true test of \Backpack{} would be
     ``Backpack''ing in the wild and seeing how the wider community
     uses it, we have done a number of case studies to give evidence
     that \Backpack{} works, including conversions of complex,
-    real-world packages to use \Backpack{}.
+    real-world packages to use \Backpack{}. (Section~\ref{sec:evaluation})
 
 %   Among other things, these case studies
 %   have motivated the introduction of \emph{signature thinning}
