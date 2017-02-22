@@ -2,53 +2,91 @@
 
 All aspects of \Backpack{}, as described in this thesis,
 have been implemented in GHC 8.2 and cabal-install 2.0.  In this
-chapter, we describe some nontrivial aspects of our implementation.
+chapter, we describe some aspects of our implementation.
 
-\section{Opaque unit identifiers}
+\section{Modifications to GHC}
 
-\Uid{}s are abstract syntax trees which are passed aroudn throughout
-the compiler.  The downside is that instantiated \uid{}s
-can be quite large (in part because \cid{}s allocated by the
-package manager can be quite large, as they must record information
-about how dependency resolution was performed for the library),
-wasting memory in the compiler.
+Here is a brief summary of the modifications we made to
+GHC in order to support \Backpack{}, with parenthesized pointers to the
+affected modules in GHC's code base:
 
-Fortunately, in some cases, the structure of a \uid{} is not necessary;
-for example, when a unit identifier has no module holes, it is
-invariant under substitution.  A useful optimization in this case
-is to represent the structure opaquely with a \emph{definite unit
-identifiers}.  The abstract structure of a \uid{} now looks like this:
+\begin{itemize}
+    \item Support for the merging rules: especially the rules for
+    export list merging (\verb|NameShape|, which also implements the
+    code for treating an export list as a name substitution) and
+    declaration merging (in \verb|TcIface|).
 
-\[
-\begin{array}{rcll}
-  \mathbb{P} &&& \text{Definite \uid{}} \\
-  \UP &::=& \icid{\Up}{S} & \text{\Uid} \\
-      & | & \mathbb{P} \\
-\end{array}
-\]
+    \item Support for the substitution rules (\verb|RnModIface|)
+    on GHC's interface representation (see Section~\ref{sec:no-symbol-tables}).
 
-\noindent
-Notice that definite \uid{}s occur recursively: the intent is that a
-definite \uid{} be allocated for a library when it is fully instantiated
-and compiled.  Thus, a definite \uid{} always corresponds to a \uid{}
-whose module substitution refers all to definite \uid{}s (since those
-libraries had to be compiled first, before this one could be compiled!)
-When compiling a fully instantiated library, the only \uid{}s which the
-compiler needs to interact with are definite \uid{}s, meaning that we
-only have to pay the cost of a full \uid{} when typechecking uninstantiated
-libraries.
+    \item Modifications to GHC's core \verb|Module| and \verb|Name| data
+    types to support module and name holes.  In fact, a module hole $\hv{m}$
+    is represented as a regular module identity with the special unit
+    identity \verb|hole|; similarly, a name hole \nhv{m.n} is represented
+    as the name $n$ from the module hole $\hv{m}$.  Internally representing
+    the holes this way was expedient as it allowed us to avoid having to
+    add a lot of new pattern matches to GHC, but the tradeoff is that
+    we have to be careful about how we go about performing substitutions.
 
-Definite \uid{}s are purely an implementation mechanism; if a definite
-\uid{} and a normal \uid{} are compared, the comparison must be done
-up to unfoldings of the definite \uid{}, as seen below (definite \uid{}s
-highlighted in blue):
+    \item Modification to GHC's \verb|UnitId| data type to support module
+    substitutions.  We try to keep \uid{}s represented as plain
+    strings as much as possible; see Section~\ref{sec:opaque-uid} for
+    more details.
 
-\begin{figure}[H]
-\center\includegraphics{figures/unit-identifier-improvement.pdf}
-\end{figure}
+    \item Support for the lookup rules, which were done by modifying
+    GHC's mechanism for looking up declarations from interface files
+    (\verb|LoadIface|) to first substitute according to the \uid{}.
+    Because declaration type lookup always goes through the interface
+    lookup process, it meant we only needed to modify one place in the
+    compiler to support instantiation.
 
-\section{No symbol tables}
+    \item Support for the signature matching rules
+    (\verb|TcBackpack|).
 
+    \item Support for the dependency typing rules, which were hooked into
+    the existing \verb|GhcMake| compilation driver. The implementation
+    here is a little bit of a cheat: you \emph{must} use \verb|ghc --make|
+    to check if dependencies are well-typed, as there is no
+    one-shot compiler mode you can use to apply this check.
+
+    \item Support for the \textsf{inherits} and \textsf{exposes} procedures
+    (\verb|Packages|).
+
+    \item Support for the \verb|bkp| file format: we needed
+    a new frontend driver for GHC (\verb|DriverBkp|), abstract syntax (\verb|BkpSyn|)
+    and some modest lexer and parser extensions (\verb|Lexer| and \verb|Parser|).
+    Arguably, these bits aren't part of the implementation ``proper'', since
+    they're only used for testing.
+
+    \item Support for typechecking signature files (\verb|TcRnDriver|)
+    and signature merging (\verb|HscMain|).  Here, we were a bit lucky:
+    GHC's existing \verb|hs-boot| files closely resemble \verb|hsig|
+    files, and we were able to repurpose a lot of the existing code in
+    our implementation.
+
+    \item Miscellaneous modifications to GHC's existing behavior,
+    such as modifying GHC's constraint solver to not eagerly fail when
+    simplifying givens (Section~\ref{sec:substitutability}).
+\end{itemize}
+%
+In our primary \Backpack{} patch (not counting subsequent bugfix
+patches, as well as some preliminary support for signatures that we had
+committed previously), we modified 40 files in the compiler (out of 513
+source files in the \verb|compiler| directory), adding 4375 lines and
+deleting 588 lines.  In this respect, we think that our \Backpack{}
+patch is quite well-contained: by in large, we were able to implement
+\Backpack{} without touching the renamer or typechecker: \Backpack{}
+interposed on the interface file loading layer to transparently
+provide a type environment that looked exactly like the old type
+environment (except with more elaborate \uid{}s).  We did have to
+modify some core data types in GHC, but as most of the compiler
+treated these abstractly, this did not cause any large ripple effects.
+
+\subsection{No symbol tables}
+\label{sec:no-symbol-tables}
+
+One aspect of GHC's design which is worth calling out is its lack
+of symbol tables.
 Compilers usually have one or more data structures known as
 \emph{symbol tables}, which are mappings from symbols to information
 about the symbol: abstractly, the symbol table is represented by
@@ -136,6 +174,69 @@ phases:
 Our typechecking rules are staged so that once we have generated the
 graph representation, we don't need to regenerate it in the future.
 
-\section{Interaction with type inference}
+\section{Modifications to Cabal}
 
-\Red{Note about inaccessibility}
+Before discussing how \Backpack{} was integrated with Haskell's
+package manager Cabal, we first need to give a more detailed description
+of how Cabal is structured architecturally.
+
+What users colloquially refer to as ``Cabal'' actually refers to two
+distinct pieces of software: Cabal the build system, and cabal-install
+the package manager.  Cabal is solely concerned with the problem of building
+a single \emph{package} (which may contain multiple components), while
+cabal-install manages the problem if installing multiple packages.  The
+command line interface of a Setup script intermediates between
+Cabal and cabal-install:
+
+In principle, the only major implementation piece necessary for \Backpack{}
+in Cabal is mixin linking.  But it turned out it was necessary to
+make some architectural changes to Cabal
+
+Our implementation of \Backpack{} in
+
+\section{Opaque unit identifiers}
+\label{sec:opaque-uid}
+
+\Uid{}s are abstract syntax trees which are passed around throughout
+the compiler.  The downside is that instantiated \uid{}s
+can be quite large (in part because \cid{}s allocated by the
+package manager can be quite large, as they must record information
+about how dependency resolution was performed for the library),
+wasting memory in the compiler.
+
+Fortunately, in some cases, the structure of a \uid{} is not necessary;
+for example, when a unit identifier has no module holes, it is
+invariant under substitution.  A useful optimization in this case
+is to represent the structure opaquely with a \emph{definite unit
+identifiers}.
+
+GHC and Cabal implement this optimization, changing the
+abstract structure of a \uid{} to look like this:
+
+\[
+\begin{array}{rcll}
+  \mathbb{P} &&& \text{Definite \uid{}} \\
+  \UP &::=& \icid{\Up}{S} & \text{\Uid} \\
+      & | & \mathbb{P} \\
+\end{array}
+\]
+
+\noindent
+Notice that definite \uid{}s occur recursively: the intent is that a
+definite \uid{} be allocated for a library when it is fully instantiated
+and compiled.  Thus, a definite \uid{} always corresponds to a \uid{}
+whose module substitution refers all to definite \uid{}s (since those
+libraries had to be compiled first, before this one could be compiled!)
+When compiling a fully instantiated library, the only \uid{}s which the
+compiler needs to interact with are definite \uid{}s, meaning that we
+only have to pay the cost of a full \uid{} when typechecking uninstantiated
+libraries.
+
+Definite \uid{}s are purely an implementation mechanism; if a definite
+\uid{} and a normal \uid{} are compared, the comparison must be done
+up to unfoldings of the definite \uid{}, as seen below (definite \uid{}s
+highlighted in blue):
+
+\begin{figure}[H]
+\center\includegraphics{figures/unit-identifier-improvement.pdf}
+\end{figure}

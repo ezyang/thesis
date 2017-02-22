@@ -449,16 +449,14 @@ be partially applied); similarly, a type synonym can only be used in place
 of a data declaration if this could not result in partially applied type
 synonyms.
 
-\section{Type inference}
+\section{Substitutability and type inference}
+\label{sec:substitutability}
 
-It is out of scope of this thesis to show how \Backpack{} interacts
-with GHC Haskell's type inference algorithm in detail, but we did
-discover one interesting interaction.
-Here is a property which must hold for \Backpack{} to be sound: if a
-module is well-typed under some context, then a module is well-typed
-under any context which is a subtype of the original context; e.g., with
-some name holes replaced with concrete original names, or perhaps with
-some abstract types refined to concrete implementations.
+One property of the GHC's type system which is required for
+the soundness of \Backpack{} is \emph{substitutability}: given that
+a module type checks under some type environment, if we apply a
+valid name substitution to the environment, the module must
+continue to typecheck.
 
 In the absence of type classes and type families (see
 Section~\ref{sec:metatheory} for a detailed discussion on these

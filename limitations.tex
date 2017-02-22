@@ -22,7 +22,7 @@ and type families.  The soundness result we desire is not true for full
 Haskell, and in fact, it cannot be made to be true.
 Ordinary proofs of soundness rely on weakening: the ability of a signature
 to hide information about its implementation.
-open type families~\cite{schrijvers+:typefamilies}
+Open type families~\cite{schrijvers+:typefamilies}
 introduce axioms to Haskell which cannot be hidden by signatures:
 
 \begin{lstlisting}
@@ -72,13 +72,18 @@ Haskell compilation.  The retypechecking step during compilation is
 where things like incompatible open type family axioms are found.
 In general, if one avoids defining instance declarations for non-locally
 defined types inside parametrized components, the problems with type
-classes and open type families should not arise.
+classes and open type families should not arise.  However, one should
+still ask tough questions about the soundness of recursive modules;
+and indeed, there is at least one known bug where \verb|hs-boot|
+files can cause unsoundness.\footnote{\url{https://ghc.haskell.org/trac/ghc/ticket/9562}}
 
 \section{Mutually recursive packages}
 
 We have not described how to handle mutual recursion in \Backpack{},
 although we believe that \Backpack{} can be extended to accommodate it,
 based off of GHC's existing support for \verb|hs-boot| files.
+Indeed, we showed in Section~\ref{sec:recursive-uids} that recursive
+\uid{}s can be handled in the same way as they were done in \OldBackpack{}.
 
 One challenge that we face is how to handle the ``double vision
 problem'' in the presence of type synonyms.  \OldBackpack{} solved the
@@ -134,3 +139,47 @@ we would have to manually rewrite the signature every time we put two
 such libraries together.  In degenerate form, this allows us to place a
 signature in a ``signature package'', to be reused by other packages
 which depend on this package.
+
+However, we have noticed that there are other operations on signatures
+which end users might find useful:
+
+\begin{enumerate}
+
+    \item Given an implementation of a library, we might like to \emph{infer}
+    the signature representing the API provided by this library,
+    without having to copy paste the signatures of the library into a
+    signature package of their own.
+
+    \item A signature package may provide more functions than a client
+    needs.  In this case, the client would prefer to \emph{thin} the
+    functions from the signature package, rather than have to copy paste
+    the subset they need into a signature of their own (especially if
+    some of the types are quite large!)
+
+    \item There might be multiple implementations of a particular
+    interface; a client might be interested in taking the
+    \emph{intersection} of these signatures, using only functionality
+    that is available from all implementations.
+
+\end{enumerate}
+%
+Each of these operations poses design questions which I do not have
+satisfactory answers to.  For example, what should the syntax for signature
+thinning be?  We might turn to the module export mechanism in Haskell today
+for some ideas.  For example, here is the syntax for reexporting all the
+exports of \verb|B|, except \verb|f|:
+
+\begin{lstlisting}
+    module A (module B) where
+        import B hiding (f)
+\end{lstlisting}
+%
+But this cannot be straightforwardly be adapted to signatures, where the
+``reexports'' of inherited signatures happens implicitly: there is no
+import statement to reexport!  Additionally, if a type is thinned from a
+signature, we must transitively thin out any declarations which refer to
+that type, and so forth.  Should this thinning occur automatically, or
+should the user be obligated to explicitly thin them out?
+
+We think there is an opportunity to design a more sophisticated language
+of signatures, and we leave this as future work for \Backpack{}.

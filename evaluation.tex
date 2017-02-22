@@ -18,9 +18,10 @@ we've implemented using \Backpack{} to help validate our implementation.
 A number of well-known packages in the Haskell ecosystem are parametric over
 implementations of certain core types.  To show \Backpack{} is sufficient
 to handle real world examples, we used \Backpack{} to
-reparametrize \verb|unix| and \verb|tagstream-conduit| packages, replacing
-the previous, ad hoc strategies these packages used to support multiple
-implementations of core types.
+reparametrize \verb|unix|, \verb|tagstream-conduit| and \verb|reflex| packages, replacing
+the previous strategies these packages used to support multiple
+implementations of core types.  We've chosen to showcase these three
+packages as they ended up being Backpack'ed in quite different ways.
 
 \subsection{Removing copy-pasted code from unix}
 
@@ -255,7 +256,7 @@ an extra dictionary parameter.
 
 With Reflex, we investigated using \Backpack{} to eliminate all uses of
 the \verb|Reflex| type class, thus eliminating dictionaries altogether.
-Backpack'ing Reflex posed some unique problems.
+Backpack'ing Reflex posed some unique problems:
 
 \begin{itemize}
     \item The Spider timeline's type is not \verb|SpiderTimeline|
@@ -270,9 +271,7 @@ Backpack'ing Reflex posed some unique problems.
         we get the following type signature for the method \verb|pull|:
 
         \begin{lstlisting}
-        pull :: PullM (SpiderTimeline x) a -> Behavior (SpiderTimeline x) a
-        \end{lstlisting}
-
+        pull :: PullM (SpiderTimeline x) a -> Behavior (SpiderTimeline x) a\end{lstlisting}
         Here, the signature states that if we call pull on a \verb|PullM|
         from a Spider timeline, we will get a \verb|Behavior|
         from the very same Spider timeline.
@@ -284,9 +283,7 @@ Backpack'ing Reflex posed some unique problems.
 
         \begin{lstlisting}
         data Timeline = forall x. SpiderTimeline x
-        pull :: PullM Timeline a -> Behavior Timeline a
-        \end{lstlisting}
-
+        pull :: PullM Timeline a -> Behavior Timeline a\end{lstlisting}
         This doesn't have the intended semantics: here, \verb|pull|
         accepts a \verb|PullM| from some timeline, and then gives
         you a \verb|Behavior| from another timeline, but doesn't tell
@@ -304,9 +301,83 @@ Backpack'ing Reflex posed some unique problems.
         on \verb|Reflex|, since our intention is to specialize the
         type class away.)
 
-    \item Reflex defines many type classes and instances which
-        refer to the concrete types
+%   \item Reflex defines a large number of type classes which mention
+%       the associated types of \verb|Reflex|.  These type classes
+%       cannot be easily eliminated via \Backpack{} (classes like
+%       \verb|MonadHold| and \verb|MonadSample| are for allowing
+%       users to use functions on arbitrary monad transformer stacks),
+%       but must be defined
 \end{itemize}
+%
+Here is an excerpt for the signature we wrote for Reflex:
+
+\begin{lstlisting}
+    data Timeline t
+    class HasTimeline t
+
+    type Event          t = C.Event         (Timeline t)
+    type Dynamic        t = C.Dynamic       (Timeline t)
+    type Behavior       t = C.Behavior      (Timeline t)
+    type Incremental    t = C.Incremental   (Timeline t)
+    type EventSelector  t = C.EventSelector (Timeline t)
+
+    data PushM t a
+    data PullM t a
+
+    instance HasTimeline t => MonadHold     (Timeline t) (PushM t)
+    instance HasTimeline t => MonadSample   (Timeline t) (PullM t)
+    instance HasTimeline t => MonadFix      (PushM t)
+    instance HasTimeline t => Functor       (Dynamic t)
+    instance HasTimeline t => Applicative   (Dynamic t)
+    instance HasTimeline t => Monad         (Dynamic t)
+    -- Instances for the superclasses
+
+    pull :: HasTimeline t => PullM t a -> Behavior t a
+\end{lstlisting}
+%
+There are a number of things to point out about this signature:
+
+\begin{itemize}
+    \item The abstract type representing timelines is
+        \verb|data Timeline t|, taking a phantom type parameter
+        which will be used to track timelines.
+        Reflex also associates this phantom type parameter with
+        a class constraint \verb|HasSpiderTimeline|, so we need
+        an abstract class \verb|HasTimeline| to abstract over
+        this extra constraint.
+
+    \item Rather than define abstract types for \verb|Event|,
+        \verb|Dynamic| and the other associated data families,
+        we instead require them to be type synonyms of the
+        appropriate data family for our abstract type \verb|Timeline|.
+        A nice property of these synonyms is that
+        \verb|Behavior t|, i.e., \verb|C.Behavior (Timeline t)|
+        is a more specific type than \verb|C.Behavior t|; so if
+        we define an instance for it (as Reflex does),
+        GHC will treat it as a more precise instance and prefer
+        it during instance resolution.
+
+%       This is helpful as it means we can transparently reuse
+%       any classes which refer to these types, so long as they
+%       don't also levy a \verb|Reflex| trait.
+
+        In contrast, the type synonym families get abstract
+        types, because we need to declare instances on them,
+        and Haskell does not permit type family applications in
+        instances. (This is a perhaps displeasing asymmetry between
+        superclass constraints and explicit instance declarations.)
+
+    \item In our implementation, a user is required to declare
+        instances not only for any classes they want to support,
+        but also all of the superclasses of those classes.  We've
+        omitted those superclasses for brevity.
+\end{itemize}
+%
+Reflex also has a separate interface, \verb|ReflexHost|, for listening
+to events, which is only supported by the Spider implementation.
+To accommodate this, we created another library which mixed in
+the basic Reflex functionality, but extended the signature with the
+extra requirements that were needed.
 
 \section{Replacing build-depends with signatures}
 
@@ -419,29 +490,29 @@ if users could write signatures for it; probably the most practical
 way forward is to refactor \verb|base| into two packages, one that
 contains wired-in entities, and one that does not.
 
-\section{A signature for strings}
+%   \section{A signature for strings}
 
-One of the motivating applications of \Backpack{} is handling the
-so-called ``string problem'', where the Haskell ecosystem has
-many implementations of string-like data types, and it is difficult
-to write code that is parametric over the implementation of strings.
-Indeed, both of the example parametrizations from the previous section
-are dealing with strings of one form or another.
+%   One of the motivating applications of \Backpack{} is handling the
+%   so-called ``string problem'', where the Haskell ecosystem has
+%   many implementations of string-like data types, and it is difficult
+%   to write code that is parametric over the implementation of strings.
+%   Indeed, both of the example parametrizations from the previous section
+%   are dealing with strings of one form or another.
 
-While a package can write a signature for all the functions on strings they
-require from scratch, it is also useful to be able to reuse signatures
-between packages.  To this effect, I created a string signature which
-represented the union of the APIs provided for:
+%   While a package can write a signature for all the functions on strings they
+%   require from scratch, it is also useful to be able to reuse signatures
+%   between packages.  To this effect, I created a string signature which
+%   represented the union of the APIs provided for:
 
-\begin{itemize}
-    \item \verb|String| from \verb|base|,
-    \item Strict/lazy ASCII/binary \verb|ByteString| from \verb|bytestring|,
-    \item Strict/lazy UTF-8 \verb|ByteString| from \verb|utf8-string|,
-    \item Strict/lazy \verb|Text| from \verb|text|, and
-    \item \verb|String| from \verb|foundation|
-\end{itemize}
+%   \begin{itemize}
+%       \item \verb|String| from \verb|base|,
+%       \item Strict/lazy ASCII/binary \verb|ByteString| from \verb|bytestring|,
+%       \item Strict/lazy UTF-8 \verb|ByteString| from \verb|utf8-string|,
+%       \item Strict/lazy \verb|Text| from \verb|text|, and
+%       \item \verb|String| from \verb|foundation|
+%   \end{itemize}
 
-\Red{finish this section}
+%   \Red{finish this section}
 
 \section{An alternate package language}
 
