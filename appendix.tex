@@ -390,6 +390,11 @@ signature A where
 %\label{fig:signature-merging}
 %\end{figure}
 
+Here, the first two signatures should merge to form the third one,
+but in order to show that the definitions of \verb|f| are compatible
+with one another, we must show \verb|U| from the first signature is
+\verb|Bool|, and \verb|T| from the second signature is \verb|Int|.
+
 \noindent
 Like MixML, \Backpack{} is able to handle the type refinement simply
 by picking \verb|type T = Int| and \verb|type U = Bool| as the ``canonical''

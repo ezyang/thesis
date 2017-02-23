@@ -56,9 +56,9 @@ specify every type family instance that an implementation could provide:
 but it should be clear that this makes it essentially impossible to
 write instances within a parametrized package.  Another fix is to change the rules for
 permissible type family instances, so that instances defined in separate
-modules are guaranteed not to conflict, no matter what. (\Red{give an
-example?})  But this would constitute a fundamental change to how open
-type families work in Haskell and rule out existing Haskell code.
+modules are guaranteed not to conflict, no matter what.  But this would
+constitute a fundamental change to how open type families work in
+Haskell and rule out existing Haskell code.
 
 The upshot is that, without changing how open type families work, we
 must allow for the possibility that linking can fail, even if the

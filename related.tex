@@ -1,7 +1,6 @@
 %!TEX root = paper.tex
 \chapter{Related Work}
 
-
 \section{Comparison with \OldBackpack{}}
 
 The inspiration for this
@@ -13,131 +12,48 @@ of this paper is an actual \emph{implementation} of the
 Backpack design, by refactoring of these ideas into a form that can be
 implemented in two stages: mixin linking handled by the package manager,
 and typechecking and compilation handled by the compiler.  However,
-the vagaries of actual implementation have also influenced the design
-and semantics of the language in some non-trivial ways, which we elaborate
-upon below.
+there are also some other points where \Backpack{} diverges from
+\OldBackpack{}, which we elaborate on below.
+
+\paragraph{No shaping pre-pass}
+
+Because \Backpack{} does not support mutual recursion, it is not
+necessary to perform a shaping pass to precompute the identities of all
+of the exports in a library.  \Backpack{} \emph{does} have a miniature
+shaping step, which occurs during signature merging when we merge export
+lists (\textsc{MExport} in Figure~\ref{typing:merging}), which
+produces a names substitution (the ``shape''); unlike \OldBackpack{},
+however, we can perform this
+shaping process incrementally.  This is good from an implementation
+perspective, since it reduces the amount of work which needs to be done
+when we recompile: a pre-pass would require us to shape all of the modules
+in a package before doing any work.
 
 \paragraph{Unordered syntax}
 
 \Backpack{}, unlike most existing module systems (including \OldBackpack{}
-and most ML variants) has an \emph{unordered} module language.  Compare
-to MixML, where the ordering of linking matters, even in the absence
-of binding constructs:
-
-\begin{figure}[H]
-\begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
-\begin{lstlisting}[language=ML,escapechar=@]
-(* REJECTED by paper MixML *)
-{ type t,
-  val f : t -> t,
-  val x = f 2 }
-with
-{ type t = int }
-\end{lstlisting}
-&
-\begin{lstlisting}[language=ML]
-(* ACCEPTED by paper MixML *)
-{ type t = int }
-with
-{ type t,
-  val f : t -> t,
-  val x = f 2 }
-\end{lstlisting}
-\end{tabular}
-\caption{Order matters in MixML.  Note that mixml 0.2.1 accepts both programs, as it has a more general template pass which differs from the journal version of MixML.}
-\label{fig:order-matters-in-mixml}
-\end{figure}
-
-In the first example, the first module is typechecked without knowledge
-that \verb|type t = int|, and so the application \verb|f 2| fails to
-typecheck.  In the second example, the results of bidirectional type
-lookup are applied to \verb|t| before the module is typechecked,
-causing us to accept the module.
+and most ML variants) has an \emph{unordered} module language.  This was
+motivated by the existing Cabal package language, which was unordered.
 
 When designing an unordered language, we must design our semantics so
 that there is only one behavior which makes sense under any ordering.
 One way to solve this problem is to precompute type information
-(as in \OldBackpack{}) before typechecking proper.  This would resolve
-the MixML issue above, since we would now be obligated to propagate
-knowledge that \verb|type t = int| no matter where that declaration
-occurred in the program.  However, as we've mentioned previously,
+(as in \OldBackpack{}) before typechecking proper.  However, as we've mentioned previously,
 \Backpack{} does \emph{not} do a pre-pass in the interest of
-separate compilation; this means there are a lot more choices available
-to us.
+separate compilation.  Fortunately, the absence of recursive modules
+allows us to avoid addressing the issue in some cases: since it is not possible
+for a \Backpack{} signature to import a module that transitively
+depends on the very same signature, we don't have to say whether or not
+a signature is typechecked before or after the inherited signatures from
+dependencies are added to the context.
 
-Here are a few litmus tests:
-
-\begin{lstlisting}
-unit p where
-    signature A where
-        data T
-        f :: T
-unit q where
-    signature B where
-        f :: Int
-unit r where
-    dependency p[A=<A>]
-    dependency q[A=<A>]
-    signature A where
-        type T = Int
-\end{lstlisting}
-
-Without the signature in \verb|r|, our matching judgment rejects the
-merge of \verb|p| and \verb|q|'s signatures, since the abstract
-type \verb|T| is not known to be equal to \verb|Int|.  However, if
-we were to merge in \verb|type T = Int| before matching, the merge
-would succeed.  Thus, \Backpack{} will typecheck the local signature
-and merge it in, before checking matching.
-
-The examples proliferate further when we consider a hypothetical,
-recursive variant of \Backpack{}.  We suggested the principle that
-type refinement only occur at the point when we are typechecking a
-module; but should that also incorporate things from dependencies?
-
-\begin{lstlisting}
-unit t where
-    module T where
-        data T = MkT
-unit p where
-    signature A(T) where
-        import T
-    signature B(T) where
-        import A
-unit q where
-    signature A(T) where
-        data T
-    signature C(T) where
-        import B
-unit r where
-    dependency p[A=<A>,B=<B>]
-    signature A(T) where
-        import B
-        import C
-\end{lstlisting}
-
-(By the way, this problem doesn't occur for \OldBackpack{} as it does
-not permit reexports from signatures.)
-
-
-\paragraph{Unordered Packages}
-
-One of the most obvious surface language changes from \OldBackpack{}
-to \Backpack{} is that \Backpack{}'s surface language is unordered: it
-does not matter what order you write your signatures and modules, \Backpack{}
-implicitly defines an ordering between them based on the import declarations
-in the module text.  Unordered module languages are a better match for
-the usual mapping of modules to files in a directory (which are unordered.)
-
-This takes away some expressivity from \Backpack{}: for example, module
+Being unordered takes away some expressivity from \Backpack{}: for example, module
 signatures (\verb|hsig| files) no longer subsume \verb|hs-boot| files
 (GHC's current mechanism for supporting mutually recursive modules).
 Within an unordered package, there is no way to tell if \verb|import A|
 was intended to refer to a signature or a module.  (\verb|hs-boot| files
 do not have this problem, as imports to the \verb|hs-boot| file are
 explicitly disambiguated using a \verb|{-# SOURCE #-}| pragma).
-
-\Red{Something about merging being undirected.  But maybe this makes sense
-only for MixML}
 
 \paragraph{Per-package modularity}
 
@@ -154,23 +70,146 @@ want a module to depend on fewer signatures, you must move it to a
 separate package, but this restriction allows us to preserve the
 abstraction barrier between the package manager and compiler.
 
+\paragraph{Type classes}
+
+While \OldBackpack{} did not tackle the problem of type classes in their
+formalized work, they suggested that type classes could be handled
+\emph{soundly} by introducing the capability of explicitly naming instances
+in the intermediate language.  They were specifically concerned with the
+following case:
+
+\begin{figure}[H]
+\begin{lstlisting}
+    A :: [ data T ]
+    B = [ import A; instance Eq T ]
+    A = [ data T = MkT; instance Eq T where ... ]
+\end{lstlisting}
+\end{figure}
+
+\noindent
+Without the ability to hide A's declaration of an \verb|Eq| instance
+from \verb|B|, \verb|B| would fail to typecheck due to a duplicate
+instance declaration.
+
+As we observed in Section~\ref{sec:metatheory}, while such instance
+hiding would work for ordinary type class instances, it would not work
+for associated types, as type equality axioms cannot be hidden in any
+meaningful way.  Furthermore, Haskell users generally expect there
+to be only one instance of a type class for a type \emph{globally} (for
+example, data types like \verb|Map| and \verb|Set| rely on being used
+with only one \verb|Ord| instance; if this is not the case, internal
+invariants in the data type may be broken).
+
+Thus motivated, \Backpack{} takes a different approach of not hiding
+instances at all.  This is an ``unsound'' (in the sense that typechecking
+against a signature does not guarantee that you will link successfully
+with the module) but practical solution to the type classes problem
+and does not seem to cause issues in practice.
+
 \section{Comparison with MixML}
 
-As \Backpack{} supports type synonyms where \OldBackpack{} did not,
-it is instructive to do a detailed comparison of how \Backpack{} handles
-many of the problems associated with transparent type declaration
-which \OldBackpack{} sidesteps by only considering the \emph{names}
-of language entities (rather than their computed types.)
+Many of the original points of comparison between \OldBackpack{} and
+MixML still hold for \Backpack{}: like \OldBackpack{}, we do not support
+first-class or higher-order units, nor do we support hierarchical
+modules (Haskell's ``hierarchical'' module namespace is merely a method
+for organizing a flag namespace of module names) or translucent sealing
+(one of the defining characteristics of ML module systems).
 
-It's worth recapping what has \emph{not} changed since \OldBackpack{}.
-As before, \Backpack{} does not attempt to implement all of the features
-of ML module systems.  We do not support first-class and higher order
-units; indeed, from an implementation perspective, it is difficult to
-see how these features would be implemented without compromising on
-\Backpack{}'s promise that programming with signatures will be no less
-efficient than programming against the implementing module directly.
-Similarly, we do not support hierarchical linking or translucent
-sealing.
+One new point of comparison between \Backpack{} and MixML is \emph{type lookup}
+in the presence of transparent type synonyms (which were not supported
+by \OldBackpack{}).  In MixML, the combination of transparent type
+synonyms and mixin linking necessitates the use of \emph{bidirectional lookup}, where
+type lookup of abstract types is performed in both directions simultaneously.
+Here is the bidirectional lookup example from MixML, transcribed to Haskell:
+
+\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth} p{0.30\textwidth}}
+\begin{verbatim}
+signature A where
+    type T = Int
+    data U
+    f :: Int -> U
+\end{verbatim}
+&
+\begin{verbatim}
+signature A where
+    data T
+    type U = Bool
+    f :: T -> Bool
+\end{verbatim}
+&
+\begin{verbatim}
+signature A where
+    type T = Int
+    type U = Bool
+    f :: Int -> U
+\end{verbatim}
+\end{tabular}
+%
+MixML operates by typechecking the first signature, then performing
+a \emph{type computation} on the second signature (determining its types
+but not type checking its functions), and then backpatching
+the types from the second to the first before properly typechecking
+the second signature and merging them together.
+
+Because \Backpack{} does not have to deal with the double vision problem
+(because it lacks mutual recursion), a simpler strategy suffices: we can
+assume that each signature has already been typechecked, pick the most
+defined types and then check for compatibility.
+
+%   This would resolve
+%   the MixML issue above, since we would now be obligated to propagate
+%   knowledge that \verb|type t = int| no matter where that declaration
+%   occurred in the program.  
+
+%   As \Backpack{} supports type synonyms where \OldBackpack{} did not,
+%   it is instructive to do a detailed comparison of how \Backpack{} handles
+%   many of the problems associated with transparent type declaration
+%   which \OldBackpack{} sidesteps by only considering the \emph{names}
+%   of language entities (rather than their computed types.)
+
+%   It's worth recapping what has \emph{not} changed since \OldBackpack{}.
+%   As before, \Backpack{} does not attempt to implement all of the features
+%   of ML module systems.  We do not support first-class and higher order
+%   units; indeed, from an implementation perspective, it is difficult to
+%   see how these features would be implemented without compromising on
+%   \Backpack{}'s promise that programming with signatures will be no less
+%   efficient than programming against the implementing module directly.
+%   Similarly, we do not support hierarchical linking or translucent
+%   sealing.
+
+%   Compare
+%   to MixML, where the ordering of linking matters, even in the absence
+%   of binding constructs:
+
+%   \begin{figure}[H]
+%   \begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+%   \begin{lstlisting}[language=ML,escapechar=@]
+%   (* REJECTED by paper MixML *)
+%   { type t,
+%     val f : t -> t,
+%     val x = f 2 }
+%   with
+%   { type t = int }
+%   \end{lstlisting}
+%   &
+%   \begin{lstlisting}[language=ML]
+%   (* ACCEPTED by paper MixML *)
+%   { type t = int }
+%   with
+%   { type t,
+%     val f : t -> t,
+%     val x = f 2 }
+%   \end{lstlisting}
+%   \end{tabular}
+%   \caption{Order matters in MixML\@.  Note that mixml 0.2.1 accepts both programs, as it has a more general template pass which differs from the journal version of MixML.}
+%   \label{fig:order-matters-in-mixml}
+%   \end{figure}
+
+%   In the first example, the first module is typechecked without knowledge
+%   that \verb|type t = int|, and so the application \verb|f 2| fails to
+%   typecheck.  In the second example, the results of bidirectional type
+%   lookup are applied to \verb|t| before the module is typechecked,
+%   causing us to accept the module.
 
 \section{Modularity in the package manager}
 
