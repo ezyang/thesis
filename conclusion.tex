@@ -1,1 +1,80 @@
 \chapter{Conclusion}
+
+This motivation for this thesis rests on one major assumption: that the
+abstraction barrier between the compiler and the build system/package manager is
+worth preserving.  It is worth reexamining this assumption, in the light
+of recent compilers like \verb|go|\footnote{\url{https://golang.org/}} and \verb|rustc|\footnote{\url{https://www.rust-lang.org/}} which are equipped
+with fully-fledged build systems, and semantic build systems like
+Bazel\footnote{\url{https://bazel.build/}} and Gradle\footnote{\url{https://gradle.org/}} which expect to manage the packaging of software.
+
+Historically, the abstraction barrier between the compiler and the
+package manager has been quite profitable, allowing different implementations
+of these components to be provided. For example, a single build system
+can work with multiple different compilers (\verb|gcc| versus \verb|clang|);
+conversely, a compiler may be invoked from a user's custom build system.
+A library may be packaged for both its native language package manager
+as well as a Linux distribution's packaging system; conversely, a
+package manager may be indifferent to how a library actually gets built.
+In today's software ecosystem, these abstraction barriers are used
+heavily, with good effect!
+
+However, there are an increasing number of use-cases which cannot be
+adequately handled using these abstraction barriers:
+
+\begin{itemize}
+\item
+A build system needs to know what order to build source files in; however, the canonical source for this information is inside the import/include declarations of the source file. This information must either be duplicated inside the build system, or the build system must call the compiler in order to compute the dependency graph to be used. In any case, a compiler cannot just be a dumb source-to-object-file converter: it must know how to emit dependencies of files (e.g., \verb|gcc -M|). There is no standardized format for this information, except perhaps a \verb|Makefile| stub.
+\item
+The dependency problem is further exacerbated when module dependencies can be cyclic. A build system must know how to resolve cycles, either by compiling strongly connected components of modules at a time, or compiling against ``interface'' files, which permit separate compilation. This was one of the problems which motivated the Rust developers to not expose a one-source-at-a-time compiler.
+\item
+The best parallelization can be achieved with a fine-grained dependency graph over source files. However, the most desirable place to implement parallelization is the package manager, as an invocation of the package manager will cause the most code to be compiled. Thus, a system like Bazel unifies both the build system and the package manager, so that parallelism can be achieved over the entire build. (Another example is GHC's build system, which parallelizes compilation of all wired-in packages on a per-module basis.)
+\item
+IDEs want in-depth information from the compiler beyond a batch interface. But they cannot invoke the compiler directly, because the only way to invoke the compiler with the right flags and the right environment is via the build system/package manager. Go's built in build-system means that it can more easily provide a tool like \verb|go guru|\footnote{\url{http://golang.org/s/using-guru}}; otherwise, \verb|go guru| would need to be able to accommodate external build systems.
+\item
+Certain language features are actively hostile to build systems; only the compiler has enough smarts to figure out how to manage the build. Good examples include macros (especially macros that can access the filesystem), other forms of compile-time metaprogramming, and compiler plugins.
+\end{itemize}
+%
+Thus, the temptation is to roll up these components into a single
+monolithic tool that does everything. There are many benefits: a single
+tool is easier to develop, gives a more uniform user experience, and
+doesn't require the developers to specify a well-defined API between the
+different components.  In this regime, \Backpack{} doesn't have much reason
+to exist; just use \OldBackpack{}!  You see this theme play out in systems
+conferences, where abstraction barriers are routinely broken for fun
+and performance.
+
+But there is a downside: you can't swap out pieces of a monolithic
+system.  There is perhaps a poetic justice to a modular module
+system~\cite{leroy:modular}, but there are also practical benefits too.
+The challenge in the future will be to \emph{renegotiate} the abstraction
+barriers between the compiler and package manager (as this thesis has done)
+to support the use-cases that are ill-served by today's abstractions.
+
+Haskell's anti-modular features: type classes and version-based dependency
+resolution, provide two more examples of areas where such a renegotiation would
+be profitable.
+
+\begin{itemize}
+    \item Most Haskell programmers think about type class instances being
+    fed into a global database of instances, rather than the current model
+    of instances being visible if they are transitively imported, and often
+    want to be able to make global decisions about instances like, ``If I'm
+    using a version of \verb|containers| which does not provide an instance
+    of \verb|Generic| for \verb|Map|, please pull in the orphan instance from
+    such-and-such package.''  Compilers are bad at global decisions, but
+    that is the raison d'\^etre of package managers:
+    it might be profitable to let package managers have a bigger say in
+    what instances are in scope.
+
+    \item Haskell packages specify version bounds to specify their compatibility
+    with other packages.  An important dimension to this is type compatibility,
+    but since the package manager is not supposed to know anything about
+    the source language, it is very difficult to take advantage of the type information
+    that the compiler knows about to make better informed decisions about version
+    bounds.  If we are to elevate Backpack signatures as a replacement for
+    version bounds, we will have to negotiate this division.
+\end{itemize}
+%
+Perhaps the problems of modularity are self-afflicted problems; but we have
+taken on these problems for good reason.  May \Backpack{} contribute profitably to the
+ongoing discussion on modularity and abstraction. $\qed$
