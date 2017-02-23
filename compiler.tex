@@ -135,32 +135,6 @@ this by applying a ``selfification'' step, ala CITE, prior to adding
 modules to the context, but the current presentation is more direct and
 accurately describes how GHC is implemented.)
 
-\paragraph{Differences from GHC 8.2's representation}  The account of semantic objects
-given here closely corresponds to GHC's \emph{interface file representation}; however
-there are some major differences.
-
-\begin{itemize}
-    \item In our formulation of GHC Haskell's semantic objects, an
-    instance directly records the type representing the constraint that
-    the instance fills.  In GHC Haskell, an instance instead contains a
-    reference to a \emph{dictionary function}, which is just a type of
-    term declaration that is never exported.  The two presentations are
-    equivalent, but embedding the dictionary function in the instance
-    makes it easier to specify the rules instance checking.  Similarly,
-    closed family instances are associated with a coercion axiom, but in
-    our presentation they are embedded in \I{tfinfo}; because coercion axioms
-    are always associated with another declaration, we omit them from the
-    production $\Uty$.
-
-    \item Export specification is just a list of names, rather than names with
-    children; the latter is used to support import declarations like
-    \verb|Maybe(..)|.
-
-    \item If a module defines orphan instances, GHC doesn't store its module
-    identity in the list of transitive orphans; instead, this is recorded
-    separately in another flag in the interface file.
-\end{itemize}
-
 \section{Typing rules}
 
 We organize our formalization of \Backpack{} typing into a few
