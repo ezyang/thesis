@@ -1,5 +1,6 @@
 %!TEX root = paper.tex
 \chapter{Introduction}
+\label{sec:intro}
 
 % Here is a problem
 % It's an interesting problem
@@ -45,36 +46,39 @@
 Opportunities for modularity are everywhere.
 
 \begin{itemize}
-    \item Suppose you are writing an application which makes request to
-    some external backend service: perhaps a database or a credit card
-    processor.  To ease testing, you might want to modularize your
+    \item Suppose you are writing an application which makes a request to
+    some external backend service---perhaps a database or a credit card
+    processor.  You might want to modularize your
     application so that you can \emph{swap} out the real implementation
-    of a service with a fake.
+    of a service with a fake, so that you can test your application without
+    charging your customers.
 
     \item Suppose you are writing a library that handles strings in some
-    way---perhaps a parser or a string processing library. The Haskell
-    ecosystem defines a variety of string types (linked lists of
+    way---perhaps a parser or a string processing library.  Usually, your
+    library doesn't require a specific representation; in fact, you would
+    like your library to be \emph{parametric} over all the string representations
+    your clients might use (whether it is linked lists of
     characters, packed bytestrings, packed UTF-16 strings, packed UTF-8
-    strings\ldots):  you'd like your library to be \emph{parametric}
-    over the string representation, so that an end user can use it with their
-    preferred string representation.
+    strings\ldots).
 
-    \item Suppose you have two implementations of an API\@: a simple,
-    inefficient reference implementation, and a complicated but
+    \item Suppose you have two implementations of an API\@: a simple but
+    inefficient reference implementation and a complicated but
     fast production implementation.  You might like to \emph{instantiate}
     an application with both implementations and then run them in
-    parallel to test for correctness.
+    parallel, comparing their outputs to verify the correctness of the
+    production implementation.
 \end{itemize}
 %
 To address these use cases, a programming language usually provides some
-facility for both structuring a program into a collection of modules and
-\emph{abstracting} over their implementations, so that a module can be
-swapped out for another without affecting the client.
+facility for organizing a program into a collection of modules and
+\emph{abstracting} over the implementations of these modules, so that
+one implementation of a module can be swapped out for another without
+affecting a client.
 
 In Haskell, modular development is traditionally achieved with
-\emph{type classes} (Haskell's ``module system'' is merely
+\emph{type classes}---Haskell's ``module system'' is merely
 a namespace management mechanism without any proper concept of an
-interface).  However, type classes are ill-suited for certain
+interface.  However, type classes are ill-suited for certain
 applications of modularity:
 
 \begin{itemize}
@@ -89,9 +93,8 @@ applications of modularity:
          => source1 -> source -> target -- from regex-posix-0.95.2
     \end{lstlisting}
     Furthermore, type classes work best when exactly a single type
-    parameter is involved in instance resolution; when this isn't the
-    case, extra work is often necessary. If there aren't any type
-    parameters, you must introduce a proxy type to drive resolution; if
+    parameter is involved in instance resolution. If there aren't any type
+    parameters, you must introduce a proxy type to drive instance resolution; if
     there are multiple parameters~\cite{lfp92}, you often need to resolve ambiguity
     by introducing functional
     dependencies~\cite{Jones:2000:TCF:645394.651909} or replacing
@@ -101,24 +104,24 @@ applications of modularity:
     should support.  However, for many interfaces, it is not obvious
     what set of methods should be put into an interface; for example,
     there are many functions which an interface for strings might
-    support; which ones go in the type class?  It is inconvenient
+    support---which ones go in the type class?  It is inconvenient
     to define a new type class (and new instances) just to add a
     few more methods, and thus this is rarely done in practice.
 
     \item From a performance perspective, code which uses a type class
-    is initially compiled without knowledge of how the type class's
+    is compiled without knowledge of how the type class's
     methods are implemented.  This can be quite costly in a language
     like Haskell, where inlining definitions is essential to achieving
-    good performance.~\cite{PeytonJones:2002:SGH:968417.968422}  This problem can be mitigated specializing
-    the code to a particular instance of the type class, but this
-    is awkward and can lead to the compiler must repeatedly reoptimizing
-    code that is specialized the same way, blowing up code size of
-    programs. (C++ templates suffer from similar problems.\footnote{\url{https://gcc.gnu.org/onlinedocs/gcc/Template-Instantiation.html}})
+    good performance.~\cite{PeytonJones:2002:SGH:968417.968422}  This problem can
+    be mitigated by specializing code to a particular type, but if this
+    specialization occurs at use-site, the compiler ends up repeatedly reoptimizing
+    the same function, blowing up the code size of
+    a program. (C++ templates suffer from similar problems.\footnote{\url{https://gcc.gnu.org/onlinedocs/gcc/Template-Instantiation.html}})
 \end{itemize}
 %
-In short, Haskell would be well served by a proper module system for
-applications of modularity which are poorly handled by type
-classes and the existing weak module system.
+In short, Haskell would be well served by a proper module system that
+addresses applications of modularity which are currently poorly served
+by type classes and the existing weak module system.
 
 The Backpack package system by Scott Kilpatrick et al.~\cite{backpack}
 (hereafter called \OldBackpack{}) broke new ground, arguing that \emph{mixin
@@ -126,18 +129,17 @@ packages} could be a good fit for providing modularity in Haskell.
 The two words ``mixin'' and ``package'' capture the key properties of \OldBackpack{}:
 
 \begin{itemize}
-    \item \emph{Mixin}. Mixin modules~\cite{bracha+:modularity,ancona+:cms,flatt+:units,duggan:mixin} are characterized by the
-    presence of both provided and required modules in a namespace:
-    these requirements can be instantiated by ``mixing'' namespaces
-    together, linking together provisions and requirements which have
+    \item \emph{Mixins}. Mixin modules~\cite{bracha+:modularity,ancona+:cms,flatt+:units,duggan:mixin} are characterized by components which both \emph{provide} and \emph{require}
+    modules:  these components can be ``mixed'' together, linking
+    together provisions and requirements which have
     the same name.  Unlike the more conventional approach of
     \emph{parametrized} modules (ala ML~\cite{milner+:def-of-sml-revised}),
-    mixin modules support recursive linking;  furthermore, mixins avoid
+    mixin modules natively support recursive linking.
+    Furthermore, mixins help avoid
     the preponderance of \emph{sharing constraints} that occur with ML
-    functors, since requirements can be mixed together by name, automatically
-    enforcing type equalities between shared types.
+    functors, since requirements can be mixed together by name.  (Appendix~\ref{sec:mixins-in-ocaml})
 
-    \item \emph{Package}. Rather than introduce a new module language
+    \item \emph{Packages}. Rather than introduce a new module language
     to the compiler, \OldBackpack{} proposed that mixins be added to
     Haskell's package system, allowing us to retrofit Haskell with
     a package language without requiring ``yet another type system extension.''

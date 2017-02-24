@@ -1,5 +1,207 @@
 \appendix
 
+\chapter{Notes}
+
+\section{Mixins help avoid sharing constraints}
+\label{sec:mixins-in-ocaml}
+
+The goal of this appendix is to explain why mixins help ``avoid the
+preponderance of sharing constraints that occur with ML functors.''
+(as claimed in Section~\ref{sec:intro})  For concreteness, the ML
+examples in this section will be written in OCaml.
+
+\paragraph{What is a sharing constraint?}
+Ordinarily, an abstract type in a signature is not equal to any other type.  A
+sharing constraint \verb|with type t = u| asks the compiler to expose
+the fact that the abstract type \verb|t| is equal to some other type \verb|u|.%
+\footnote{For the language lawyers out there, SML also defined a
+construct \texttt{sharing type} which is a specialized signature
+refinement operator for specifying that two abstract type components
+inside a signature are transparently equal (the \texttt{with type} construct
+doesn't suffice for this case, since an abstract type defined inside
+the signature is not a valid type outside the signature.) We'll use
+the colloquial meaning of sharing constraints to refer to both constructs.}
+In ML, sharing constraints are needed most commonly in two situations:
+
+\begin{enumerate}
+    \item When a module is \emph{sealed} by some signature, a sharing
+    constraint may be used to reveal some types which would otherwise
+    be opaque. For example, consider these modules for maps with arbitrary
+    keys:
+
+\begin{lstlisting}[language=ML]
+        module IntMap =
+          struct
+            type key = int
+            type 'a t = ...
+            let insert k v m = ...
+          end
+        module type MAP =
+          sig
+            type key
+            type 'a t
+            val insert : key -> 'a -> 'a t -> 'a t
+          end
+        module SealedIntMap = (IntMap : MAP)
+\end{lstlisting}
+
+    \noindent In this example, the resulting \verb|SealedIntMap| has
+    an opaque \verb|key| and \verb|t| type, because it was sealed
+    with the signature for \verb|MAP|.  However, there is a problem
+    with \verb|SealedIntMap|: we don't
+    know anything about the type of \verb|key|, and thus cannot actually
+    use \verb|insert| (because we can't produce a value of type \verb|key|).
+
+    A sharing constraint allows us to add a constraint to the signature \verb|MAP|
+    saying, ``And actually, \verb|key| is an \verb|int|'':
+
+\begin{lstlisting}
+    module BetterSealedIntMap = (IntMap : MAP with type key = int)
+\end{lstlisting}
+
+    \noindent We won't say much about this use case, because \Backpack{} does
+    not support sealing, so there isn't a point of comparison.
+
+    \item A sharing constraint may be used to relate types between multiple
+    signatures, which specify arguments to a functor.  For example:
+
+\begin{lstlisting}[language=ML,escapechar=@]
+    module type A = sig type t;; val f : t -> t end
+    module type B = sig type t;; val g : t      end
+    module F (X : A) (Y : B with type t = X.t) = struct let z = @\fbox{X.f Y.g}@ end
+\end{lstlisting}
+
+    Here, \verb|X.t| and \verb|Y.t| are not type equal without the
+    sharing constraint \verb|with type t = X.T| on \verb|B|; without
+    the sharing constraint, the boxed \verb|X.f Y.g| would not typecheck.
+
+\end{enumerate}
+
+\noindent
+In fact, \Backpack{} also supports sharing constraints: for example,
+if an inherited signature defines an abstract type \verb|data T|, we
+can define a local signature at this name with the declaration \verb|type T = Int|
+to refine the abstract type \verb|T| into \verb|Int|.
+
+\paragraph{How does Backpack eliminate sharing constraints?}  In a mixin
+module system like \Backpack{}, a sharing constraint is implicitly generated
+whenever two types are brought into scope under the same name.  For example,
+if I depend on two packages which both require an implementation of
+\verb|Str|, the two signatures will be merged together, so that \verb|Str|
+from the signature of the first package and \verb|Str| from the signature
+of the second package are treated as the same type.
+
+An analogous situation in ML occurs when I have two functors,
+which I would like to instantiate with the same module:
+
+\begin{lstlisting}[language=ML,escapechar=@]
+    module type A1 = sig type t;; val f : t -> t end
+    module type A2 = sig type t;; val g : t      end
+    module F1 (X : A1) = struct ... end
+    module F2 (X : A2) = struct ... end
+    module F (X : @\fbox{???}@) = struct
+        module M1 = F1(X)
+        module M2 = F2(X)
+        ...
+    end
+\end{lstlisting}
+
+\noindent
+What signature can we can we give here?  Unlike in \Backpack{}, we must
+specify the signature.  One possibility is to write the merged signature
+by hand:
+
+\begin{lstlisting}[language=ML,escapechar=@]
+    module type A =
+      sig type t
+          val f : t -> t
+          val g : t
+      end
+\end{lstlisting}
+
+\noindent
+This may be tiresome if the signatures are large.  Fortunately,
+ML also supports the \verb|include| construct, which textually includes
+the contents of a signature into a new signature, which can be used to
+construct the merged signature by including both signatures.  However, there is a twist:
+
+\begin{lstlisting}[language=ML,escapechar=@]
+    module type A =
+      sig include A1
+          include A2 with t := t
+      end
+\end{lstlisting}
+
+\noindent
+We must relate the \verb|t| from \verb|A1| with the type \verb|t| from
+\verb|A2|. In OCaml, we can
+declare this relationship with a \emph{destructive substitution}.
+The destructive substitution \verb|type t := t| says, ``Find all occurrences
+of \verb|t| inside \verb|A2|, replace them with the \verb|t| that is in
+scope (from \verb|A1|), and delete \verb|type t| from \verb|A2|.''
+The final signature is equivalent to the one we wrote out by hand.
+
+Destructive substitution only works for types, so if two signatures
+define the same functions or values, your only recourse is to write the
+merged signature by hand, or pass in two modules, one for each signature,
+with the necessary sharing constraints to witness the necessary type equalities
+(as seen in the example functor with two module arguments).
+
+\paragraph{Summary}
+\Backpack{} doesn't eliminate all cases where sharing constraints might be
+useful; for example, a user of \Backpack{} may still find it useful to
+declare \verb|type Key = Int| to refine the type of an abstract map
+to be a map with integer keys.  However, it does eliminate one important
+class of sharing constraints which arise when there are multiple signatures
+describing the same types and functions.
+
+%   \begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+%   \begin{lstlisting}[language=ML]
+%   module type A1 = sig
+%       type t = int
+%       type u
+%       val f : int -> u
+%   end
+%   \end{lstlisting}
+%   &
+%   \begin{lstlisting}[language=ML]
+%   module type A2 = sig
+%       type t
+%       type u = bool
+%       val f : t -> bool
+%   end
+%   \end{lstlisting}
+%   \end{tabular}
+
+
+%   Sharing constraints in ML permit users to specify that two modules
+%   specify the same abstract type.
+%   Here is an example application of
+%   sharing constraints in OCaml adapted from the OCaml FAQ\footnote{\url{https://caml.inria.fr/resources/doc/faq/module.en.html}}:
+%   \begin{lstlisting}[language=ML,escapechar=@]
+%       module type S1 = sig type t
+%                            val x : t
+%                        end
+%       module type S2 = sig type t
+%                            val f : t -> t
+%                        end
+%       module F (X : S1) (Y : S2 with type t = X.t) =
+%         struct
+%           let g = Y.f X.x
+%         end
+%   \end{lstlisting}
+%   %
+%   In this example, the signatures \verb|S1| and \verb|S2| both define
+%   an abstract type \verb|t| and some values which operate on this type.
+%   When we define a functor \verb|F| which takes a module of type \verb|S1|
+%   and a module of type \verb|S2|, it is \emph{not} automatically the case
+%   that the \verb|t| from \verb|X| and the \verb|t| from \verb|Y| are the same.
+%   To declare that these types are the same, we specify a sharing constraint
+%   \verb|with type t = X.t| which declares the equality between \verb|X.t|
+%   and \verb|Y.t|.
+
+\iffalse%
+
 \chapter{The Double Vision Problem}
 \label{sec:double-vision}
 
@@ -446,3 +648,5 @@ signature A where
     data U = MkU T
 \end{verbatim}
 \end{tabular}
+
+\fi
