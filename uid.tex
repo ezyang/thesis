@@ -11,17 +11,17 @@ can be thought of in two ways:
 \begin{enumerate}
 \item A \uid{} is an \emph{expression} in the language of
    applicative functor applications, specifying how a
-   library is instantiated.  In this sense, $\uidl{p}{\substMod{A}{q}{B}}$
-   says, $\cidl{p}$ applied with \Mod{q}{B} at its hole (argument) \modname{A}.
-   (This is not entirely accurate in the presence of signature merging,
-   but it is a pretty good approximation.)
+   library is instantiated.  Thus, we interpret $\uidl{p}{\substMod{A}{\cidl{q}}{B}}$
+   as saying that $\cidl{p}$ is applied with \Mod{\cidl{q}}{B} at its hole (argument) \modname{A}.
+%  (This is not entirely accurate in the presence of signature merging,
+%  but it is a pretty good approximation.)
 
 \item A \uid{} uniquely \emph{identifies} a library: if
    two instances of a library are instantiated in the same
-   way, they provide the same types and will be compiled
+   way, they have equal unit identifiers, provide the same types and will be compiled
    and installed only once in the package database.
 \end{enumerate}
-
+%
 In \Backpack{}, \uid{}s are a concept that is universal across the
 package manager and compiler divide: mixin linking determines the \uid{}s of
 the libraries that are in scope; the compiler subsequently consumes
@@ -51,7 +51,7 @@ Here is the syntax of \uid{}s, recapitulated from Figure~\ref{fig:lcomponents}.
 We fix a set of \emph{\cid{}s} and \emph{module names}, which serve as
 labels to identify libraries prior to instantiation and the modules
 within them, respectively. \Cid{}s are allocated by the
-package manager after dependency solving and componentization, and
+package manager after dependency solving and componentization and
 generally encode the source package name, version, and transitive
 dependency structure.
 
@@ -61,9 +61,11 @@ substitution}). A module substitution is a mapping from module name to
 \emph{module identifier}, which specifies a particular module name from
 an instantiated component (specified by a unit identifier), or a hole
 module (indicating that the module is uninstantiated). Each module name
-key of the substitution must be distinct.  In our concrete syntax,
-these entries are given canonically in lexicographically sorted
-order.
+key of the substitution must be distinct.
+
+%   In our concrete syntax,
+%   these entries are given canonically in lexicographically sorted
+%   order.
 
 \section{Pictorial interpretation}
 
@@ -81,7 +83,7 @@ input ports represent all of the required module names of the component,
 while the output ports signify a subset of the provided modules from
 this component (output ports can be elided if they are unused). An
 output port can be wired up to an input port to indicate the module is
-being used to instantiate the requirement; if a hole module name is
+being used to instantiate the requirement; if a ``hole'' module name is
 wired to an input port, it indicates that this port is uninstantiated.
 In our implementation of \Backpack{}, component graphs are acyclic
 (but see Section~\ref{sec:recursive-uids} for the cyclic extension).
@@ -130,6 +132,7 @@ modules as variables:
 \end{array}
 \]
 
+\noindent
 Pictorially, substitution plugs a component into an unfilled
 hole module:
 
@@ -177,9 +180,9 @@ the component graph:
 
 These graphs are equivalent up to unfoldings (i.e., unrolling the
 cycles).
-Although, as observed in \OldBackpack{}, infinite trees of this form
-can be tested for equivalence using Huet's unification algorithm,
-for an implementation, it is more convenient to compute the canonical form
+As observed in \OldBackpack{}, infinite trees of this form
+can be tested for equivalence using Huet's unification algorithm.
+However, for an implementation, it is more convenient to compute the canonical form
 of a \uid{}, so equality can be checked syntactically.  This can be
 computed by Moore machine minimization.  Canonicalization can be achieved
 in three steps:
@@ -191,7 +194,7 @@ in three steps:
    initialized to be in separate equivalence classes initially), and
 \item Convert the Moore machine back into a unit identifier.
 \end{enumerate}
-
+%
 Intuitively, the Moore machine of a unit identifier recognizes paths
 (from right to left) through the component graph, outputting the
 component identifiers of the component boxes it traverses.
@@ -200,6 +203,7 @@ component identifiers of the component boxes it traverses.
 \center\includegraphics{figures/moore-description.pdf}
 \end{figure}
 
+\noindent
 Formally, we define the partial Moore machine corresponding to a unit
 identifier as follows:
 
@@ -222,7 +226,7 @@ identifier as follows:
 \item The output of a state is the component identifier of its component
    box, or \verb|HOLE| if it is a hole module.
 \end{enumerate}
-
+%
 We can complete the partial Moore machine into a total Moore machine by
 adding a new sink state \verb|SINK|, which outputs a new output value
 \verb|SINK|, and directing all undefined transitions to it (not depicted on
@@ -237,6 +241,7 @@ machines:
 \includegraphics{figures/moore-pq.pdf}
 \end{figure}
 
+\noindent
 The \uid{} corresponding to a Moore machine is defined by
 recursively traversing the Moore machine, creating unit identifiers
 whose component identifier is the output at a state, and module

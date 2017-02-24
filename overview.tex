@@ -30,7 +30,7 @@
         ($p$), which augments the source component identifier with the
         resolved \cid{}s of the direct dependencies.  (Thus, the \cid{}
         identifies the entire transitive source a component depends on.)
-        In \Backpack{}, we can treat \cid{}s as opaque strings.
+        In \Backpack{}, we treat \cid{}s as opaque strings.
     \item[\Unit{}] ($\Uunit$ in Figure~\ref{fig:lcomponents}) The output
         of mixin linking on a \ccomp{}, where we have computed the ``wiring
         diagram'' for the direct dependencies of the unit, describing how
@@ -63,11 +63,7 @@
 
 The implementation and semantics of \Backpack{} is structured as a
 series of passes (Figure~\ref{fig:pipeline}) on several intermediate
-languages (Figure~\ref{fig:glossary}).  The key idea is that mixin
-linking can be performed solely by the package manager (which we
-pictorially represented as wiring diagrams), without inspecting any
-Haskell code.
-
+languages (Figure~\ref{fig:glossary}).
 In this section, we will give a detailed summary of all the phases in
 this pipeline, starting with the source package language described in
 the previous section, and continuing on to two intermediate languages
@@ -124,7 +120,7 @@ a source component (and their transitive direct dependencies as well).
 The result of dependency resolution is a \emph{\ccomp}
 (Figure~\ref{fig:rcomponents}) which has all conditionals and fields
 irrelevant to \Backpack{} eliminated, and all direct dependencies
-resolved to \cid{}s.  A \ccomp{} is precisely the fragment of the
+resolved to \cid{}s.  In this thesis, we define a \ccomp{} to be precisely the fragment of the
 Cabal package language which is relevant to \Backpack{}, written in a
 form convenient for processing (e.g., each \verb|exposed-module| is
 specified individually and explicitly associated with its source).
@@ -132,12 +128,12 @@ specified individually and explicitly associated with its source).
 Dependency resolution in Cabal is a separate topic in its own
 right~\cite{well-typed-solver, well-typed-qualified}, beyond the scope of this paper.
 Instead, we simply assume that we have a black box which
-produces \ccomp{}s.  However, we do have to mention one thing about resolution:
-how are \verb|build-depends| fields from
-a source component translated into \verb|mixin| fields in the
-\ccomp{}?  For any package \verb|p| mentioned in \verb|build-depends|
-that is not mentioned in \verb|mixins|, it simply translates to
-\verb|mixin: p|.
+produces \ccomp{}s.  One thing that is worth noting is that
+every package \verb|p| mentioned in \verb|build-depends|
+that is not mentioned in \verb|mixins| translates to
+\verb|mixin: p|---this behavior maintains backwards compatibility
+with existing Haskell packages which use \verb|build-depends| to
+bring modules of packages into scope.
 
 \section{Mixin linking to a \unit{}}
 \label{sec:overview-mixin}
@@ -197,7 +193,7 @@ that is not mentioned in \verb|mixins|, it simply translates to
 The next step is \emph{mixin linking}, which 
 elaborates a \ccomp{} into a \emph{\unit{}} and computes its
 \emph{component shape} ($\lctx ::= \lctxpair{\provs}{\reqs}$).
-The latter describes what modules the
+A component shape describes precisely what module identities the
 component requires ($\reqs$) and provides ($\provs$).
 A \unit{} essentially describes the set of command line flags that will
 eventually be passed to GHC\@. The syntax of \unit{}s is given in
@@ -263,41 +259,8 @@ We continue computing identities until we know the identity of every exported
 or reexported module in \cidl{r}; in this case, \modname{Y} from \cidl{p}
 (which is reexported as \modname{Z}).  Then the component shape of
 \cidl{r} is $\forall \hv{A}.\, \{ \prov{\modname{Z}}{\Mod{\cidl{p}[\ldots]}{Y}} \}$.
-
 The elaborated \unit{} for \cidl{r} can be seen in Figure~\ref{fig:linked-example};
-it too follows straightforwardly from the wiring diagram.  In particular,
-the dependency requirements that are to be merged for signature \modname{A}
-are from \cidl{p} and \cidl{q}, as is evident from the diagram.
-
-Although the intuitive description of mixin linking is very simple,
-there is one subtlety: what happens if two modules (not
-signatures) are brought into scope with the same name?  Naively,
-we would \emph{unify} the two module identities, erroring if they
-have incompatible module identities.  But there are two problems
-with this approach:
-
-\begin{enumerate}
-    \item If two distinct modules are brought into scope with the same
-    name, but are never used (in particular, if they are not used to
-    fill a signature), it is better not to report an error if they do
-    not unify.  This is inline with Cabal's existing behavior, and is
-    analogous to Haskell's name resolution rules, which only report an
-    ambiguity when the ambiguous name is used.
-
-    \item Suppose that $\Mod{\cidl{q}[\subst{A}{\hv{A}}]}{X}$ and
-        $\Mod{\cidl{q}[\subst{A}{\Mod{\cidl{a}}{A}}]}{X}$ are in
-        scope at the same name, and we need to use them
-        to fill a requirement (so that case (1) does not apply).
-        If we set $\subst{A}{\Mod{\cidl{a}}{X}}$,
-        the two modules unify.  But unifying in this way has a surprising consequence:
-        it means that one cannot determine the new set of
-        required module names by taking the set difference of the
-        required and provided names in scope: a unification between
-        two module identities can cause other requirements to be filled.
-        We think it is better to request that users explicitly fill all
-        requirements via mixin linking.
-
-\end{enumerate}
+it too follows straightforwardly from the wiring diagram.
 
 %   \section{Ordering a \unit{}}
 
@@ -429,23 +392,17 @@ were subsequently filled by instantiation or signature merging.}
 \end{figure}
 
 After mixin linking has produced a \unit{} definition from a \ccomp{}
-definition, the component can now be \emph{typechecked}, producing \emph{module types} $M$
-(Figure~\ref{fig:haskell-semantics}) which record the type information
-of all top-level declarations in a module.  In the implementation
-of GHC, these semantic objects correspond to the \emph{interface
-file} representation which GHC uses to cache type information of
-already typechecked modules.\footnote{Interface files in GHC can also come with unfoldings,
-which carry term-level expressions to be used by the optimizer, but
-these can always be discarded without affecting the type checking
-process.}
-
-GHC Haskell's semantic objects resemble Haskell source code,
+definition, the component can now be \emph{typechecked}, producing \emph{module types}
+which record the type information
+of all top-level declarations in a module.
+GHC Haskell's module types resemble Haskell source code,
 with two differences:
 first, all declarations have been annotated with full type and kind
 information; second, all identifiers have been renamed into \emph{original
 names} which identify the exact module which originally defined the
 entity.  The types of our running example can be found
-in Figure~\ref{fig:typing-example}.
+in Figure~\ref{fig:typing-example}; to see the full grammar for module
+types skip ahead to Figure~\ref{fig:semantic-objects}.
 
 In the rest of this section, we'll describe the interface and semantic
 representations in more detail, and outline how each type of declaration
@@ -454,11 +411,10 @@ in a \unit{} can be typechecked.
 \subsection{Typechecking a module}
 
 A module is typechecked to produce a \emph{module
-type} $\Umty$, consisting of an \emph{export
-specification} $\UNs$ (what gets brought into scope when
+type}, consisting of an \emph{export
+specification} (what gets brought into scope when
 you import this module) and a set of \emph{defined entity specifications}
-$\Utys$ (the types and values defined by
-this module).
+(the types and values defined by this module).
 
 %   Syntactically, these are represented with
 %   a notation reminiscent of Haskell module declarations:
@@ -489,11 +445,6 @@ $\MOD{base}{}{W}.\texttt{I}$, we look up the module type of
 $\MOD{base}{}{W}$ from the context and then find the defined entity
 specification for \texttt{I} within the module type.
 
-An astute reader may have noticed that a module type
-also records defined instances ($\Uinsts$) and set of transitive imports ($\Uimps$);
-these are for type class resolution, and we defer a detailed discussion of these
-to Section~\ref{sec:compiler}.
-
 \subsection{Typechecking a signature}
 
 Typechecking \cidl{q} (Figure~\ref{fig:linked-example}) from our running example requires
@@ -519,7 +470,7 @@ unknown module identifier.  In typechecking, we bind a \emph{name
 variable} $\nhv{m.n}$ to represent the unknown entity $n$ required by
 requirement $m$.
 You may be wondering why name variables are not simply defined as
-$\hv{m}.n$.  In fact, names of this form demand that $n$ be defined
+$\hv{m}.n$.  Read literally, names of this form demand that $n$ be defined
 by $\hv{A}$ itself, ruling out the possibility that it \emph{reexports}
 $n$ from another module.
 
@@ -555,9 +506,10 @@ entities defined in the instantiated component: e.g., we apply the
 substitution $\subst{A}{\Mod{\cidl{base}[]}{W}}$ to the original name
 \MOD{q}{\subst{A}{\hv{A}}}{X}.\texttt{K}.
 
-The second step is \emph{signature matching}, where we check if the
+When we do this, we must check if this instantiation is
+well-typed via \emph{signature matching}: do the
 declarations provided by \cidl{base} match the required declarations of
-\cidl{q}.  This proceeds by comparing the declarations of each required
+\cidl{q}?  This proceeds by comparing the declarations of each required
 entity with the declaration of the corresponding provided entity.
 In our example, the implementation of \texttt{I} is an algebraic data
 type which matches the required declaration exactly; the implementation
@@ -584,9 +536,11 @@ was implemented by the type synonym \verb|type K = I|:
 
 \noindent
 By wiring up everything beforehand, we ensure that signature matching
-sees the correct equalities.  This does mean that we may construct some
-types in the graph representation that are ill-kinded before discovering
-that signature matching fails!
+sees the correct equalities.
+
+%   This does mean that we may construct some
+%   types in the graph representation that are ill-kinded before discovering
+%   that signature matching fails!
 
 \subsection{Signature merging}
 \label{sec:signature-merging}
@@ -596,10 +550,15 @@ linking is not just the linking that occurs when a module is brought into
 scope with the same name as a signature, but also the \emph{signature merging}
 that occurs when two signatures are brought into scope under the same name.
 Like dependency instantiation, we must take the required exports of each
-signature being merged, and match every required entity with identically
-named entities from other signatures.  Unlike dependency instantiation,
-this matching process is \emph{bidirectional}, as can be seen in the following
-example (which is adapted from the MixML paper):
+signature being merged and merge them with the identically
+named entities from other signatures.
+
+%   Unlike dependency instantiation,
+%   this matching process is \emph{bidirectional}, as can be seen in the
+
+The subtlety of signature merging is determining whether or not the declarations
+of a type in two signatures are compatible with one another.  Consider
+the following example (which is adapted from the MixML paper~\cite{rossberg+:mixml}):
 
 \begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
 \begin{lstlisting}
@@ -622,37 +581,28 @@ It is not obvious that \verb|Int -> U| has the same type as \verb|T -> Bool|,
 unless we refine \verb|U| to \verb|Bool| and \verb|T| to \verb|Int| in
 both signatures.
 
-Let's walk through how we go about merging these signatures:
-
 \begin{figure}[H]
 \center\includegraphics{figures/signature-merging.pdf}
 \end{figure}
 
-First, we take the required export specifications from each signature, and
-match up required entities which will refer to the same entity after
-merging.  For every entity which occurs in multiple signatures,
-we perform a \emph{syntactic merge}, picking the most-defined
-entity from each signature.  In this example, the choice is easy:
-\verb|type T = Int| is more defined than the abstract \verb|data T|;
-if there is not a unique choice, we pick an arbitrary one.
+\noindent
+To merge these signatures,
+we first take the required export specifications from each signature and
+match entities which have the same names.
+For every entity which occurs in multiple signatures,
+we pick out the most-defined
+declaration from each signature.  In this example, the choice is easy:
+\verb|type T = Int| is more defined than the abstract \verb|data T|,
+so we pick it for the merged signature.
+If there is not a unique choice, we pick an arbitrary one.
 
-Second, we put the syntactic merge in the context, so that all original
-names from each signature being merged are resolved with respect to the
-merged interface, rather than their local declarations.  For example, in
-the second row of the diagram above, there are three definitions of
-\verb|U|, but all enboxed references refer to the middle \verb|type U = Bool|.
-At this point, we also need to reject type synonym cycles.
-
-Finally, we check that each of the original declarations from the signatures
-is compatible with the merged declaration, under the context from
-step two (compatibility checking in Haskell must always be done with
-a context, since any reference to a type synonym must be
-expanded).  Because all original names have been resolved to
-the common syntactic merge, both instances of \verb|f| have a type that
-is definitionally equal to \verb|Int -> U|; furthermore, by checking for
-the compatibility of type declarations, we also discover if the merged
-type declarations are consistent with the individual declarations of
-each signature.
+Then, we check if each of the original declarations are compatible with
+the merged declaration.  The important twist is that whenever we
+see a name in one of the original declarations, we must resolve it
+to its definition in the \emph{merged} signature: in the diagram above,
+this is depicted by pointing the enboxed references to the central
+declarations.  Now we can see that both instance of \verb|f| have a type that
+is definitionally equal to \verb|Int -> U|.
 
 %   \paragraph{Signature merging}
 %   There is one final detail: how to merge requirements from

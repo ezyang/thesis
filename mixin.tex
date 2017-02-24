@@ -40,7 +40,7 @@ a ``bigger box'' which contains some number of \uid{}s:
 \end{figure}
 
 \noindent
-The required module variables $\reqs = \overline{\hv{m^J_i}}$ can be
+The required module variables $\reqs = \overline{\hv{m^R_i}}$ can be
 read off the diagram by taking the module names of the input ports,
 while the provided modules $\provs = \overline{m^P_j \mapsto M_j}$ are a mapping from the module name of each output port to the module identity that is wired to
 that port.
@@ -84,10 +84,37 @@ In our informal description of mixin linking, we simply described mixin
 linking as simply ``wiring up'' the input output ports of components;
 this wiring operation corresponds to unification in the syntactic realm.
 
-The primary difficulty of specifying mixin linking is handling the
-case when multiple component shapes export modules at the same
-provided module name.  Although it would be easy to just rule
-out this case, we have two goals:
+Although the intuitive description of mixin linking is very simple,
+there is one subtlety: what happens if two modules (not
+signatures) are brought into scope with the same name?  Naively,
+we should \emph{unify} the two module identities, erroring if they
+have incompatible module identities.  But there are two problems
+with this approach:
+
+\begin{enumerate}
+    \item If two distinct modules are brought into scope with the same
+    name, but are never used (in particular, if they are not used to
+    fill a signature), it is better not to report an error if they do
+    not unify.  This is inline with Cabal's existing behavior, and is
+    analogous to Haskell's name resolution rules, which only report an
+    ambiguity when the ambiguous name is used.
+
+    \item Suppose that $\Mod{\cidl{q}[\subst{A}{\hv{A}}]}{X}$ and
+        $\Mod{\cidl{q}[\subst{A}{\Mod{\cidl{a}}{A}}]}{X}$ are in
+        scope at the same name, and we need to use them
+        to fill a requirement (so that case (1) does not apply).
+        If we set $\subst{A}{\Mod{\cidl{a}}{X}}$,
+        the two modules unify.  But unifying in this way has a surprising consequence:
+        it means that one cannot determine the new set of
+        required module names by taking the set difference of the
+        required and provided names in scope: a unification between
+        two module identities can cause other requirements to be filled.
+        We think it is better to request that users explicitly fill all
+        requirements via mixin linking.
+
+\end{enumerate}
+%
+Thus, we have two goals:
 
 \begin{itemize}
     \item If two distinct modules are brought into the scope with the same

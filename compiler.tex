@@ -131,7 +131,7 @@ type can be put into the context at any name, a particular module
 identity is baked into the module type (as can seen in the example
 above); a module type must be placed in the context consistently with
 the module identifier it was typechecked with.  (We could have avoided
-this by applying a ``selfification'' step, ala CITE, prior to adding
+this by applying a ``selfification'' step prior to adding
 modules to the context, but the current presentation is more direct and
 accurately describes how GHC is implemented.)
 
@@ -481,6 +481,7 @@ variables}, in the sense that they don't unify with anything, but cannot
 be assumed to be distinct from all types (the client will instantiate
 the skolem variable to whatever they please.)
 
+\iffalse%
 \section{Role subtyping}
 
 Though not formalized above, Haskell's type system also includes the
@@ -490,6 +491,7 @@ cares about the \emph{nominal} or \emph{representational} identity
 of a type at that position.
 
 \Red{Finish this after we decide it's good}
+\fi
 
 % Things that are missing
 %   - Component sequencing OK
