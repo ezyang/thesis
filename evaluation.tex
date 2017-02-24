@@ -429,14 +429,23 @@ process.  However, we made two interesting observations.
 First, there is a certain amount of human judgment that needs to be
 exercised when writing these signatures, because of the convention in
 Haskell where a type may be defined in an ``internal'' module, and then
-reexported by a more public module.  For example, the strict
-\verb|ByteString| type is defined not in \verb|Data.ByteString|,
-but in \verb|Data.ByteString.Internal|.  So, which signature should
-be declared in?  In our case, \verb|binary| needed access to the
-internal implementation details of \verb|ByteString|, so \verb|Data.ByteString.Internal|
-was the correct place to put the declaration; however, there
-were other cases (e.g., \verb|Map| from \verb|Data.Map|, originally
-from \verb|Data.Map.Internal|) where we only used the public interface.
+reexported by a more public module.  Consider these two situations:
+
+\begin{itemize}
+    \item The \verb|Map| type is publically exported by \verb|Data.Map|
+    but originally defined in \verb|Data.Map.Internal|.
+
+    \item The strict \verb|ByteString| type is publically exported by
+    \verb|Data.ByteString| but originally defined in
+    \verb|Data.ByteString.Internal|.
+\end{itemize}
+%
+We ended up placing \verb|Map| in \verb|Data.Map|,
+but \verb|ByteString| in \verb|Data.ByteString.Internal|, as
+\verb|binary| used both \verb|Data.ByteString| and \verb|Data.ByteString.Internal|
+to manipulate \verb|ByteString|s.  In other cases, if a type is exported by
+many modules, it may make sense to refactor the imports of the modules
+so that we may declare it in a single signature.
 
 Second, the lack of
 \emph{recursively dependent signatures}~\cite{crary+:recmod-pldi}
