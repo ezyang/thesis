@@ -43,7 +43,12 @@
 % Idea of separate modular development.
 % SMD is not done at package level
 
-Opportunities for modularity are everywhere.
+The essence of modular development is to decompose a program into
+collection of smaller modules separated by abstraction barriers: the
+defining characteristic of a modular program is the ability of a module to
+operate without knowing the implementation details of another.  Modular
+programs are easier to understand; opportunities to reuse modular
+components are everywhere:
 
 \begin{itemize}
     \item Suppose you are writing an application which makes a request to
@@ -69,17 +74,19 @@ Opportunities for modularity are everywhere.
     production implementation.
 \end{itemize}
 %
-To address these use cases, a programming language usually provides some
-facility for organizing a program into a collection of modules and
-\emph{abstracting} over the implementations of these modules, so that
-one implementation of a module can be swapped out for another without
-affecting a client.
+Typically, programming languages provide support for both \emph{incremental
+modular development}, where module can be developed only when implementations
+of its dependencies are available, and \emph{separate modular development},
+where a module can be developed with respect to an \emph{interface}
+and instantiated later.  Haskell's existing module system is a mechanism
+for incremental modular development---it is purely a namespace management
+mechanism with a proper concept of interface---while Haskell's type classes are a
+mechanism for separate modular development.  Separate modular development
+offers more abstraction, as the interface characterizes
+what is needed from a dependency.
 
-In Haskell, modular development is traditionally achieved with
-\emph{type classes}---Haskell's ``module system'' is merely
-a namespace management mechanism without any proper concept of an
-interface.  However, type classes are ill-suited for certain
-applications of modularity:
+Unfortunately, type classes are ill-suited for certain cases of
+separate modular development:
 
 \begin{itemize}
     \item From a code perspective, type class parametric code is often
@@ -87,11 +94,13 @@ applications of modularity:
     Haskeller, the proliferation of constraints and type parameters in the
     type signatures of functions can make an otherwise straightforward
     API impenetrable:\footnote{\url{https://hackage.haskell.org/package/regex-posix-0.95.2/docs/Text-Regex-Posix-Wrap.html}}
-    \begin{lstlisting}
+
+\begin{lstlisting}
     (=~) :: (RegexMaker Regex CompOption ExecOption source,
              RegexContext Regex source1 target)
          => source1 -> source -> target -- from regex-posix-0.95.2
-    \end{lstlisting}
+\end{lstlisting}
+
     Furthermore, type classes work best when exactly a single type
     parameter is involved in instance resolution. If there aren't any type
     parameters, you must introduce a proxy type to drive instance resolution; if
@@ -119,9 +128,9 @@ applications of modularity:
     a program. (C++ templates suffer from similar problems.\footnote{\url{https://gcc.gnu.org/onlinedocs/gcc/Template-Instantiation.html}})
 \end{itemize}
 %
-In short, Haskell would be well served by a proper module system that
-addresses applications of modularity which are currently poorly served
-by type classes and the existing weak module system.
+In short, Haskell would be well served by an extension to its module
+system to support the cases of separate modular development which are
+currently poorly served by type classes.
 
 The Backpack package system by Scott Kilpatrick et al.~\cite{backpack}
 (hereafter called \OldBackpack{}) broke new ground, arguing that \emph{mixin
