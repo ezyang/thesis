@@ -344,39 +344,51 @@ There are a number of things to point out about this signature:
         Reflex also associates this phantom type parameter with
         a class constraint \verb|HasSpiderTimeline|, so we need
         an abstract class \verb|HasTimeline| to abstract over
-        this extra constraint.
+        this extra constraint (we can implement this class using
+        a constraint synonym).
 
     \item Rather than define abstract types for \verb|Event|,
         \verb|Dynamic| and the other associated data families,
         we instead require them to be type synonyms of the
         appropriate data family for our abstract type \verb|Timeline|.
-        A nice property of these synonyms is that
-        \verb|Behavior t|, i.e., \verb|C.Behavior (Timeline t)|
-        is a more specific type than \verb|C.Behavior t|; so if
-        we define an instance for it (as Reflex does),
-        GHC will treat it as a more precise instance and prefer
-        it during instance resolution.
-
-%       This is helpful as it means we can transparently reuse
-%       any classes which refer to these types, so long as they
-%       don't also levy a \verb|Reflex| trait.
+        The benefit of doing things this is way is that we can
+        reuse the existing \verb|MonadHold| and \verb|MonadSample|
+        type classes which don't use the \verb|Reflex|
+        type class directly, but do refer to the associated
+        data families it defines.
 
         In contrast, the type synonym families get abstract
         types, because we need to declare instances on them,
-        and Haskell does not permit type family applications in
-        instances. (This is a perhaps displeasing asymmetry between
-        superclass constraints and explicit instance declarations.)
+        and Haskell unconditionally forbids type family applications in
+        instances.\footnote{GHC Haskell should relax its rule
+        to forbid type family applications which contain free
+        variables, which would be sufficient to avoid undecidability
+        of instance resolution.  See also
+        \url{https://ghc.haskell.org/trac/ghc/ticket/13262}}
 
-    \item In our implementation, a user is required to declare
+    \item In a signature, a user is required to declare
         instances not only for any classes they want to support,
-        but also all of the superclasses of those classes.  We've
-        omitted those superclasses for brevity.
+        but also all of the superclasses of those classes.  For
+        brevity, we've
+        omitted those superclasses.
+
+    \item Inside the module parametrized over this signature,
+        we defined some instances which overlapped with existing
+        instances from the Reflex library.  For example, Reflex
+        defines an instance \verb|instance Reflex t => Behavior t|,
+        which makes use of the \verb|Reflex| type class to provide
+        operations,
+        while we define \verb|instance Behavior (Timeline t)|, which
+        directly makes use of operations from the signature.
+        Fortunately, the second specialized instance is more specific
+        than the first instance, so it is preferred during instance
+        resolution.
 \end{itemize}
 %
 Reflex also has a separate interface, \verb|ReflexHost|, for listening
 to events, which is only supported by the Spider implementation.
 To accommodate this, we created another library which mixed in
-the basic Reflex functionality, but extended the signature with the
+the basic Reflex functionality and extended the signature with the
 extra requirements that were needed.
 
 \section{Replacing build-depends with signatures}
