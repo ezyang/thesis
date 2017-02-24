@@ -166,8 +166,8 @@ manager.  Without tightly coupling GHC (the Haskell compiler) and Cabal
 In this thesis, we show how to refactor
 \OldBackpack{} to respect the abstraction barrier between the package
 manager and the compiler, giving us a new system: \Backpack{}.  In
-particular, we divide \Backpack{} into two parts: \emph{mixin linking},
-which is indifferent to Haskell source code, \emph{typechecking against
+particular, we divide \Backpack{} into two parts: \emph{mixin linking}
+which is indifferent to Haskell source code, and \emph{typechecking against
 interfaces}, which is purely the concern of the compiler.
 
 Specifically, the contributions of this thesis are as follows:
@@ -200,7 +200,7 @@ Specifically, the contributions of this thesis are as follows:
     \item We describe how to typecheck the \emph{\unit{} language} in the
     real world (Section~\ref{sec:compiler}), typechecking the source into semantic objects that
     faithfully reflect the full glory of GHC Haskell's type system.
-    We give a unsound but pragmatic mechanism for supporting \emph{type classes}
+    We give an unsound but pragmatic mechanism for supporting \emph{type classes}
     (it is unsolvable in the presence of open type families), support
     the use of \emph{type synonyms} to implement abstract data
     (not supported by \OldBackpack{}), and describe
