@@ -7,18 +7,19 @@ regular expression matcher taken
 from~\cite{Fischer:2010:PRE:1863543.1863594}, highlighting the main
 features of \Backpack{} as well as introducing some core conceptual
 ideas which will be elaborated upon later in this thesis.  We'll assume
-familiarity with Haskell'98 or an ML-like language, but won't assume you
+familiarity with Haskell'98 or an ML-like language but won't assume you
 know anything about Cabal (Haskell's package management system) or
-\OldBackpack{}~\cite{backpack}.
+\OldBackpack{}~\cite{backpack}.\footnote{For a more copy-paste friendly
+version of this tutorial, please refer to \url{http://blog.ezyang.com/2016/10/try-backpack-ghc-backpack/}}
 
 \section{A simple matcher in '98}
 
 In Figure~\ref{fig:matcher-haskell98}, we reproduce the source code of
-the simple, inefficient regular expression matcher
-from~\cite{Fischer:2010:PRE:1863543.1863594} and a small test program.
-We'll use this code to briefly describe how Haskell's existing module
-and package system works; experienced readers should feel free to skip
-ahead to the next section.
+a simple regular expression matcher
+from Fischer, Huch and Wilke~\cite{Fischer:2010:PRE:1863543.1863594},
+along with a small test program.  We'll use this code to briefly
+describe how Haskell's existing module and package system works;
+experienced readers should feel free to skip ahead to the next section.
 
 \begin{figure}
 \begin{lstlisting}
@@ -66,7 +67,7 @@ Looking at the source code, we can observe a few things:
 \begin{itemize}
     \item The code is organized into two \emph{modules}, each heralded
     by the \verb|module| keyword.  Each module defines types and values
-    within a distinct namespace.  Haskell modules are used purely for
+    within a distinct namespace.  In fact, Haskell modules are used purely for
     namespacing and do not support any sort of hierarchical organization.
 
     \item The \verb|import| keyword is used to bring declarations into
@@ -77,7 +78,7 @@ Looking at the source code, we can observe a few things:
     \verb|String|, etc).
 
     \item The \verb|Regex| module comes with an \emph{export list}
-    \verb|Reg(..), accept)|, which designates which declarations should
+    \verb|(Reg(..), accept)|, which designates which declarations should
     be brought into scope when this module is imported.  The ability to
     omit declarations from an export list (e.g., \verb|splits| and \verb|parts|)
     is one of the primary mechanism by which data abstraction is achieved in
@@ -120,7 +121,7 @@ of these packages is in Figure~\ref{fig:matcher-haskell98}.}
     \item One or more \emph{components} (libraries, executables,
     test-suites, etc.), each of which defines some modules
     (\verb|exposed-modules| and \verb|main-is|) and specifies
-    dependencies on other packages (\verb|build-depends|).
+    dependencies on libraries of other packages (\verb|build-depends|).
     A library exposes modules for other packages to use when
     they \verb|build-depends| on the library, while an
     executable is associated with a particular \verb|hs| file
@@ -131,10 +132,10 @@ of these packages is in Figure~\ref{fig:matcher-haskell98}.}
     \texttt{Prelude} module is in scope.}
 \end{itemize}
 Packages serve as the unit of distribution: a set of modules organized
-into a package can be uploaded to a package repository (e.g., Hackage)
+into a package can be uploaded to a package repository (e.g., Hackage\footnote{\url{https://hackage.haskell.org/}})
 to be shared with other developers.  A \emph{package
 manager} (e.g., cabal-install) automates the process of downloading the source code of all
-packages one depends upon and building them in order.
+packages one needs and building them in dependency order.
 
 \section{Functorizing the matcher}
 
@@ -145,13 +146,13 @@ paper~\cite{Fischer:2010:PRE:1863543.1863594}) is to add a type
 parameter to \verb|Reg|, so that \verb|accept| operates on lists of
 arbitrary symbols rather than just characters.  But this is still not as
 general as the matcher could be; for example,
-\verb|ByteString| is not a list but a packed array of bytes; here,
-we also need to be parametric in the string type itself.
+\verb|ByteString| is not a list but a packed array of bytes.
+We can only support \verb|ByteString| if we are also parametric in the string type itself.
 
 In this case, we can use \Backpack{} to functorize our matcher over an
 arbitrary string and element type.  To do this, we create a new
 signature named \verb|Str|, which provides abstract string and element
-types, and all operations our matcher needs to have supported for it.
+types, and all the string operations our matcher requires.
 The resulting signature and module can be seen in
 Figure~\ref{fig:matcher-regex-indef-source}, alongside a module which
 implements the string signature.
@@ -191,15 +192,17 @@ accept (Rep r)   u = or [and [accept r ui | ui <- ps] | ps <- parts u]
 \end{figure}
 
 Because the original source code of the matcher was not written with
-this functorization in mind, the \verb|Regex| had to be modestly
-refactored to treat \verb|Str| abstractly.  This included replacing the
+this functorization in mind, the \verb|Regex| module must be modestly
+refactored to treat \verb|Str| abstractly.  We replaced the
 use of list operations \verb|null| and \verb|[c]| with abstract
-functions, as well as deleting the implementations of \verb|splits| and
+functions and deleted the implementations of \verb|splits| and
 \verb|parts|, deferring them to the signature implementation.  However,
 no invasive changes---e.g., adding new type parameters or passing new
 arguments---were necessary.  The new Cabal file for this signature and
 module, seen in Figure~\ref{fig:matcher-regex-indef-cabal}, needs only
 to declare \verb|Str| in the \verb|signatures| field.
+The new \verb|regex-indef| package can be typechecked without an
+implementation of \verb|Str|.
 
 \begin{figure}
 \begin{lstlisting}[language=Cabal]
@@ -215,15 +218,12 @@ module parametrized by string implementation.}
 \label{fig:matcher-regex-indef-cabal}
 \end{figure}
 
-The new \verb|regex-indef| package can be typechecked, even though no
-implementation of \verb|Str| is provided (as one would expect under
-separate modular development).
-
 \section{An implementation of Str}
 
 Before we instantiate \verb|regex-indef|, we will need an implementation
 of the \verb|Str| signature.  Figure~\ref{fig:matcher-str-string-source}
-provides one such implementation.
+provides one such implementation (the implementations of \verb|splits| and
+\verb|parts| are copy-pasted from Figure~\ref{fig:matcher-haskell98}).
 
 \begin{figure}
 \begin{tabular}{p{0.55\textwidth} p{0.40\textwidth}}
@@ -253,15 +253,17 @@ library
 \label{fig:matcher-str-string-source}
 \end{figure}
 
-The \verb|...| is a placeholder for the implementations \verb|splits|
-and \verb|parts| from Figure~\ref{fig:matcher-haskell98}. One thing to
+One thing to
 note is that we must declare \verb|null| and \verb|singleton| with
 explicit type signatures, as signature matching in Haskell requires two
 declarations to have exactly the same type: the polymorphic function
 \verb|[a] -> Bool| is not considered a valid implementation of
-\verb|[Char] -> Bool|.  Signatures in Backpack are width-subtyped, so
-\verb|Str.String| could also contain more exported functions, and still
-be considered to implement \verb|Str|.
+\verb|[Char] -> Bool|. \Red{Discuss what would be involved with
+better subtyping.}
+
+%   Signatures in Backpack are width-subtyped, so
+%   \verb|Str.String| could also contain more exported functions and still
+%   be considered to implement \verb|Str|.
 
 %   In practice, the current convention in the Haskell community when
 %   defining new modules is to pick a new name.  Thus, it's more likely
@@ -270,16 +272,16 @@ be considered to implement \verb|Str|.
 
 \section{Instantiating the matcher}
 
-How do we actually go about instantiating our matcher with the
+How do we instantiate our matcher with the
 implementation of Str from Figure~\ref{fig:matcher-str-string-source}?
 In a traditional, ML module system, there would be a module language for
 expressing how to instantiate a functor.
 In \Backpack{}, a client instantiates a package by bringing its
-requirements into scope with another module under the same name.  A
-module and signature with the same name are \emph{mix-in linked}
-together.  For example, the executable \verb|regex-program| uses the
+requirements into scope with another module under the same name,
+as seen in the package description in Figure~\ref{fig:matcher-functorized-packages}.  Here, the executable \verb|regex-program| uses the
 \verb|mixins| field to rename the module from \verb|str-string| to the
-same name as \verb|regex-indef|'s signature.%
+same name as \verb|regex-indef|'s signature; when a module and
+a signature have the same name, they are \emph{mix-in linked} together.%
 %
 \footnote{Why didn't \texttt{str-string} just export
 a module named \texttt{Str}?  The prevailing convention in the Haskell
@@ -304,11 +306,11 @@ Regex into scope instantiated with the \texttt{Str} implementation from \texttt{
 \end{figure}
 
 What actually happens when mix-in linking takes place?  There are two very useful
-ways to understand the process.  First, in Figure~\ref{fig:regex-indef-instantiated}, we
+ways to understand the process.  In Figure~\ref{fig:regex-indef-instantiated}, we
 \emph{pictorially} represent each depended upon library as a block, with input and output
 ports representing signatures and modules respectively.  Intuitively, the process
-of mix-in linking involves ``wiring up'' these signatures and modules based on the
-names they have been ascribed.
+of mix-in linking involves ``wiring up'' these signatures and modules by matching
+up names which are the same.
 
 \begin{figure}
 \center%
@@ -321,13 +323,13 @@ and provisions which have the same module name.}
 \label{fig:regex-indef-instantiated}
 \end{figure}
 
-Second, we can consider an intermediate representation of the package language
+We can also consider an intermediate representation of the package language
 \emph{after} mix-in linking,
 as in Figure~\ref{fig:matcher-bkp}, where every dependency on another library
 is given an \emph{explicit instantiation} specifying how all of its requirements
-are filled; we will call this the \emph{syntactic} interpretation of
-the package description. The name of the library plus an instantiation is referred
-to as a \emph{\uid{}}.  In the case of \verb|regex-indef|, the
+are filled---a \emph{syntactic} interpretation of
+the package description. We can identify a library plus an instantiation by
+specifying a \emph{\uid{}}.  In the case of \verb|regex-indef|, the
 \uid{} indicates that the requirement \verb|Str| is to be filled
 with the module \verb|Str.String| from the library \verb|str-string|.\footnote{In
 fact, GHC 8.2 comes with a mode for directly parsing and compiling this intermediate
@@ -356,7 +358,7 @@ compiles uninstantiated components to machine code, no cross-package
 inlining can occur, since the component is compiled only against a
 signature and not against the code that implements the signature.  For
 Haskell and GHC, cross-module inlining is a major contributor to
-performance, so our implementation of \Backpack{} does \emph{not}
+performance~\cite{PeytonJones:2002:SGH:968417.968422}, so our implementation of \Backpack{} does \emph{not}
 separately compile uninstantiated packages. Instead, every distinct
 instantiation of a component is compiled against the code that
 implements its requirements. This process is managed by Cabal to avoid
@@ -417,6 +419,18 @@ all appropriate references in the Cabal file.  However, we can also use
 both instantiations at the same time by specifying \verb|regex-indef|
 twice in \verb|mixins|, as seen in the Cabal file in
 Figure~\ref{fig:regex-program-multi}.
+This example operates a bit differently than our previous examples:
+instead of renaming the module from \verb|str-string| to be \verb|Str|,
+we instead rename the \emph{requirement} from \verb|regex-indef| to
+\verb|Str.String| and \verb|Str.ByteString|.  This gives us two copies
+of \verb|regex-indef|: one with \verb|Str| filled with
+\verb|Str.String|, and the other with \verb|Str| filled with
+\verb|Str.ByteString|.  To distinguish the provided modules of each
+instance, we rename them to two distinct names which \verb|Main|
+can import independently.  We can visualize these two instantiations
+diagramatically, as in Figure~\ref{fig:regex-indef-twice}, or
+we can look at the intermediate representation of the package language
+after mixin linking, as in Figure~\ref{fig:matcher-twice-bkp}.
 
 \begin{figure}
 \begin{lstlisting}[language=Cabal]
@@ -434,17 +448,6 @@ Regex into scope instantiated with the \texttt{Str} implementation from \texttt{
 \label{fig:regex-program-multi}
 \end{figure}
 
-Instead of renaming the module from \verb|str-string| to be \verb|Str|,
-we instead rename the \emph{requirement} from \verb|regex-indef| to
-\verb|Str.String| and \verb|Str.ByteString|.  This gives us two copies
-of \verb|regex-indef|: one with \verb|Str| filled with
-\verb|Str.String|, and the other with \verb|Str| filled with
-\verb|Str.ByteString|.  To distinguish the provided modules of each
-instance, we rename them to two distinct names which \verb|Main|
-can import independently.  We can visualize these two instantiations
-diagramatically, as in Figure~\ref{fig:regex-indef-twice}, or
-we can look at the intermediate representation of the package language
-after mixin linking, as in Figure~\ref{fig:matcher-twice-bkp}.
 
 \begin{figure}
 \center\includegraphics{figures/regex-indef-twice.pdf}
@@ -474,13 +477,14 @@ unit regex-program where
 An important subtlety arises in this situation.  Ordinarily, two types
 are considered equivalent if they have the same \emph{identity}: an
 identity consists of both the name of the type and the name of the
-module which originally defined the type.  Consider the \verb|Reg| type,
-which refers to \verb|Chr|: the identity of \verb|Reg| must somehow
+module which originally defined the type.  Previously, we could
+uniquely identify a type based on what module it was defined in,
+but with \Backpack{},the identity of \verb|Reg| must somehow
 depend on how we decided to implement \verb|Chr|: a \verb|Reg|
 containing a \verb|Char| is very different from a \verb|Reg| containing
 a \verb|Word8|.
 
-In fact, \Backpack{} takes a conservative approach to determining the
+\Backpack{} takes a conservative approach to determining the
 identity of a type: it computes the type identities of all identifiers
 defined in a package based on the identities of the modules that fill
 the signatures of the package.  Diagramatically, the identity
@@ -532,11 +536,11 @@ As before, Figure~\ref{fig:signature-merging-interp} illustrates the
 pictorial and syntactic interpretations of this merging process.  It's
 worth pointing out that in the syntactic interpretation, the first
 occurrence of \verb|<Str>| is a binding occurrence for the subsequent
-occurrences of \verb|<Str>| in the body of the unit.  The implementation
-of \verb|Str| for \verb|r| ``flows'' to also implement the requirements
-of \verb|p| and \verb|q|; conversely, the specific required entities
-from the signatures of \verb|p| and \verb|q| flow back to form \verb|r|'s
-merged requirement.%
+occurrences of \verb|<Str>| in the body of the unit.  The
+\verb|Str| required by \verb|r| is used to instantiate the requirements
+of \verb|p| and \verb|q|. However, it is not necessary to write the
+signature of \verb|r| from scratch: instead, we compute it automatically
+by merging the requirements of \verb|p| and \verb|q|.%
 %
 \footnote{In the package description, it's not necessary to declare \texttt{Str}
 in the \texttt{signatures} field, as it can be inferred from the requirements
@@ -573,9 +577,7 @@ matching, say, e-mails, which you wanted to build atop of
 \texttt{regex-indef}.  In particular, you want to keep the particular
 \emph{string} representation (\verb|Str|) abstract, but you want
 to assert that, whatever string it is, it consists of Unicode
-characters (\verb|Char|).  With ML modules, you would have to take
-advantage of another feature such as ``destructive substitution''
-to apply this assertion to an existing signature.  In \Backpack{}, you
+characters (\verb|Char|).  In \Backpack{}, you
 write a small signature to link with the existing signature:
 
 \begin{lstlisting}
@@ -592,45 +594,44 @@ expressions (e.g., \verb|Rep (Alt (Sym 'a') (Sym 'b'))|) from
 Previously, this would not have been possible, because the
 abstract type \verb|Chr| was considered distinct from \verb|Char|.
 
-%   \section{Reusing and thinning signatures}
+\section{Reusing and thinning signatures}
 
-%   For applications more complex than a regular expression matcher, the set
-%   of operations one might need from a string implementation will expand
-%   correspondingly.  In such a case, there will be less code duplication if
-%   a signature for strings is written once and then reused packages that
-%   need it.
+For applications more complex than a regular expression matcher, the set
+of operations one might need from a string implementation will expand
+correspondingly.  In such a case, there will be less code duplication if
+a signature for strings is written once and then reused packages that
+need it.
 
-%   A signature can be straightforwardly packaged into a library, simply
-%   by declaring a library with one or more signatures, but no modules.
-%   We call such packages \emph{signature packages}:
+A signature can be straightforwardly packaged into a library, simply
+by declaring a library with one or more signatures, but no modules.
+We call such packages \emph{signature packages}:
 
-%   \begin{lstlisting}[language=Cabal]
-%       name: str-sig
-%       version: 1.0
-%       library
-%           signatures: Str
-%           build-depends: base
-%   \end{lstlisting}
+\begin{lstlisting}[language=Cabal]
+    name: str-sig
+    version: 1.0
+    library
+        signatures: Str
+        build-depends: base
+\end{lstlisting}
 
-%   \noindent
-%   In fact, \Backpack{} treats such signature packages specially.
-%   Ordinarily, a required signatures cannot be thinned: if you are using a
-%   package that requires \verb|null :: Str -> Bool|, you must \emph{always}
-%   provide that entity (since it may be used to implement some provided
-%   function which you are making use of).  However, this is never the case
-%   for a signature package; an entity declared in a signature here is only
-%   ever used in the types of another package.  So \Backpack{} permits you
-%   to thin requirements of signature packages by specifying an explicit
-%   export list in the local signature, as long as all of the types which
-%   are mentioned in any of the remaining requirements are also preserved.
-%   For example, the following signature would thin any inherited signatures
-%   from signature packages to just require \verb|Str|, \verb|null| and
-%   \verb|empty|.
+\noindent
+In fact, \Backpack{} treats such signature packages specially.
+Ordinarily, a required signatures cannot be thinned: if you are using a
+package that requires \verb|null :: Str -> Bool|, you must \emph{always}
+provide that entity (since it may be used to implement some provided
+function which you are making use of).  However, this is never the case
+for a signature package; an entity declared in a signature here is only
+ever used in the types of another package.  So \Backpack{} permits you
+to thin requirements of signature packages by specifying an explicit
+export list in the local signature, as long as all of the types which
+are mentioned in any of the remaining requirements are also preserved.
+For example, the following signature would thin any inherited signatures
+from signature packages to just require \verb|Str|, \verb|null| and
+\verb|empty|.
 
-%   \begin{lstlisting}
-%       signature Str (Str, null, empty) where
-%           {- empty -}
-%   \end{lstlisting}
+\begin{lstlisting}
+    signature Str (Str, null, empty) where {- empty -}
+\end{lstlisting}
 
 %%% Local Variables:
 %%% mode: latex

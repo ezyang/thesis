@@ -86,7 +86,7 @@ applications of modularity:
     harder to use than monomorphic code.  For an inexperienced
     Haskeller, the proliferation of constraints and type parameters in the
     type signatures of functions can make an otherwise straightforward
-    API impenetrable:\footnote{\url{https://hackage.haskell.org/package/regex-posix-0.95.2/docs/Text-Regex-Posix-Wrap.html#v:-61--126-}}
+    API impenetrable:\footnote{\url{https://hackage.haskell.org/package/regex-posix-0.95.2/docs/Text-Regex-Posix-Wrap.html}}
     \begin{lstlisting}
     (=~) :: (RegexMaker Regex CompOption ExecOption source,
              RegexContext Regex source1 target)
@@ -135,53 +135,54 @@ The two words ``mixin'' and ``package'' capture the key properties of \OldBackpa
     the same name.  Unlike the more conventional approach of
     \emph{parametrized} modules (ala ML~\cite{milner+:def-of-sml-revised}),
     mixin modules natively support recursive linking.
-    Furthermore, mixins help avoid
+    Furthermore, mixins help reduce
     the preponderance of \emph{sharing constraints} that occur with ML
-    functors, since requirements can be mixed together by name.  (Appendix~\ref{sec:mixins-in-ocaml})
+    functors, since requirements can be mixed together by name.
+    (For more discussion on this, see Appendix~\ref{sec:mixins-reduce-sharing-constraints})
 
     \item \emph{Packages}. Rather than introduce a new module language
     to the compiler, \OldBackpack{} proposed that mixins be added to
-    Haskell's package system, allowing us to retrofit Haskell with
-    a package language without requiring ``yet another type system extension.''
-    After all, ``modularity matters most''~\cite{mmm} for software development in
-    the large, and what is the universal organizing principle for large
-    software systems but the package?  Because packages can be easily
-    parametrized, \OldBackpack{} lets users write code naturally, without
-    adopting the ``fully-functorized'' style
+    Haskell's package system.  There are multiple benefits to this choice.
+    First, it allows us to retrofit Haskell to support separate modular
+    development without requiring ``yet another type system extension.''
+    Second, it means that Haskell code can be made more
+    modular without having to adopt the ``fully-functorized'' style~\cite{structabshotlang}
     commonly associated with ML functors.
+    Finally, it brings modularity to the place where it matters most:
+    software development in the large;  after all, \emph{packages} are how
+    software systems are organized at the largest scale.
 \end{itemize}
 %
-There is just one problem: despite its emphasis on being a practical
-design, \OldBackpack{} cannot be implemented in a real world compiler
-like GHC\@.  Why not? The problem is that the
+There was just one problem: despite its emphasis on being a practical
+design, \OldBackpack{} could not be implemented in a real world compiler
+like GHC\@.  Why not? The
 semantics of \OldBackpack{}, especially its package-level semantics,
 were closely entwined with the semantics of Haskell itself,  violating
 the traditional abstraction barrier between the compiler and package
 manager.  Without tightly coupling GHC (the Haskell compiler) and Cabal
-(the Haskell package manager), there is no way to implement
+(the Haskell package manager), there was no way to directly implement
 \OldBackpack{}.
 
 In this thesis, we show how to refactor
 \OldBackpack{} to respect the abstraction barrier between the package
-manager and the compiler; we call our system \Backpack{}.  In
+manager and the compiler, giving us a new system: \Backpack{}.  In
 particular, we divide \Backpack{} into two parts: \emph{mixin linking},
-which is indifferent to Haskell source code, and the problem of
-\emph{typechecking against interfaces}, which is purely the concern of
-the compiler.
+which is indifferent to Haskell source code, \emph{typechecking against
+interfaces}, which is purely the concern of the compiler.
 
-Specifically, our contributions are as follows:
+Specifically, the contributions of this thesis are as follows:
 \begin{itemize}
 
     \item We describe a package language which can be \emph{mixin
     linked} without knowing anything about the Haskell programming
     language. (Section~\ref{sec:mix-in})  This gives us a language agnostic mechanism for
     expressing separate modular development, in contrast to
-    \OldBackpack{}, which relies on critically on the import structure
-    of Haskell modules in its semantics.  As a result, \Backpack{}
+    \OldBackpack{}, whose semantics relies on critically on the import structure
+    of Haskell modules.  As a result, \Backpack{}
     employs a far simpler mixin linking procedure essentially equivalent
     to early descriptions of mixin linking in the literature.~\cite{cardelli:linksets}
     In doing so, we adjust \OldBackpack{}'s primary technical device,
-    the \emph{module identity} into a new concept, the \emph{unit identity},
+    the \emph{module identity} into a new concept, the \emph{unit identity} (Section~\ref{sec:uid}),
     which can be computed by language agnostic mixin linking.
     Our new package language is order-independent, which is
     essential for backwards-compatibility with Haskell's existing
@@ -189,34 +190,34 @@ Specifically, our contributions are as follows:
 
     \item To express the results of mixin linking, we introduce the
     \emph{\unit{} language}, an intermediate representation that
-    represents all instantiations explicitly.  This language is
+    represents all instantiations explicitly.  This language is reminiscent of
     ML-style applicative functors, but with a twist:
     unfilled requirements of dependency are propagated to the requirements
     of the enclosing package via the process of \emph{signature merging}.
-    The effect is that \Backpack{}, as a whole, has the same overall
-    semantics that were pioneered by \OldBackpack{}.
+    The effect is that \Backpack{}, as a whole, has similar
+    semantics to the ones that were pioneered by \OldBackpack{}.
 
-    \item We describe how to typecheck \emph{\unit{} language} in the
+    \item We describe how to typecheck the \emph{\unit{} language} in the
     real world (Section~\ref{sec:compiler}), typechecking the source into semantic objects that
-    faithfully reflect the full glory of GHC Haskell's surface syntax.
-    We give a pragmatic workaround for the \emph{type classes} problem
-    (it is unsolvable in the presence of open type families) and support
+    faithfully reflect the full glory of GHC Haskell's type system.
+    We give a unsound but pragmatic mechanism for supporting \emph{type classes}
+    (it is unsolvable in the presence of open type families), support
     the use of \emph{type synonyms} to implement abstract data
-    (something that was not supported by \OldBackpack{}).
+    (not supported by \OldBackpack{}), and describe
+    some tricky interactions with GHC's type inference algorithm and
+    roles annotations.
 
     \item This is not a paper design: Backpack has been fully
     implemented in the upcoming GHC 8.2 and cabal-install 2.0 releases.
-    We describe how to modify GHC to
+    We give a tour of the modifications we made to GHC to
     implement the necessary instantiation and merging operations
     required by the \unit{} language, as well as the architectural
     changes that were necessary in Cabal (the package manager)
     to orchestrate the typechecking and building of the mixin
     packages. (Section~\ref{sec:implementation})
 
-    Does \Backpack{} work?
-    The true test of \Backpack{} would be
-    ``Backpack''ing in the wild and seeing how the wider community
-    uses it, we have done a number of case studies to give evidence
+    \item Does \Backpack{} work?
+    We have done a number of case studies to give evidence
     that \Backpack{} works, including conversions of complex,
     real-world packages to use \Backpack{}. (Section~\ref{sec:evaluation})
 
