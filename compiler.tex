@@ -25,7 +25,10 @@ correspond closely to the top-level declarations supported by
 Haskell's syntax, but with a few key differences: first, every
 identifier is resolved to an \emph{original name} ($N$) which identifies
 the exact module that holds the declaration describing this identifier;
-second, all declarations are explicitly typed and kinded.
+second, all declarations are explicitly annotated with types ($\tau$), kinds ($\kappa$) and
+roles ($\rho$).\footnote{Type families are not annotated with roles, because their
+type parameters are always at nominal role.}  If the kinds or roles are not
+relevant to a judgment, we may elide them.
 
 The most important semantic object is the module type ($T$).  A module
 type consists of four components:
@@ -44,8 +47,8 @@ type consists of four components:
     each declaration in a module has a unique occurrence name
     (e.g., $\Utys(n) = \Uty$).
 
-    \item A set of instances ($\Uinsts$), which specifies the type class
-    instances defined in this module.
+    \item A set of instances ($\Uinsts$), which specifies the class
+    and family instances defined in this module.
 
     \item The set of modules transitively imported by this module
     ($\Uimps$), which controls the set of \emph{orphan instances}
@@ -400,15 +403,113 @@ there is no $\Uimps' \supseteq \Uimps$ rule in the judgment; furthermore, when
 considering instance solvability, we bring into scope both orphans from the
 signature as well as the module.
 
-\paragraph{Declaration subtyping}
+\paragraph{Declaration subtyping and pre-subtyping}
 In our presentation, declaration subtyping is organized in a subtyping
 relation (\textsc{SubDecl}) and a pre-subtyping relation: the subtyping
-relation tests if the kinds of the declarations are equal, and then
-defers to the pre-subtyping relation for case-by-case subtyping on each
-different type of declaration.  The non-reflexive rules are boxed,
-and specify which declarations can validly implement abstract data,
-classes and closed type families.
+relation tests if the kinds of the declarations are equal and the roles
+are compatible, and then defers to the pre-subtyping relation for
+case-by-case subtyping on each different type of declaration.  The
+non-reflexive rules are boxed, and specify which declarations can
+validly implement abstract data, classes and closed type families.
 
+\paragraph{Subroling, subtyping and representational injectivity}
+The condition on roles in \textsc{SubDecl} is quite interesting:
+it states that if $\Uty'$ is \emph{representationally injective},
+to show that $\Uty \le \Uty'$,
+is sufficient to show that $\overline{\rho'_i \le \rho_i}$: i.e.,
+the roles of the supertype are subroles of the subtype.
+Subroling, whose definition we inherit from~\cite{Breitner:2014:SZC:2692915.2628141},
+is oriented in the opposite direction of the subtyping relation.
+
+To explain why the rule is setup this way, we first have to briefly
+explain
+the function of roles in Haskell.  In Haskell, there are two notions of
+equality: nominal equality and representational equality.\footnote{There is also
+a third notion, phantom equality, which is degenerate: all types are phantom
+equal to all other types.}  Nominal
+equality is the traditional notion of type equality, whereas
+representational equality specifies when the underlying representation
+of a type are equal.  Nominal equality implies representational
+equality, but a \verb|newtype| can introduce a nominal distinction between
+two types without changing the underlying representation. If I declare
+\verb|newtype Age = Age Int|, I now have a representational equality
+between \verb|Age| and \verb|Int| (written as $\texttt{Age}
+\sim_\textsf{R} \texttt{Int}$), but no nominal equality (written as $\texttt{Age}
+\not\sim_\textsf{N} \texttt{Int}$).
+
+Roles are associated with the type parameters of type constructor and
+are used in two ways:
+
+\begin{enumerate}
+    \item \emph{Application.} If we would like to show $\texttt{T}~\tau \sim_\textsf{R}
+    \texttt{T}~\sigma$, we must show that $\tau \sim_\rho \sigma$, where
+    $\rho$ is the \emph{role} of the parameter of the type constructor
+    \verb|T|.  A data type like \verb|data T a = T a| will have its parameter
+    at representational role, since you only require $\tau \sim_R
+    \sigma$, while a data type that uses a type family to match on
+    nominal identity of the type parameter will have nominal role,
+    requiring us to show that $\tau \sim_N \sigma$.
+
+    \item \emph{Decomposition.}  If we know that $\texttt{T}~\tau \sim_\textsf{R}
+    \texttt{T}~\sigma$, we can infer that $\tau \sim_\rho \sigma$ (where $\rho$
+    is the role of the parameter of the type constructor),
+    but only if \verb|T| is \emph{representationally injective}.  Data types
+    are representationally injective, but newtypes are not: if you
+    have \verb|newtype T a = MkT Int|,
+    we have $\texttt{T}~\tau \sim_\textsf{R} \texttt{Int}$ for any $\tau$,
+    even if the type parameter of \verb|T| is declared
+    to be nominal.  In this case,
+    it would be unsound to assume that given
+    $\texttt{T}~\tau \sim_\textsf{R} \texttt{T}~\sigma$, $\tau \sim_\textsf{N} \sigma$ holds!
+\end{enumerate}
+%
+Roles follow a subroling relationship, which specifies that if you have
+a data type which a type parameter with role $\rho$, it is valid to
+replace the role with a role $\rho'$, where $\rho' \le \rho$; for example,
+even though \verb|data T a = T a| is representational in its first
+argument by default, we can explicitly override it to be nominal in its
+first argument, since $\textsf{N} \le \textsf{R}$.  Do subroles induce
+a supertyping relationship?  If we consider only \emph{applications}, it would
+seem this should be the case:
+
+\vspace{-1em}
+\begin{figure}[H]
+\begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+\begin{lstlisting}
+signature A where
+    type role T nominal
+    data T a
+\end{lstlisting}
+&
+\begin{lstlisting}
+module A where
+    type role T representational
+    data T a = MkT a
+\end{lstlisting}
+\end{tabular}
+\end{figure}
+\vspace{-1em}
+%
+\noindent
+Under the signature, given $\tau \sim_\textsf{N} \sigma$, we can infer
+$\texttt{T}~\tau \sim_\textsf{R} \texttt{T}~\sigma$; however,
+$\tau \sim_\textsf{R} \sigma$ would not be sufficient.
+Under the module, both conditions are sufficient to infer
+$\texttt{T}~\tau \sim_\textsf{R} \texttt{T}~\sigma$: thus,
+more programs typecheck when a type argument is at representational role
+than when is at a nominal role.
+
+However, with decompositions, the opposite holds. Suppose that \verb|T|
+were representationally injective: under the signature, given
+$\texttt{T}~\tau \sim_\textsf{R} \texttt{T}~\sigma$, we could
+show $\tau \sim_\textsf{N} \sigma$; we could \emph{not} infer
+this under the module.
+Fortunately, abstract data is \emph{not}
+representationally injective (Figure~\ref{fig:representational-injectivity}), as it can be implemented via
+a newtype (\textsc{SubNewtypeAbsData} in Figure~\ref{typing:subtyping}),
+so this counterexample does not hold.
+
+\paragraph{Subtyping synonyms}
 The subtyping rules for type synonyms (\textsc{SubTypeAbsData} and
 \textsc{SubTypeAbsClass}) are worth extra comment, because the implementing
 type synonyms are required to be \emph{nullary}: for example, \verb|type M a = a|

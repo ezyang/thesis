@@ -1,4 +1,13 @@
 \begin{figure}
+\fbox{\textbf{Subroling:} $\rho \le \rho$}
+\[
+\textsf{N} \le \rho \qquad \rho \le \textsf{P} \qquad \rho \le \rho
+\]
+\caption{Subroling.}
+\label{fig:subroling}
+\end{figure}
+
+\begin{figure}
 \fbox{\textbf{Kinding:} $\Uty :: \kappa$}
 
 \[
@@ -11,12 +20,47 @@
 \\
 \texttt{class}~n~\overline{(a_i :: \kappa_i)} ~[\textsf{where}~ \I{clinfo}] &::& \overline{\kappa_i} \rightarrow \textsf{Constraint} & \textsc{(KClass)}
 \\
-\texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~[\texttt{where ..} \,|\, \I{tfinfo}] &::& \overline{\kappa_i} \rightarrow \kappa & \textsc{(KClosedTF)}
+\texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~[\texttt{where}~(\texttt{..} \,|\, \I{tfinfo})] &::& \overline{\kappa_i} \rightarrow \kappa & \textsc{(KTypeFam)}
 \\
-\texttt{type family}~n~\overline{(a_i :: \kappa_i)} &::& \overline{\kappa_i} \rightarrow \kappa & \textsc{(KTF)}
+\texttt{data family}~n~\overline{(a_i :: \kappa_i)} :: \kappa &::& \overline{\kappa_i} \rightarrow \kappa & \textsc{(KDataFam)}
 \\
 n :: \tau &::& \star & \textsc{(KVal)}
 \end{array}
 \]
-\caption{Defined entity kinding, where $\overline{\kappa_i} \rightarrow \kappa$ is interpreted as $\kappa_1 \rightarrow \kappa_2 \rightarrow \cdots \rightarrow \kappa$.  Note that no context is needed as the kind is fully encoded in declaration.}
+\caption{Defined entity kinding, where $\overline{\kappa_i} \rightarrow \kappa$ is interpreted as $\kappa_1 \rightarrow \kappa_2 \rightarrow \cdots \rightarrow \kappa$.}
+\end{figure}
+
+\begin{figure}
+\fbox{\textbf{Roles:} $\ctx \vdash \textsf{roles}(\Uty) = \overline{\rho}$}
+\[
+\begin{array}{lcl}
+\ctx \vdash \textsf{roles}( \texttt{data}~n~\overline{(a ::_\rho \kappa)}~[\texttt{where}~\I{dinfo}] )&=&\overline{\rho} \\
+\ctx \vdash \textsf{roles}( \texttt{class}~n~\overline{(a ::_\rho \kappa)}~[\texttt{where}~\I{clinfo}] )&=&\overline{\rho} \\
+\ctx \vdash \textsf{roles}( \texttt{type family}~n~\overline{(a :: \kappa)}~[\texttt{where}~(\texttt{..} \,|\, \I{tfinfo})]  )&=&\overline{\textsf{N}} \\
+\ctx \vdash \textsf{roles}( \texttt{data family}~n~\overline{(a :: \kappa)}  )&=&\overline{\textsf{N}} \\
+\ctx \vdash \textsf{roles}( \texttt{newtype}~n~\overline{(a ::_\rho \kappa)} = \I{ntinfo} )&=&\overline{\rho} \\
+\ctx \vdash \textsf{roles}( n :: \tau )&=&\varnothing \\
+\end{array}
+\]
+\[
+\frac{
+\ctx \vdash N : \Uty \qquad
+\ctx \vdash \textsf{roles}(\Uty) = \overline{\rho'_i}~\overline{\rho'_j}
+}{
+\ctx \vdash \textsf{roles}( \texttt{type}~n~\overline{(a ::_\rho \kappa)} :: \kappa = N~\overline{\tau_i} ) = \overline{\rho}~\overline{\rho'_j}
+}
+\]
+\caption{Roles of declarations.  Value declarations do not have roles.}
+\end{figure}
+
+\begin{figure}
+\fbox{\textbf{Representational injectivity:} $\textsf{inj}(\Uty)$}
+\[
+\begin{array}{l}
+\textsf{inj}( \texttt{data}~n~\overline{a}~\texttt{where}~\I{dinfo} ) \\
+\textsf{inj}( \texttt{data family}~n~\overline{a} ) \\
+\end{array}
+\]
+\caption{A type constructor is representationally injective if given $\texttt{T}~\overline{\tau_i} \sim_\textsf{R} \texttt{T}~\overline{\sigma_i}$, then $\overline{\tau_i \sim_{\rho_i} \sigma_i}$, where $\rho_i$ is the role of the $i$th type parameter.  This is only true for \emph{non-abstract} data types and data families.}
+\label{fig:representational-injectivity}
 \end{figure}

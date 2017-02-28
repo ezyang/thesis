@@ -36,6 +36,12 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 \ctx \vdash N : \Uty \qquad
 \Uty :: \kappa \qquad
 \Uty' :: \kappa' \\
+\ctx \vdash \textsf{roles}(\Uty) = \overline{\rho_i} \qquad
+\ctx \vdash \textsf{roles}(\Uty') = \overline{\rho'_i} \qquad
+\\
+\textrm{if}~\textsf{inj}(\Uty')
+    ~\textrm{then}~ \overline{\rho'_i = \rho_i}
+    ~\textrm{else}~ \overline{\rho'_i \le \rho_i} \\
 \ctx \vdash \kappa =_\mathsf{hs} \kappa' \qquad
 \ctx \vdash \Uty \le_\textsf{pre} \Uty'
 \end{array}
@@ -44,27 +50,33 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 }
 \quad(\textsc{SubDecl})
 \]
+\end{figure}
 
+\begin{figure}
 \fbox{\textbf{Declaration pre-subtyping:} $\ctx \vdash \Uty \le_\textsf{pre} \Uty$}
 
 \[
-\ctx \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{data}~n~\overline{a_i} \le_\textsf{pre} \texttt{data}~n~\overline{a_i}
 \quad(\textsc{SubAbsData})
 \]
 \[
-\ctx \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{class}~n~\overline{a_i} \le_\textsf{pre} \texttt{class}~n~\overline{a_i}
 \quad(\textsc{SubAbsClass})
 \]
 \[
 \begin{array}{c}
-\ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~\texttt{where ..} \\
-\qquad\qquad\le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)} :: \kappa' ~\texttt{where ..}
+\ctx \vdash \texttt{type family}~n~\overline{a_i} ~\texttt{where ..}
+\le_\textsf{pre} \texttt{type family}~n~\overline{a_i} ~\texttt{where ..}
 \end{array}
 \quad(\textsc{SubAbsClosedTF})
 \]
 \[
-\ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} \le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{type family}~n~\overline{a_i} \le_\textsf{pre} \texttt{type family}~n~\overline{a_i}
 \quad(\textsc{SubOpenTF})
+\]
+\[
+\ctx \vdash \texttt{data family}~n~\overline{a_i} \le_\textsf{pre} \texttt{data family}~n~\overline{a_i}
+\quad(\textsc{SubDataFam})
 \]
 
 % Only slightly non-trivial pre-subtyping relations
@@ -130,11 +142,11 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 
 \begin{mdframed}
 \[
-\ctx \vdash \texttt{data}~n~\overline{(a_i :: \kappa_i)} ~\texttt{where}~ \I{dinfo} \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{data}~n~\overline{a_i} ~\texttt{where}~ \I{dinfo} \le_\textsf{pre} \texttt{data}~n~\overline{a_i}
 \quad(\textsc{SubDataAbsData})
 \]
 \[
-\ctx \vdash \texttt{newtype}~n~\overline{(a_i :: \kappa_i)} :: \kappa = \tau \le_\textsf{pre} \texttt{data}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{newtype}~n~\overline{a_i} = \tau \le_\textsf{pre} \texttt{data}~n~\overline{a_i}
 \quad(\textsc{SubNewtypeAbsData})
 \]
 % Nullary type synonym!
@@ -142,22 +154,26 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 \frac{
 \ctx \vdash \tau ~\textsf{has no type family applications}
 }{
-\ctx \vdash \texttt{type}~n :: \kappa = \tau \le_\textsf{pre} \texttt{data}~n~\overline{a_i :: \kappa'_i}
+\ctx \vdash \texttt{type}~n = \tau \le_\textsf{pre} \texttt{data}~n~\overline{a_i}
 }
 \quad(\textsc{SubTypeAbsData})
 \]
 \[
-\ctx \vdash \texttt{class}~n~\overline{(a_i :: \kappa_i)}~\texttt{where}~ \I{clinfo} \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
+\ctx \vdash \texttt{class}~n~\overline{a_i}~\texttt{where}~ \I{clinfo} \le_\textsf{pre} \texttt{class}~n~\overline{a_i}
 \quad(\textsc{SubClassAbsClass})
 \]
 \[
-\ctx \vdash \texttt{type}~n :: \kappa = \tau \le_\textsf{pre} \texttt{class}~n~\overline{(a_i :: \kappa'_i)}
+\frac{
+\ctx \vdash \tau ~\textsf{has no type family applications}
+}{
+\ctx \vdash \texttt{type}~n = \tau \le_\textsf{pre} \texttt{class}~n~\overline{a_i}
+}
 \quad(\textsc{SubTypeAbsClass})
 \]
 \[
 \begin{array}{c}
-\ctx \vdash \texttt{type family}~n~\overline{(a_i :: \kappa_i)} :: \kappa ~\texttt{where}~ \I{tfinfo} \\
-\le_\textsf{pre} \texttt{type family}~n~\overline{(a_i :: \kappa'_i)} :: \kappa' ~\texttt{where ..}
+\ctx \vdash \texttt{type family}~n~\overline{a_i} ~\texttt{where}~ \I{tfinfo} \\
+\le_\textsf{pre} \texttt{type family}~n~\overline{a_i} ~\texttt{where ..}
 \end{array}
 \quad(\textsc{SubClosedTFAbsClosedTF})
 \]

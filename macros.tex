@@ -505,15 +505,16 @@
   % \tau_R &::=& \exists \overline{\hv{m.n}}.\, \tau  & \text{Signature type} \\
   \UNs &::=& \overline{\UN} & \text{Export list} \\
   \Uty &::=& & \text{Type declarations} \\
-       &  |& \texttt{data}~\graybox{n}~\overline{(a :: \kappa)} & \qquad\text{Abstract data declaration} \\
-       &  |& \texttt{class}~\graybox{n}~\overline{(a :: \kappa)} & \qquad\text{Abstract type class} \\
+       &  |& \texttt{data}~\graybox{n}~\overline{(a ::_\rho \kappa)} & \qquad\text{Abstract data declaration} \\
+       &  |& \texttt{class}~\graybox{n}~\overline{(a ::_\rho \kappa)} & \qquad\text{Abstract type class} \\
        &  |& \texttt{type family}~\graybox{n}~\overline{(a :: \kappa)} :: \kappa~\texttt{where}~\texttt{..} & \qquad\text{Abstract closed type family} \\
-       &  |& \texttt{data}~\graybox{n}~\overline{(a :: \kappa)}~\texttt{where}~\I{dinfo}& \qquad\text{Data declaration} \\
-       &  |& \texttt{newtype}~\graybox{n}~\overline{(a :: \kappa)} = \I{ntinfo}& \qquad\text{Newtype declaration} \\
-       &  |& \texttt{type}~\graybox{n}~\overline{(a :: \kappa)} :: \kappa = \tau & \qquad\text{Type synonym} \\
-       &  |& \texttt{class}~\graybox{n}~\overline{(a :: \kappa)}~\texttt{where}~\I{clinfo} & \qquad\text{Type class} \\
+       &  |& \texttt{data}~\graybox{n}~\overline{(a ::_\rho \kappa)}~\texttt{where}~\I{dinfo}& \qquad\text{Data declaration} \\
+       &  |& \texttt{newtype}~\graybox{n}~\overline{(a ::_\rho \kappa)} = \I{ntinfo}& \qquad\text{Newtype declaration} \\
+       &  |& \texttt{type}~\graybox{n}~\overline{(a ::_\rho \kappa)} :: \kappa = \tau & \qquad\text{Type synonym} \\
+       &  |& \texttt{class}~\graybox{n}~\overline{(a ::_\rho \kappa)}~\texttt{where}~\I{clinfo} & \qquad\text{Type class} \\
        &  |& \texttt{type family}~\graybox{n}~\overline{(a :: \kappa)} :: \kappa~\texttt{where}~\I{tfinfo} & \qquad\text{Closed type family} \\
        &  |& \texttt{type family}~\graybox{n}~\overline{(a :: \kappa)} :: \kappa & \qquad\text{Open type family} \\
+       &  |& \texttt{data family}~\graybox{n}~\overline{(a :: \kappa)} :: \kappa & \qquad\text{Data family} \\
        % Patterns omitted
        % Data families omitted
        &  |& n :: \tau& \qquad\text{Term declaration} \\
@@ -533,6 +534,7 @@
   a &&& \text{Haskell type variable} \\
   \tau &::=& \cdots N \cdots & \text{Haskell type} \\
   \kappa &::=& \cdots N \cdots & \text{Haskell kind} \\
+  \rho &::=& \textsf{P} ~|~ \textsf{R} ~|~ \textsf{N} & \text{Role (phantom, representational, nominal)} \\
   \multicolumn{3}{l}{\I{dinfo}, \I{ntinfo}, \I{clinfo}, \I{tfinfo}, \I{fiinfo}} & \text{Haskell declaration metadata} \\
 % R &::=& & \text{Haskell role} \\
 %   & | & \mathsf{P} & \qquad\text{Phantom} \\
