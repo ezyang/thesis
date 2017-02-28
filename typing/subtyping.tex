@@ -17,17 +17,6 @@ T_M = \UobjTau{\UNs'}{\Utys'~\Uinsts'~\Uimps'} \qquad
 \quad(\textsc{SubMod})
 \]
 
-\caption{
-Every declaration is rooted by an export.  Any non-exported declarations are dropped when typechecking signature; if they are thinned out that is an error.
-}
-\label{typing:top-subtyping}
-
-
-\end{figure}
-
-
-\begin{figure}
-
 \fbox{\textbf{Declaration subtyping:} $\ctx \vdash \Uty \le \Uty$}
 
 \[
@@ -50,6 +39,10 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 }
 \quad(\textsc{SubDecl})
 \]
+
+\caption{Module and declaration top-level subtyping rules}
+\label{typing:top-subtyping}
+
 \end{figure}
 
 \begin{figure}
@@ -178,7 +171,7 @@ Every declaration is rooted by an export.  Any non-exported declarations are dro
 \quad(\textsc{SubClosedTFAbsClosedTF})
 \]
 \end{mdframed}
-\caption{Subtyping relations.}
+\caption{Pre-subtyping on declarations (assuming the kinds and roles are compatible.)}
 \label{typing:subtyping}
 %   For concision, this relation is factored into
 %   subtyping relation, and a pre-subtyping relation which doesn't consider kind
