@@ -52,9 +52,24 @@ N \oplus_m N = N
 \quad(\textsc{MDecls})
 \]
 
-Given $\Uty_1$ and $\Uty_2$, $\Uty_1 \oplus \Uty_2$ is the least abstract declaration (pick an arbitrary one if both are/are not abstract).
-$\quad(\textsc{MDecl})$
+\[
+\begin{array}{c}
+\texttt{data}~n~\overline{(a ::_\rho \kappa)} \oplus \texttt{data}~n~\overline{(a ::_{\rho'} \kappa')} = \texttt{data}~n~\overline{(a ::_{\rho \oplus \rho'} \kappa)} \\
+\texttt{class}~n~\overline{(a ::_\rho \kappa)} \oplus \texttt{class}~n~\overline{(a ::_{\rho'} \kappa')} = \texttt{class}~n~\overline{(a ::_{\rho \oplus \rho'} \kappa)} \\
+\Uty \oplus \Uty' = \Uty \quad \textrm{if}~\Uty'~\textrm{abstract}\\
+\Uty \oplus \Uty' = \Uty' \quad \textrm{otherwise}\\
+\end{array}
+\]
 
-\caption{Merging rules}
+
+\fbox{\textbf{Role merging:} $\rho \oplus \rho = \rho$}
+\[
+\textsf{P} \oplus \rho = \textsf{P} \qquad
+\rho \oplus \textsf{P} = \textsf{P} \qquad
+\textsf{N} \oplus \rho = \rho \qquad
+\rho \oplus \textsf{N} = \rho
+\]
+
+\caption{Merging rules.  $\Uty \oplus \Uty$ rules are top-to-bottom, apply the first one that matches.}
 \label{typing:merging}
 \end{figure}
