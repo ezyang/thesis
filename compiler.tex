@@ -158,12 +158,12 @@ concerns:
         recorded in the module identifier.  We will explain the difference
         between type lookup and signature type lookup in more detail later.
 
-    \item The merging rules (Figure~\ref{typing:merging}) specify how the
-        module types are merged together during signature merging.
-
     \item The subtyping rules (Figures~\ref{typing:top-subtyping}--\ref{typing:subtyping})
         specify when one module type is a subtype of another, and is used
         by both signature merging and dependency matching.
+
+    \item The merging rules (Figure~\ref{typing:merging}) specify how the
+        module types are merged together during signature merging.
 
 \end{itemize}
 Most typing rules require the following three pieces of context:
@@ -223,6 +223,21 @@ Haskell, which we do not formalize:
     mentioned in \I{inst}, and then runs the instance constraint solver
     to see if \I{inst} is implied by these instances.
 \end{itemize}
+%
+%   We need these judgments to uphold some properties;
+%   in particular, we require type and kind equality to be \emph{substitutable}:
+
+%   \begin{axiom}[Type equality substitutability]
+%   If $\ctx; \vdash \tau =_\textsf{hs} \tau'$,
+%   then for any $\USn$, $\ctx; \vdash \substw{\tau}{\USn} =_\textsf{hs} \substw{\tau'}{\USn}$.
+%   \end{axiom}
+
+%   \begin{axiom}[Kind equality substitutability]
+%   If $\ctx; \vdash \kappa =_\textsf{hs} \kappa'$,
+%   then for any $\USn$, $\ctx; \vdash \substw{\kappa}{\USn} =_\textsf{hs} \substw{\kappa'}{\USn}$.
+%   \end{axiom}
+
+%   See Section~\ref{sec:substitutability} for more discussion on substitutability.
 
 \subsection{Top-level typing rules}
 
@@ -303,89 +318,27 @@ final identities.  Orphans are handled similarly.
 % TODO: Need to also update transitively reachable modules when this
 % occurs
 
-\subsection{Merging rules}
-
-\input{typing/merging}
-
-Merging occurs when we merge $n$ signatures together, forming a new
-signature which is a subtype of all the original signatures (or failing
-if no such signature exists).  The key rule is \textsc{MSigType}, which performs
-the following operations:
-
-\begin{itemize}
-    \item First, we perform \emph{export matching}, computing the merged
-    export list, where name holes are subsumed by reexported original
-    names. (Line 1) The new export list induces a name substitution, which we apply
-    to each of the signature types. (Line 2)
-
-    \item Next, we merge all of the entities of the interface together,
-    producing a candidate merged signature $T_M$ (Line 3); it is a candidate signature
-    because during this step, we do \emph{not} check if the merged types match.
-
-    \item Finally, we check that the merged type is a subtype of each of the
-    (substituted) input signature types. (Line 4)
-\end{itemize}
-
-There are two subtleties in this procedure.  First, the declaration
-merge is \emph{nondeterministic} (``pick an arbitrary one'').  This
-nondeterminism is benign, as after merging we show that $\Uty_1
-=_\textsf{hs} \Uty_2$ (via the subtyping check): the choice didn't
-matter in the first place.
-
-Second, because of the above nondeterminism, we must be a little careful
-how we formulate the check for type synonym cycles.  Consider:
-
-\vspace{-1em}
-\begin{figure}[H]
-\centering
-\begin{shortmath}
-\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth}}
-\begin{lstlisting}
-signature A where
-    data A
-    type B = A
-\end{lstlisting}
-&
-\begin{lstlisting}
-signature A where
-    type A = B
-    type B = Int
-\end{lstlisting}
-\end{tabular}
-\end{shortmath}
-\end{figure}
-
-\vspace{-2em}
-\noindent
-If we prefer the declarations from the second signature, there is no cycle;
-but if we take \verb|type A = B| and \verb|type B = A|, there is a cycle.
-The acyclicity check verifies that under \emph{all} possible merges, there
-are no type synonym cycles.
-
-\paragraph{Behavior with ill-typed signatures}  In our implementation,
-we noticed that the typing rules we have
-described above have some surprising behavior when typechecking signatures that
-are not well-typed: we may temporarily end up with types in our context
-that are ill-kinded, or generally nonsensical.  For example, we might
-merge \verb|data T; f :: T| and \verb|data T a; f :: T a| to get
-\verb|data T; f :: T a|, which is obviously ill-kinded.  It seems difficult
-to avoid behavior like this in the presence of mutual recursion (both MixML
-and \OldBackpack{} also exhibit this behavior); fortunately,
-this does not affect soundness (eventually we notice that \verb|data T|
-and \verb|T a| are incompatible and reject the merge).
-
 \subsection{Subtyping rules}
+\label{sec:subtyping}
 
 \input{typing/subtyping}
 \input{typing/kinding}
 
-Last but not least, the subtyping judgment specifies when one module type
-is a subtype of another.  The main judgment \textsc{SubMod} tests if
-a module type is a subtype of another, under some context.  Both module
-types are assumed to have had a name substitution applied to them, so that
-subtyping on exports can be checked using a simple superset operation.
+The subtyping judgment specifies when one module type
+is a subtype of another under some context (\textsc{SubMod}).
+Subtyping must be performed under a context, because type equality
+cannot be computed without knowing, e.g., the definitions of any
+type synonyms referenced inside the module type.  To test for
+subtyping, we first check for \emph{export subtyping}, checking
+the export list is a superset and allowing for the subtype to have
+refined the identities of hole names.  We apply the resulting
+name substitution to all other parts of the module type before
+checking for subtyping.
 
-Unusually, when we check for subtyping of declarations, we add $T_M$
+%   Both module
+%   types are assumed to have had a name substitution applied to them, so that
+%   subtyping on exports can be checked using a simple superset operation.
+Unusually, when we check for subtyping of declarations, we add $T_M$ (the subtype)
 to the context.  To see why this is necessary, consider if we were
 checking that \verb|type T = Int; f :: Int| was a subtype of \verb|data T; f :: T|.
 When checking that \verb|f :: Int| is a subtype of \verb|f :: T|, we must lookup
@@ -393,15 +346,7 @@ the declaration of \verb|T| in the context: $m : T_M^-$ precisely provides
 information that \verb|T| is a type synonym \verb|type T = Int|.  If
 instead the lookup gave us the abstract definition of \verb|T|, we would conclude
 that \verb|Int| and \verb|T| were not equal.  We similarly add $T_M$ to
-the context when testing if instances are solvable.
-
-Because every module type records all orphan modules that it transitively
-imports, the most natural subtyping relation for orphans is, in fact, to
-always assume any orphans brought into scope by the signature, no matter
-whether or not the implementing module imported those orphan modules. Thus,
-there is no $\Uimps' \supseteq \Uimps$ rule in the judgment; furthermore, when
-considering instance solvability, we bring into scope both orphans from the
-signature as well as the module.
+the context and the set of transitively imported modules when testing if instances are solvable.
 
 \paragraph{Declaration subtyping and pre-subtyping}
 In our presentation, declaration subtyping is organized in a subtyping
@@ -523,6 +468,259 @@ synonym applications to be fully saturated (unlike data declarations, which can
 be partially applied); similarly, a type synonym can only be used in place
 of a data declaration if this could not result in partially applied type
 synonyms.
+
+\subsection{Merging rules}
+
+\input{typing/merging}
+
+Finally, \emph{merging} finds the greatest lower bound on our subtyping relation,
+finding a signature which is a subtype of all the original signatures (or failing
+if no such signature exists).  The key rule is \textsc{MSigType}, which performs
+the following operations:
+
+\begin{enumerate}
+    \item We perform \emph{export matching}, computing the merged
+    export list, where name holes are subsumed by reexported original
+    names. The new export list induces a name substitution.
+
+    \item We merge the declarations of the interface together,
+    producing a temporary signature $T_P$ which doesn't contain
+    any instances.
+
+    \item With this temporary signature in the context, we
+    merge instances, deduplicating them based on type equality.
+
+    \item We now can merge the rest of the elements, giving us
+    a candidate merged signature $T_M$; it is a candidate signature
+    because during this step because we do not yet know if the
+    declaration merge was successful or not.
+
+    \item Finally, we check that the merged type is a subtype of each of the
+    (substituted) input signature types.
+\end{enumerate}
+%
+We would like it if our merging operation were both sound (if it
+succeeds, the new module type is the greatest lower bound of the two
+types under the name substitution induced by the exports of the merged
+module type) and complete (if there exists a greatest lower bound, we
+find it) with respect to the subtyping relation.  Unfortunately,
+while our operation is sound, it is not complete.
+
+\begin{lemma}[Name substitution absorption]
+\label{lem:absorb}
+If $\UNs' \le_m \UNs$, then $\substw{\substw{x}{\textsf{nsubst}(m, \UNs)}}{\textsf{nsubst}(m, \UNs')} = \substw{x}{\textsf{nsubst}(m, \UNs')}$.
+\end{lemma}
+
+\begin{lemma}[Export merging is a greatest lower bound on export subtyping.]
+\label{lem:export}
+If $\UNs_M = \bigoplus_i \UNs_i$ for the signature $m$, then
+$\overline{\UNs_M \le_m \UNs_i}$; furthermore,
+for all $\UNs'_M$, if
+$\overline{\UNs'_M \le_m \UNs_i}$, then
+$\UNs'_M \le_m \UNs_M$
+\end{lemma}
+
+%   \begin{proof}
+%   To show $\UNs_M \supseteq \substw{\UNs_i}{\textsf{nsubst}(m,\UNs_M)}$,
+%   it is sufficient to show that for all $N \in \UNs_i$, it is the
+%   case that $N \in \UNs_M$, except
+%   when $N$ has the form $\nhv{m.n}$, in which case we must show that $n \in \textsf{dom}(\UNs_M)$.
+%   This is clear by inspection of the rules for export merging: by \textsc{MName} merging always exactly preserves any $N$ which is not of the form $\nhv{m.n}$; by \textsc{MExport} merging never drops a hole name from the domain of
+%   the resulting exports.
+
+%   Now suppose there existed some $\UNs'_M$ such that
+%   $\overline{\UNs'_M \supseteq \substw{\UNs_i}{\textsf{nsubst}(m,\UNs_M)}}$.  To show
+%   $\UNs'_M \supseteq \substw{\UNs_M}{\textsf{nsubst}(m,\UNs'_M)}$,
+%   it is sufficient to show that for all $N \in \UNs_M$, $N \in \UNs'_M$, except
+%   when $N$ has the form $\nhv{m.n}$, in which case we must show that $n \in \textsf{dom}(\UNs'_M)$.  Consider the first case. By the definition of $\UNs_M$, we know there must be some $i$ where $N \in \UNs_i$.  Then by the subtyping relation on $\UNs'_M$, it must be the case that $N \in \UNs'_M$.  The second case is similar: $\nhv{m.n}$ must exist in some signature, so $n$ must be in the domain of $\UNs'_M$.
+%   \end{proof}
+
+\begin{lemma}[Representational injectivity conservation]
+\label{lem:inj}
+For any $\Uty$ and $\Uty'$, $\Uty \oplus \Uty'$ is representationally injective
+if and only if either $\Uty$ or $\Uty'$ (or both) is representationally
+injective.
+\end{lemma}
+
+\begin{lemma}[Role merging is the least upper bound on subroling]
+\label{lem:role}
+If $\rho_M = \bigoplus_i \rho_i$, then
+$\overline{\rho_M \ge \rho_i}$; furthermore,
+for all $\rho'_M$, if $\overline{\rho'_M \ge \rho_i}$,
+then $\rho'_M \ge \rho_M$.
+\end{lemma}
+
+\begin{theorem}[Merging is the greatest lower bound on subtyping]
+If $\ctx; m \vdash \bigoplus_i T_i \leadsto T_M$, then
+$\overline{\Gamma; \Delta, m : T^-_M; P_0 \vdash \hv{m} \le T_i}$; furthermore, for all
+$T'_M$, if $\overline{\Gamma; \Delta, m: T'^-_M \vdash \hv{m} \le T_i}$, then $\Gamma; \Delta, m : T'^-_M \vdash \hv{m} \le T_M$.
+\end{theorem}
+
+\begin{proof}
+If our merging algorithm succeeds, the merged type is trivially a
+subtype of the input types (since we check this explicitly).  Now
+suppose that there existed some type $T'_M$, such that $\overline{\Gamma; \Delta, m : T'^-_M; P_0 \vdash \hv{m} \le T_i}$.
+We will show that $\Gamma;\Delta, m : T'^-_M; P_0 \vdash \hv{m} \le \substw{T_M}{\USn'}$,
+where $\USn' = \textsf{nsubst}(m, \textsf{exports}(T'_M))$.
+Additionally, let $\USn = \textsf{nsubst}(m, \textsf{exports}(T_M))$.
+
+\begin{itemize}
+    \item \emph{Exports.} By Lemma~\ref{lem:export}, $\UNs' \le_m \UNs$.
+
+    \item \emph{Declarations.} Consider each $\I{decl} \in \textsf{decls}(\substw{T_M}{\USn'})$
+    and let $n=\textsf{occname}(\I{decl})$.  To
+    show declaration subtyping, we must show kind equality, role
+    compatibility and pre-subtyping.
+    We have $\I{decl'}$ such that $\Gamma; \Delta, m : T'^-_M; P_0 \vdash \UNs'(n) : \I{decl'}$; $\UNs'(n)$ is guaranteed to exist by export list subtyping.
+    For any choice of $i$, let $\I{decl}_i = \textsf{decls}(T_i)(n)$ if it exists.
+    \begin{itemize}
+        \item \emph{Kind equality.} We have $\I{decl'} : \kappa'_M$.  By inversion, we know that there must be some
+        $i$ such that $\Gamma; \Delta, m : T'^-_M; P_0 \vdash \kappa'_M =_\textsf{hs} \substw{\kappa_i}{\USn'}$,
+        where $\I{decl}_i :: \kappa_i$, and which was preferred by merging
+        so $\kappa_M = \substw{\kappa_i}{\USn}$.
+        Then, by Lemma~\ref{lem:absorb}, we have $\substw{\kappa_M}{\USn'} = \kappa'_M$.
+
+        \item \emph{Role compatibility.} There are two
+        cases.  First suppose that $\I{decl}$ is
+        representationally injective.  By Lemma~\ref{lem:inj}, we know
+        that there must be an $i$ such that $\textsf{inj}(\I{decl}_i)$,
+        and was preferred by merging to have the same roles as $\Uty$.
+        By inversion, $\I{decl}'$ must also have exactly the same roles as the
+        $\I{decl}_i$. Second, consider if $\I{decl}$ is not
+        representationally injective.  Then it must be the case that
+        all defined $\Uty_i$,
+        are not representationally injective, and only
+        the first two cases of declaration merging which apply.
+        Lemma~\ref{lem:role}
+        then establishes the desired result.
+        \item \emph{Pre-subtyping} There are two cases.
+        First, suppose that there exists a non-abstract declaration
+        $\I{decl}_i$ which was preferred by merging so that $\I{decl} = \substw{\I{decl}_i}{\USn}$.
+        By inversion on $\Gamma; \Delta, m : T'^-_M; P_0 \vdash \Uty'_M \le \substw{\Uty_i}{\USn'}$,
+        we know all the components of $\Uty'_M$ are $=_\textsf{hs}$
+        to their counterparts in $\substw{\Uty_i}{\USn'}$ under
+        this context.
+        Then, by Lemma~\ref{lem:absorb}, we know the components of $\Uty'_M$
+        are $=_\textsf{hs}$ to their counterparts in $\substw{\Uty}{\USn'}$.
+        Second, suppose for all $i$, $\Uty_i$ is abstract.
+        Then, not only is each declaration identical (by inspection of subtyping rules
+        for abstract types), they are identical with $\I{decl}$, giving us
+        the desired subtyping.
+    \end{itemize}
+
+    \item \emph{Transitively imported modules.} Direct from properties of
+    set union and subset.
+
+    \item \emph{Instances.} Consider each $\I{inst}$ in $T_M$.
+    There must exist $\I{inst}_i$ from merging such that $\I{inst} = \substw{\I{inst}_i}{\USn}$.
+    We know that $\Gamma; \Delta, m : T'^-_M; P_0 \vdash \I{orphs'} \cup \{ \hv{m} \} ~\textsf{solves}~ \substw{\I{inst}_i}{\USn'}$, and
+    must
+    show that $\Gamma; \Delta, m : T'^-_M; P_0 \vdash \I{orphs'} \cup \{ \hv{m} \} ~\textsf{solves}~ \substw{\I{inst}}{\USn'}$.  By Lemma~\ref{lem:absorb}, we know
+    $\substw{\substw{\I{inst}_i}{\USn}}{\USn'} = \substw{\I{inst}_i}{\USn'}$,
+    giving us the desired result.
+\end{itemize}
+\end{proof}
+
+\noindent
+Merging is \emph{not} complete:  to begin
+with, there may not necessarily exist a greatest upper bound:
+
+\begin{tabular}{p{0.3\textwidth} p{0.3\textwidth} p{0.3\textwidth}}
+\begin{verbatim}
+signature A where
+    data T
+
+    data U = Mk T
+\end{verbatim}
+&
+\begin{verbatim}
+signature A where
+
+    data S
+    data U = Mk S
+\end{verbatim}
+&
+\begin{verbatim}
+signature A where
+    data T
+    type S = T
+    data U = Mk T
+\end{verbatim}
+\end{tabular}
+%
+The third signature is indeed a subtype of the first two signatures, but
+it is not a supertype of \verb|type T = S; data S = MkS; data U = MkT|, which
+\emph{is} a subtype of the first two signatures.  With our subtyping rules,
+there is no signature which we can write which is the greatest upper bound.
+Indeed, merging will fail on these two signatures, complaining that \verb|T|
+in the \verb|Mk| constructor does not match \verb|S|.  It is possible that
+this problem could be solved by making GHC Haskell's semantic objects
+more ``semantic'' (for example, removing type synonyms from the semantic
+objects), but in existing GHC Haskell they exist as semantic entities, and in
+\Backpack{} we sought not to make backwards incompatible changes to the
+semantics of GHC Haskell.
+
+Additionally, merging does not make any attempt to pick a ``better'' choice
+among non-abstract declarations, which that if any choice could result in a
+type synonym cycle, we must reject the signature entirely:
+
+\vspace{-1em}
+\begin{figure}[H]
+\centering
+\begin{shortmath}
+\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth}}
+\begin{lstlisting}
+signature A where
+    data A
+    type B = A
+\end{lstlisting}
+&
+\begin{lstlisting}
+signature A where
+    type A = B
+    type B = Int
+\end{lstlisting}
+\end{tabular}
+\end{shortmath}
+\end{figure}
+
+\vspace{-2em}
+\noindent
+If we prefer the declarations from the second signature, there is no cycle;
+but if we take \verb|type A = B| and \verb|type B = A|, there is a cycle.
+The acyclicity check verifies that under \emph{all} possible merges, there
+are no type synonym cycles.\footnote{This is not yet implemented in GHC.}
+
+\paragraph{Merging instances}  In the definition of merging, we drop
+any instances which have exactly duplicate dictionary types $\tau$.
+Unlike declaration merging,
+the instances produced by this procedure
+will not necessarily let us form the subtype of the input modules.
+For example, suppose we have \verb|instance K1 a => K a|
+and \verb|instance K2 a => K a|.  Assuming that \verb|K1| and \verb|K2|
+are distinct, these have different types, so when we merge we keep
+both instances.  Unfortunately, putting both instances in the environment
+means \emph{neither} instance is derivable, because both instances have
+identical instance heads.  As Haskell's constraint solver is guess-free,
+it will conservatively report that \verb|instance K2 a => K a| is not
+solvable given the environment, because it has no way of telling whether
+or not \verb|instance K1 a => K a| or \verb|instance K2 a => K a|.
+If \verb|K2| is derivable from \verb|K1|, or vice versa, this instance
+\emph{is} solvable, but we have no way of expressing this in Haskell's
+language of semantic objects.
+
+\paragraph{Behavior with ill-typed signatures}  In our implementation,
+we noticed that the typing rules we have
+described above have some surprising behavior when typechecking signatures that
+are not well-typed: we may temporarily end up with types in our context
+that are ill-kinded, or generally nonsensical.  For example, we might
+merge \verb|data T; f :: T| and \verb|data T a; f :: T a| to get
+\verb|data T; f :: T a|, which is obviously ill-kinded.  It seems difficult
+to avoid behavior like this in the presence of mutual recursion (both MixML
+and \OldBackpack{} also exhibit this behavior); fortunately,
+this does not affect soundness (eventually we notice that \verb|data T|
+and \verb|T a| are incompatible during the subtyping test and reject the merge).
+
 
 \section{Substitutability and type inference}
 \label{sec:substitutability}

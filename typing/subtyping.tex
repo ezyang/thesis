@@ -1,23 +1,24 @@
 \begin{figure}
 
-\fbox{\textbf{Module subtyping:} $\ctx \vdash T \le T$}
+\fbox{\textbf{Module subtyping:} $\ctx \vdash M \le T$}
 
 \[
 \frac{
 \begin{array}{c}
-T_M = \UobjTau{\UNs'}{\Utys'~\Uinsts'~\Uimps'} \qquad
-\UNs' \supseteq \UNs \qquad \\
-\forall \I{decl} \in \I{decls}.\quad \Gamma; \Delta, m : T_M^-; P_0 \vdash \UNs'(\textsf{occname}(\Uty)) \le \Uty \\
-\forall \I{inst} \in \I{insts}.\quad \Gamma; \Delta, m : T_M^-; P_0 \vdash \Uimps \cup \Uimps' ~\textsf{solves}~ \I{inst}
+\ctx \vdash M : \UobjTau{\UNs'}{\Utys'~\Uinsts'~\Uimps'} \qquad
+\UNs' \le_m \UNs \leadsto \USn' \qquad \\
+\forall \I{decl} \in \I{decls}.\quad \Gamma; \Delta; P_0 \vdash \UNs'(\textsf{occname}(\Uty)) \le \substw{\Uty}{\USn'} \\
+\Uimps' \supseteq \Uimps \qquad
+\forall \I{inst} \in \I{insts}.\quad \Gamma; \Delta; P_0 \vdash \Uimps' \cup \{ M \} ~\textsf{solves}~ \substw{\I{inst}}{\USn'}
 \end{array}
 }{
 %\ctx \vdash \UobjTau{\overline{N_i}\, \overline{N_j}}{\Utys\, \Uinsts} \le \UobjTau{\overline{N_i}}{\overline{\Uty'}\, \overline{\Uinst'}}
-\ctx \vdash T_M \le \UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps}
+\ctx; m \vdash M \le \UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps}
 }
 \quad(\textsc{SubMod})
 \]
 
-\fbox{\textbf{Declaration subtyping:} $\ctx \vdash \Uty \le \Uty$}
+\fbox{\textbf{Declaration subtyping:} $\ctx \vdash N \le \Uty$}
 
 \[
 \frac{
@@ -38,6 +39,18 @@ T_M = \UobjTau{\UNs'}{\Utys'~\Uinsts'~\Uimps'} \qquad
 \ctx \vdash N \le \Uty'
 }
 \quad(\textsc{SubDecl})
+\]
+
+\fbox{\textbf{Export subtyping:} $\UNs \le_m \UNs \leadsto \USn$}
+
+\[
+\frac{
+\USn' = \textsf{nsubst}(m, \UNs') \qquad
+\UNs' \supseteq \substw{\UNs}{\USn'}
+}{
+\UNs' \le_m \UNs \leadsto \USn'
+}
+\quad(\textsc{SubExports})
 \]
 
 \caption{Module and declaration top-level subtyping rules}

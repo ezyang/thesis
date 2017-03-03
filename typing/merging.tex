@@ -5,11 +5,14 @@
 \frac{
 \begin{array}{c}
 % Shape and apply it
-\UNs' = \bigoplus_{m,i} \textsf{exports}(T_i) \\
-\forall i.\quad T'_i = \substw{T_i}{\textsf{nsubst}(m, \UNs')} = \UobjTau{\UNs'_i}{\Utys'_i;\, \Uinsts'_i;\, \Uimps'_i} \\
-T_M = \UobjTau{\UNs'}{\bigoplus_i \Utys'_i; \bigcup_i \Uinsts'_i; \bigcup_i \Uimps'_i} \qquad
-\overline{\I{decls}'_i} ~\textsf{acyclic}\\
-\forall i.\quad \Gamma; \Delta; P_0 \vdash T_M \le T'_i
+\UNs' = \bigoplus_{m,i} \textsf{exports}(T_i) \qquad
+\USn' = \textsf{nsubst}(m, \UNs')\qquad
+\overline{\I{decls}_i} ~\textsf{acyclic}\\
+%\forall i.\quad \substw{T_i}{} = \UobjTau{\UNs'_i}{\Utys'_i;\, \Uinsts'_i;\, \Uimps'_i} \\
+T_P = \UobjTau{\UNs'}{\bigoplus_i \substw{\Utys_i}{\USn'}} \\
+\Gamma; \Delta, m : T^-_P; P_0 \vdash \bigoplus_i \substw{\Uinsts_i}{\USn'} \leadsto \Uinsts'\\
+T_M = \UobjTau{\UNs'}{\bigoplus_i \substw{\Utys_i}{\USn'}; \Uinsts'; \bigcup_i \Uimps_i} \\
+\forall i.\quad \Gamma; \Delta, m : T^-_M; P_0 \vdash \hv{m} \le T_i
 \end{array}
 }{
 \begin{array}{c}
@@ -19,7 +22,7 @@ T_M = \UobjTau{\UNs'}{\bigoplus_i \Utys'_i; \bigcup_i \Uinsts'_i; \bigcup_i \Uim
 \quad(\textsc{MSigType})
 \]
 
-\fbox{\textbf{Export list merging:} $\UNs \oplus \UNs = \UNs \qquad N \oplus_m N = N$}
+\fbox{\textbf{Export list merging:} $\UNs \oplus_m \UNs = \UNs \qquad N \oplus_m N = N$}
 
 \[
 \frac{
@@ -40,6 +43,15 @@ N \oplus_m \nhv{m.n} = N
 \qquad\qquad
 N \oplus_m N = N
 \quad(\textsc{MName})
+\]
+
+\fbox{\textbf{Instance merging:} $\ctx \vdash \bigoplus_i \Uinsts_i \leadsto \Uinsts$}
+\[
+\frac{
+\Uinsts = \bigcup_i \Uinsts_i \mathclose{}/\mathopen{} \ctx \vdash - =_\textsf{hs} -
+}{
+\ctx \vdash \bigoplus_i \Uinsts_i \leadsto \Uinsts
+}
 \]
 
 \fbox{\textbf{Declaration list merging:} $\Utys \oplus \Utys = \Utys \qquad \Uty \oplus \Uty = \Uty$}
