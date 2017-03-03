@@ -2,8 +2,25 @@
 \chapter{Type checking}
 \label{sec:compiler}
 
-We now give a formal model for how our implementation typechecks
-\unit{}s which still have unfilled requirements.
+We now give a formal model of the type checking process on mixed
+units.  This is challenging, as GHC Haskell's type system is quite
+complex, and a full formalization of all aspects of GHC Haskell is
+beyond the scope of this thesis.
+
+Here is a summary of what will be covered in this chapter:
+
+\begin{itemize}
+\item We will specify a language of semantic
+objects (Section~\ref{sec:semantic-objects}) that covers the most
+important source level constructs supported by Haskell today (including
+type families and type classes) but leave some aspects of the semantic
+objects unspecified when \Backpack{} does not rely on them in an important
+way.
+\item We'll formalize how type lookup operates during type checking (Section~\ref{sec:typing/lookup}),
+but not specify the overall process of typechecking modules and signatures are actually typechecked. (Section~\ref{sec:typing-haskell})
+\item We describe the top-level process of typechecking a mixed component (Section~\ref{sec:typing/main}), which extends GHC Haskell's existing typechecking process with checks for dependency well-typedness and signature typechecking.
+\item Finally, we describe the subtyping (Section~\ref{sec:subtyping}) and merging (Section~\ref{sec:typing/merging}) relations, which specify precisely under what situations does a module implement a signature and the semantics of signature merging.  We will also develop some basic metatheory relating subtyping and merging (merging is the greatest lower bound on the subtyping relation).
+\end{itemize}
 
 %   It's not possible to
 %   give a full semantics, since that would involve formalizing all of
@@ -155,8 +172,7 @@ concerns:
     \item The type lookup and renaming rules (Figure~\ref{typing:lookup}) tell us how to
         get the type of a module by looking up the original type from
         the context, and then \emph{renaming} it according to the substitution
-        recorded in the module identifier.  We will explain the difference
-        between type lookup and signature type lookup in more detail later.
+        recorded in the module identifier.
 
     \item The subtyping rules (Figures~\ref{typing:top-subtyping}--\ref{typing:subtyping})
         specify when one module type is a subtype of another, and is used
@@ -194,10 +210,11 @@ Some rules require some extra context:
 \end{itemize}
 
 \subsection{Assumed Haskell judgments}
+\label{sec:typing-haskell}
 
 \input{typing/haskell}
 
-We assume some fairly conventional judgments for various operations on
+We assume some judgments for various operations on
 Haskell, which we do not formalize:
 
 \begin{itemize}
@@ -240,6 +257,7 @@ Haskell, which we do not formalize:
 %   See Section~\ref{sec:substitutability} for more discussion on substitutability.
 
 \subsection{Top-level typing rules}
+\label{sec:typing/main}
 
 \input{typing/main}
 
@@ -470,6 +488,7 @@ of a data declaration if this could not result in partially applied type
 synonyms.
 
 \subsection{Merging rules}
+\label{sec:typing/merging}
 
 \input{typing/merging}
 
