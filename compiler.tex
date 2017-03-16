@@ -353,19 +353,6 @@ refined the identities of hole names.  We apply the resulting
 name substitution to all other parts of the module type before
 checking for subtyping.
 
-%   Both module
-%   types are assumed to have had a name substitution applied to them, so that
-%   subtyping on exports can be checked using a simple superset operation.
-Unusually, when we check for subtyping of declarations, we add $T_M$ (the subtype)
-to the context.  To see why this is necessary, consider if we were
-checking that \verb|type T = Int; f :: Int| was a subtype of \verb|data T; f :: T|.
-When checking that \verb|f :: Int| is a subtype of \verb|f :: T|, we must lookup
-the declaration of \verb|T| in the context: $m : T_M^-$ precisely provides
-information that \verb|T| is a type synonym \verb|type T = Int|.  If
-instead the lookup gave us the abstract definition of \verb|T|, we would conclude
-that \verb|Int| and \verb|T| were not equal.  We similarly add $T_M$ to
-the context and the set of transitively imported modules when testing if instances are solvable.
-
 \paragraph{Declaration subtyping and pre-subtyping}
 In our presentation, declaration subtyping is organized in a subtyping
 relation (\textsc{SubDecl}) and a pre-subtyping relation: the subtyping
@@ -517,7 +504,20 @@ the following operations:
     \item Finally, we check that the merged type is a subtype of each of the
     (substituted) input signature types.
 \end{enumerate}
-%
+%   Both module
+%   types are assumed to have had a name substitution applied to them, so that
+%   subtyping on exports can be checked using a simple superset operation.
+Unusually, when we check for subtyping of declarations, we add $T_M$ (the subtype)
+to the context.  To see why this is necessary, consider if we were
+checking that \verb|type T = Int; f :: Int| was a subtype of \verb|data T; f :: T|.
+When checking that \verb|f :: Int| is a subtype of \verb|f :: T|, we must lookup
+the declaration of \verb|T| in the context: $m : T_M^-$ precisely provides
+information that \verb|T| is a type synonym \verb|type T = Int|.  If
+instead the lookup gave us the abstract definition of \verb|T|, we would conclude
+that \verb|Int| and \verb|T| were not equal.  We similarly add $T_M$ to
+the context and the set of transitively imported modules when testing if instances are solvable.
+
+
 We would like it if our merging operation were both sound (if it
 succeeds, the new module type is the greatest lower bound of the two
 types under the name substitution induced by the exports of the merged
