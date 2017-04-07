@@ -2,9 +2,12 @@
 \chapter{A tutorial of \Backpack{}}
 \label{sec:tour}
 
-In this section, we will walk through a tutorial of taking a Haskell'98
-regular expression matcher taken
-from~\cite{Fischer:2010:PRE:1863543.1863594}, highlighting the main
+% PROBLEM ---> SOLUTION
+
+In this section, we will show you how to modularize a
+regular expression matcher
+(we take our implementation from~\cite{Fischer:2010:PRE:1863543.1863594}),
+highlighting the main
 features of \Backpack{} as well as introducing some core conceptual
 ideas which will be elaborated upon later in this thesis.  We'll assume
 familiarity with Haskell'98 or an ML-like language but won't assume you
@@ -14,12 +17,13 @@ version of this tutorial, please refer to \url{http://blog.ezyang.com/2016/10/tr
 
 \section{A simple matcher in '98}
 
-In Figure~\ref{fig:matcher-haskell98}, we reproduce the source code of
-a simple regular expression matcher
-from Fischer, Huch and Wilke~\cite{Fischer:2010:PRE:1863543.1863594},
-along with a small test program.  We'll use this code to briefly
-describe how Haskell's existing module and package system works;
-experienced readers should feel free to skip ahead to the next section.
+You have been asked to implement a Haskell library that provides a
+regular expression matcher.  Nodding knowingly, you shuffle through your
+copy of Fischer, Huch and Wilke~\cite{Fischer:2010:PRE:1863543.1863594}
+and produce the code listing in Figure~\ref{fig:matcher-haskell98}.  It
+is an ordinary matcher on Haskell's \verb|String| data type
+(linked lists of characters), written in vanilla
+Haskell'98; you also write a small test program for it.
 
 \begin{figure}
 \begin{lstlisting}
@@ -62,33 +66,34 @@ main = print (accept evencs "acc")
 \label{fig:matcher-haskell98}
 \end{figure}
 
-Looking at the source code, we can observe a few things:
+%   \begin{itemize}
+%       \item The code is organized into two \emph{modules}, each heralded
+%       by the \verb|module| keyword.  Each module defines types and values
+%       within a distinct namespace.  In fact, Haskell modules are used purely for
+%       namespacing and do not support any sort of hierarchical organization.
 
-\begin{itemize}
-    \item The code is organized into two \emph{modules}, each heralded
-    by the \verb|module| keyword.  Each module defines types and values
-    within a distinct namespace.  In fact, Haskell modules are used purely for
-    namespacing and do not support any sort of hierarchical organization.
+%       \item The \verb|import| keyword is used to bring declarations into
+%       scope from other modules; for example, \verb|Main| imports \verb|Regex|
+%       to bring the constructors of \verb|Reg| and \verb|accept| into scope.
+%       Every module also implicitly has an import of \verb|Prelude|, which
+%       provides many commonly used types and functions (e.g., \verb|print|,
+%       \verb|String|, etc).
 
-    \item The \verb|import| keyword is used to bring declarations into
-    scope from other modules; for example, \verb|Main| imports \verb|Regex|
-    to bring the constructors of \verb|Reg| and \verb|accept| into scope.
-    Every module also implicitly has an import of \verb|Prelude|, which
-    provides many commonly used types and functions (e.g., \verb|print|,
-    \verb|String|, etc).
+%       \item The \verb|Regex| module comes with an \emph{export list}
+%       \verb|(Reg(..), accept)|, which designates which declarations should
+%       be brought into scope when this module is imported.  The ability to
+%       omit declarations from an export list (e.g., \verb|splits| and \verb|parts|)
+%       is one of the primary mechanism by which data abstraction is achieved in
+%       Haskell: internal implementation details are not exported and thus
+%       cannot be accessed by end users.
+%   \end{itemize}
 
-    \item The \verb|Regex| module comes with an \emph{export list}
-    \verb|(Reg(..), accept)|, which designates which declarations should
-    be brought into scope when this module is imported.  The ability to
-    omit declarations from an export list (e.g., \verb|splits| and \verb|parts|)
-    is one of the primary mechanism by which data abstraction is achieved in
-    Haskell: internal implementation details are not exported and thus
-    cannot be accessed by end users.
-\end{itemize}
-Modules themselves are organized into packages, which are described by
-\emph{Cabal files}.  For example, the modules above might be organized into
-packages with the Cabal files as shown in Figure~\ref{fig:matcher-packages}.
-Each package description describes:
+Overjoyed by the elegance of your regular expression matcher, you decide
+to package and upload your code, so that others can install it
+using a package manager like \verb|cabal-install|.  To
+do this, you write a \emph{Cabal file} which records some metadata
+about the package in question, as in Figure~\ref{fig:matcher-packages}.
+In it, you record:
 
 \begin{figure}
 \begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
@@ -116,46 +121,73 @@ of these packages is in Figure~\ref{fig:matcher-haskell98}.}
 \end{figure}
 
 \begin{itemize}
-    \item The name of the package (\verb|name|),
-    \item The version of a package (\verb|version|),
+    \item A name (\verb|name|), so others can refer to your code,
+    \item A version (\verb|version|), in case you release updates
+    to your code,
     \item One or more \emph{components} (libraries, executables,
-    test-suites, etc.), each of which defines some modules
-    (\verb|exposed-modules| and \verb|main-is|) and specifies
-    dependencies on libraries of other packages (\verb|build-depends|).
-    A library exposes modules for other packages to use when
-    they \verb|build-depends| on the library, while an
-    executable is associated with a particular \verb|hs| file
-    which is expected to define a \verb|main| function that
-    will serve as the top-level entry of the program.\footnote{For the
-    sake of realism, each package above includes \texttt{base} in their
-    \texttt{build-depends}, to ensure that the implicitly imported
-    \texttt{Prelude} module is in scope.}
+    test-suites, etc.), which define essential metadata needed
+    to actually build your code.  In your library, this metadata
+    includes what other packages your code needs to build
+    (\verb|build-depends|) as well as a list of modules
+    (\verb|exposed-modules|) which this library should provide
+    to those who depend on \verb|regex|.
+%   (\verb|exposed-modules| and \verb|main-is|) and specifies
+%   dependencies on libraries of other packages (\verb|build-depends|).
+%   A library exposes modules for other packages to use when
+%   they \verb|build-depends| on the library, while an
+%   executable is associated with a particular \verb|hs| file
+%   which is expected to define a \verb|main| function that
+%   will serve as the top-level entry of the program.\footnote{For the
+%   sake of realism, each package above includes \texttt{base} in their
+%   \texttt{build-depends}, to ensure that the implicitly imported
+%   \texttt{Prelude} module is in scope.}
 \end{itemize}
-Packages serve as the unit of distribution: a set of modules organized
-into a package can be uploaded to a package repository (e.g., Hackage\footnote{\url{https://hackage.haskell.org/}})
-to be shared with other developers.  A \emph{package
-manager} (e.g., cabal-install) automates the process of downloading the source code of all
-packages one needs and building them in dependency order.
+%
+With a Cabal file, other users can ask the package manager to build this
+library; the package manager will handle downloading and building any dependencies
+before building the library itself.
+
+%   Because most users of your program don't need the test program, you
+%   create a separate package for it and give it an \verb|executable|
+%   section instead; instead of exposing modules, you declare a single
+%   module which defines the \verb|main| entry point of the application
+%   (\verb|main-is|).
 
 \section{Functorizing the matcher}
 
-One problem with the code in Figure~\ref{fig:matcher-haskell98} is that
-it only works with \verb|String|s (i.e., \verb|[Char]|).  One easy
-generalization (seen in the original
-paper~\cite{Fischer:2010:PRE:1863543.1863594}) is to add a type
-parameter to \verb|Reg|, so that \verb|accept| operates on lists of
-arbitrary symbols rather than just characters.  But this is still not as
-general as the matcher could be; for example,
-\verb|ByteString| is not a list but a packed array of bytes.
-We can only support \verb|ByteString| if we are also parametric in the string type itself.
+One day,
+a user writes in: ``Your regular expression library is very nice,
+but I want to use it a different string representation: \verb|ByteString|.
+Can you provide a \verb|ByteString| version of your library?''
+Eager to please, you consider how to go about supporting this use
+case:
 
-In this case, we can use \Backpack{} to functorize our matcher over an
-arbitrary string and element type.  To do this, we create a new
-signature named \verb|Str|, which provides abstract string and element
-types, and all the string operations our matcher requires.
-The resulting signature and module can be seen in
-Figure~\ref{fig:matcher-regex-indef-source}, alongside a module which
-implements the string signature.
+\begin{itemize}
+    \item You could make a new library, \verb|regex-bytestring|,
+    copypasting the code from your first implementation and
+    modifying the imports and code until it works on \verb|ByteString|s.
+    But you're not very keen on this: the core logic of regular expression
+    matching is the same whether or not its \verb|String|s or
+    \verb|ByteString|s, and you'd prefer not to duplicate it $n$ times
+    for each string representation you want to support.
+
+    \item Another possibility is to abstract over the string type,
+    defining a record or type class to parametrize over the implementations
+    of operations you might need.  However, as mentioned in Section~\ref{sec:intro},
+    this has the downside of requiring you to add extra class constraints
+    or dictionary arguments everywhere in your code.
+\end{itemize}
+%
+\Backpack{} offers a third option: functorize (in the ML sense) the matcher over a
+\emph{module} providing the implementation of strings.  To do this, we
+create a new signature named \verb|Str|, which provides abstract string
+and element types, and all the string operations our matcher requires,
+and rewrite our module to make use of this module, as seen in
+Figure~\ref{fig:matcher-regex-indef-source}.  We need only to
+treat \verb|Str| abstractly: in the new module, the list operations
+\verb|null| and \verb|[c]| are replaced with abstract variants from the
+signature; furthermore, the implementations of \verb|splits| and
+\verb|parts| are deferred to the signature implementation.
 
 \begin{figure}
 \begin{lstlisting}
@@ -191,18 +223,13 @@ accept (Rep r)   u = or [and [accept r ui | ui <- ps] | ps <- parts u]
 \label{fig:matcher-regex-indef-source}
 \end{figure}
 
-Because the original source code of the matcher was not written with
-this functorization in mind, the \verb|Regex| module must be modestly
-refactored to treat \verb|Str| abstractly.  We replaced the
-use of list operations \verb|null| and \verb|[c]| with abstract
-functions and deleted the implementations of \verb|splits| and
-\verb|parts|, deferring them to the signature implementation.  However,
-no invasive changes---e.g., adding new type parameters or passing new
-arguments---were necessary.  The new Cabal file for this signature and
-module, seen in Figure~\ref{fig:matcher-regex-indef-cabal}, needs only
-to declare \verb|Str| in the \verb|signatures| field.
-The new \verb|regex-indef| package can be typechecked without an
-implementation of \verb|Str|.
+Because the signature contains a full description of all the types
+and functions from \verb|Str|, you can \emph{typecheck} \verb|Regex|
+against the signature, even if you don't have an implementation of
+\verb|Str| available.  To use the package manager to typecheck
+your package, you need only modify your Cabal file so that
+\verb|Str| is specified in the \verb|signatures| field, as in
+Figure~\ref{fig:matcher-regex-indef-cabal}.
 
 \begin{figure}
 \begin{lstlisting}[language=Cabal]
@@ -218,12 +245,13 @@ module parametrized by string implementation.}
 \label{fig:matcher-regex-indef-cabal}
 \end{figure}
 
-\section{An implementation of Str}
+\section{Instantiating the matcher}
 
-Before we instantiate \verb|regex-indef|, we will need an implementation
-of the \verb|Str| signature.  Figure~\ref{fig:matcher-str-string-source}
-provides one such implementation (the implementations of \verb|splits| and
-\verb|parts| are copy-pasted from Figure~\ref{fig:matcher-haskell98}).
+A functorized matcher is great, but to actually run it, we must
+\emph{instantiate} it with an implementation of strings.  Any implementation
+of strings must provide the types and functions specified by the requirement
+of the package in question. For example, Figure~\ref{fig:matcher-str-string-source}
+gives the implementation of string operations on \verb|String|.
 
 \begin{figure}
 \begin{tabular}{p{0.55\textwidth} p{0.40\textwidth}}
@@ -235,10 +263,17 @@ import Prelude as P
 type Str = String
 type Chr = Char
 
-null   = P.null :: Str -> Bool
-singleton = (\c -> [c]) :: Chr -> Str
-splits = ... :: Str -> [(Str, Str)]
-parts  = ... :: Str -> [[Str]]
+null :: Str -> Bool
+null = P.null
+
+singleton :: Chr -> Str
+singleton = (\c -> [c])
+
+splits :: Str -> [(Str, Str)]
+splits = ...
+
+parts :: Str -> [[Str]]
+parts  = ...
 \end{lstlisting}
 &
 \begin{lstlisting}[language=Cabal]
@@ -253,13 +288,12 @@ library
 \label{fig:matcher-str-string-source}
 \end{figure}
 
-One thing to
-note is that we must declare \verb|null| and \verb|singleton| with
-explicit type signatures, as signature matching in Haskell requires two
-declarations to have exactly the same type: the polymorphic function
-\verb|[a] -> Bool| is not considered a valid implementation of
-\verb|[Char] -> Bool|. \Red{Discuss what would be involved with
-better subtyping.}
+One inconvenience is that we must define monomorphic
+versions of \verb|null| and \verb|singleton|, as Backpack will require
+the type of an implementing function to exactly match the type
+in the signature: the polymorphic function \verb|[a] -> Bool| is not
+considered a valid implementation of \verb|[Char] -> Bool|.  See
+Section~\ref{sec:relaxed-matching} for more about this restriction.
 
 %   Signatures in Backpack are width-subtyped, so
 %   \verb|Str.String| could also contain more exported functions and still
@@ -270,18 +304,27 @@ better subtyping.}
 %   that the \verb|Str| module from \verb|str-string| will actually
 %   be named something like \verb|Str.String|.  In this case,
 
-\section{Instantiating the matcher}
 
-How do we instantiate our matcher with the
-implementation of Str from Figure~\ref{fig:matcher-str-string-source}?
-In a traditional, ML module system, there would be a module language for
-expressing how to instantiate a functor.
-In \Backpack{}, a client instantiates a package by bringing its
-requirements into scope with another module under the same name,
-as seen in the package description in Figure~\ref{fig:matcher-functorized-packages}.  Here, the executable \verb|regex-program| uses the
+In a traditional ML module system, we would then specify that we wanted this
+particular implementation to be used with our functorized matcher by writing
+a functor application in the module language
+The problem with this is two-fold: first, if there are many parameters to a functor
+and these parameters must be passed down to sub-functor applications, explicitly specifying
+all of the arguments can be a chore.  Second, the module language in ML is essentially
+more syntax that the compiler knows how to handle; but if we are seeking
+\emph{package} level modularity, the package manager must be involved.
+
+\Backpack{} solves the problem differently, a client instantiates a package
+by manipulating the namespace of required and provided modules.
+A requirement of a package is instantiated when
+another module under the same name is brought into scope---this scoping
+mechanism is handled already by Cabal.
+
+In Figure~\ref{fig:matcher-functorized-packages}, we have Cabal instantiate
+\verb|regex-indef| with \verb|str-string|.
+Here, the executable \verb|regex-program| uses the
 \verb|mixins| field to rename the module from \verb|str-string| to the
-same name as \verb|regex-indef|'s signature; when a module and
-a signature have the same name, they are \emph{mix-in linked} together.%
+same name as \verb|regex-indef|'s signature.%
 %
 \footnote{Why didn't \texttt{str-string} just export
 a module named \texttt{Str}?  The prevailing convention in the Haskell
@@ -305,7 +348,8 @@ Regex into scope instantiated with the \texttt{Str} implementation from \texttt{
 \label{fig:matcher-functorized-packages}
 \end{figure}
 
-What actually happens when mix-in linking takes place?  There are two very useful
+The process of wiring up requirements and provisions when they share names
+is called \emph{mix-in linking}.  There are two very useful
 ways to understand the process.  In Figure~\ref{fig:regex-indef-instantiated}, we
 \emph{pictorially} represent each depended upon library as a block, with input and output
 ports representing signatures and modules respectively.  Intuitively, the process
@@ -479,7 +523,7 @@ are considered equivalent if they have the same \emph{identity}: an
 identity consists of both the name of the type and the name of the
 module which originally defined the type.  Previously, we could
 uniquely identify a type based on what module it was defined in,
-but with \Backpack{},the identity of \verb|Reg| must somehow
+but with \Backpack{}, the identity of \verb|Reg| must somehow
 depend on how we decided to implement \verb|Chr|: a \verb|Reg|
 containing a \verb|Char| is very different from a \verb|Reg| containing
 a \verb|Word8|.
@@ -491,7 +535,7 @@ the signatures of the package.  Diagramatically, the identity
 incorporates the \emph{wiring diagrams} of the components which defined
 the types in question; in the intermediate representation after mix-in
 linking, the identity incorporates the \uid{} (which
-identifies both the library and how it is instantiated.)
+identifies both the library and how it is instantiated).
 
 \section{Composing libraries with requirements}
 
@@ -573,7 +617,7 @@ is instantiated earlier or later.
 \section{Refining types in signatures}
 
 Suppose that you wanted to write a library of regular expressions for
-matching, say, e-mails, which you wanted to build atop of
+matching, say, e-mails, which you wanted to build on top of
 \texttt{regex-indef}.  In particular, you want to keep the particular
 \emph{string} representation (\verb|Str|) abstract, but you want
 to assert that, whatever string it is, it consists of Unicode
@@ -587,7 +631,7 @@ write a small signature to link with the existing signature:
 
 \noindent
 The effect of linking this signature to \verb|regex-indef| is that
-all occurrences of \verb|Chr| are all refined to be \verb|Char|;
+all occurrences of \verb|Chr| are refined to be \verb|Char|;
 for example, with this signature you can now write the regular
 expressions (e.g., \verb|Rep (Alt (Sym 'a') (Sym 'b'))|) from
 \verb|regex-program| or pass a \verb|Char| to \verb|singleton|.
@@ -616,7 +660,7 @@ We call such packages \emph{signature packages}:
 
 \noindent
 In fact, \Backpack{} treats such signature packages specially.
-Ordinarily, a required signatures cannot be thinned: if you are using a
+Ordinarily, a required signature cannot be thinned: if you are using a
 package that requires \verb|null :: Str -> Bool|, you must \emph{always}
 provide that entity (since it may be used to implement some provided
 function which you are making use of).  However, this is never the case

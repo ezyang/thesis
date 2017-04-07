@@ -76,7 +76,7 @@ Occasionally, we may draw a \uid{} with multiple ports as a shorthand
 for two module identifiers which share a \uid{}; although the resulting
 box looks similar to a component shape, it is less expressive, since a
 component shape can have \emph{different} unit identifiers for the
-modules it provides (as can be seen in the above example.)
+modules it provides (as can be seen in the above example).
 
 \section{Linking component shapes}
 
@@ -143,8 +143,8 @@ We now define an $n$-ary linking operation on sets of component shapes: $\textsf
     \item Let the required module variables be $\reqs_\mathsf{all} = \bigcup \reqs_i$.
     \item The requirements which are filled are $\reqs_\mathsf{filled} = \reqs_\mathsf{all} \cap \dom(\Pi)$.
     \item For each $m_i \in \reqs_\mathsf{filled}$, unify $\hv{m_i}$ with each module identity in $\Pi(m_i)$.  (Thus, provided modules which are not used remain ununified.)  Let the overall substitution produced be $S$.
-    \item The remaining requirements are $\reqs = \reqs_\mathsf{all} - \reqs_\mathsf{filled}$.  Check that $\substw{\reqs}{S} = \reqs$ (unification did not cause a requirement to be implicitly filled.)
-    \item Let $\provs(m) = \Pi(m)$ for all $m$ such that $\Pi(m) = \{ M \}$ for some $M$ (i.e., take the singleton module sets.)
+    \item The remaining requirements are $\reqs = \reqs_\mathsf{all} - \reqs_\mathsf{filled}$.  Check that $\substw{\reqs}{S} = \reqs$ (unification did not cause a requirement to be implicitly filled).
+    \item Let $\provs(m) = \Pi(m)$ for all $m$ such that $\Pi(m) = \{ M \}$ for some $M$ (i.e., take the singleton module sets).
     \item Return new substitution $S$, and new shape $\lctxpair{\provs}{\reqs}$
 \end{enumerate}
 %
@@ -322,7 +322,7 @@ The syntactic \texttt{include} declaration specifies renamings for
 provisions and requirements, but users are allowed to omit a renaming
 altogether (in which case everything is brought into scope) or give
 only a partial requirement renaming (in which case the requirement
-renaming is extended to be total over $\reqs$.)
+renaming is extended to be total over $\reqs$).
 \textsf{getrns} simply computes the appropriate $r_R$ and $r_P$
 given this syntax.
 \end{definition}

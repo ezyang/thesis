@@ -391,7 +391,7 @@ Second, when the abstract type declaration \verb|data T| is specified in
 generative data declaration of \verb|T| in the implementation \verb|A|.
 In particular, \verb|A| is not allowed to reexport a definition of
 \verb|T| from somewhere else, nor are we permitted to implement \verb|T|
-using a type synonym (as was the case in the first OCaml example.)
+using a type synonym (as was the case in the first OCaml example).
 With these restrictions, it's quite easy to ``solve'' the double-vision
 problem, since it easy to allocate a consistent original name for both
 declarations of \verb|T| in \verb|A.hs-boot| and \verb|A.hs|.

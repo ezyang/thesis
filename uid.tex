@@ -14,7 +14,7 @@ can be thought of in two ways:
    library is instantiated.  Thus, we interpret $\uidl{p}{\substMod{A}{\cidl{q}}{B}}$
    as saying that $\cidl{p}$ is applied with \Mod{\cidl{q}}{B} at its hole (argument) \modname{A}.
 %  (This is not entirely accurate in the presence of signature merging,
-%  but it is a pretty good approximation.)
+%  but it is a pretty good approximation).
 
 \item A \uid{} uniquely \emph{identifies} a library: if
    two instances of a library are instantiated in the same
@@ -34,7 +34,7 @@ understood to some degree.
 identities, as they operate on a per-library rather than per-module
 basis.  This change in semantics was motivated in the desire for
 unit identifiers for libraries to be computable without referring to
-source code (which a per-module scheme like \OldBackpack{}'s requires.)
+source code (which a per-module scheme like \OldBackpack{}'s requires).
 
 In this chapter, we develop some basic metatheory on \uid{}s, giving
 some graphical intuition for them as well as describing an unimplemented
@@ -95,7 +95,7 @@ determine its identity: for example, the component box for a component
 identifier can appear multiple times with different inputs.
 
 Since \Backpack{} is an \emph{applicative} module system (functor
-application is not generative), we can common up component boxes which
+application is not generative), we can de-duplicate component boxes which
 have the same component identifier and input modules, or (in reverse)
 duplicate a component box and all of its inputs into two identical
 graphs; in all of these cases, the diagrams represent multiple \uid{}s
@@ -222,7 +222,7 @@ identifier as follows:
 \item A transition from $q$ to $q'$ on the input $(m, m')$ exists
    if there is a wire from the input port $m'$ of $q$ to the output
    port $m$ of $q'$ (or a hole module $\hv{m}$, if $q'$ corresponds to a hole
-   module.)
+   module).
 \item The output of a state is the component identifier of its component
    box, or \verb|HOLE| if it is a hole module.
 \end{enumerate}
@@ -230,7 +230,7 @@ identifier as follows:
 We can complete the partial Moore machine into a total Moore machine by
 adding a new sink state \verb|SINK|, which outputs a new output value
 \verb|SINK|, and directing all undefined transitions to it (not depicted on
-the diagram.)
+the diagram).
 
 Here are two examples of recursive components expressed as Moore
 machines:

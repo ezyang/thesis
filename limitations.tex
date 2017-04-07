@@ -183,3 +183,34 @@ should the user be obligated to explicitly thin them out?
 
 We think there is an opportunity to design a more sophisticated language
 of signatures, and we leave this as future work for \Backpack{}.
+
+\label{sec:relaxed-matching}
+\section{Relaxing signature matching}
+
+When the type signature \verb|[Char] -> Bool| is written in a signature,
+the type of the implementing function must be exactly \verb|[Char] -> Bool|;
+a more polymorphic function (e.g., \verb|[a] -> Bool|) will be rejected
+by \Backpack{}.
+In practice, this can be an annoying limitation; for example, \verb|null|
+is a polymorphic function in the standard library that can be used
+perfectly well on \verb|[Char]|, but it cannot be used directly; instead,
+a user must first monomorphize the function to the correct type in the
+implementing module.
+
+How might we go about relaxing this restriction?  One plausible rule is
+that we should accept an implementation with type $\tau$ for a signature
+type $\tau'$, so long as there exists a \emph{coercion} from $\tau$ to
+$\tau'$ and augment our subtyping relation accordingly.  However, this will
+not work with our merging rules as stated in Figure~\ref{typing:merging}.
+Presently, merging picks an arbitrary type to add to the context; the reasoning
+is that if all the types were actually type equal, it doesn't matter which
+one we pick.  With subtyping on Haskell level type definitions, this no
+longer holds: we must at least pick the most general type.  Even then,
+merging would be terribly incomplete without the ability to compute
+greatest lower bounds of the types in question.
+
+In short, merging signatures at the Haskell type signature level is difficult
+when the source language was not designed with the subtyping lattice (grestest
+lower bounds) in mind.  Perhaps there may be more limited fixes which can
+alleviate the annoyance described above (for example, only allow relaxed
+matching when instantiating a signature).

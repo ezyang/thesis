@@ -364,7 +364,7 @@ implementation:
     more \emph{ready components} per source component.  Each ready
     component represents a component plus a complete instantiation,
     and represents a separate compilation we will do (with full
-    knowledge of how the dependencies are instantiated.)
+    knowledge of how the dependencies are instantiated).
 \end{enumerate}
 %
 We did need to apply one nontrivial architectural change to Cabal.
@@ -384,7 +384,7 @@ invoked Cabal the build system once to build all the components at once.
 
 This architecture causes problems for \Backpack, where a library may need
 to be built multiple times because it was reinstantiated: in this case, we really want to
-rebuild just the library (and not the executables, test suites, etc.)
+rebuild just the library (and not the executables, test suites, etc.).
 So, instead, we added a new mode to the Cabal build system to operate
 on a per-component basis:\footnote{https://github.com/ghc-proposals/ghc-proposals/pull/4}
 the \emph{build system} builds a single \emph{component}, and

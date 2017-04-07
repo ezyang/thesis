@@ -126,7 +126,7 @@ form convenient for processing (e.g., each \verb|exposed-module| is
 specified individually and explicitly associated with its source).
 
 Dependency resolution in Cabal is a separate topic in its own
-right~\cite{well-typed-solver, well-typed-qualified}, beyond the scope of this paper.
+right~\cite{well-typed-solver, well-typed-qualified}, beyond the scope of this thesis.
 Instead, we simply assume that we have a black box which
 produces \ccomp{}s.  One thing that is worth noting is that
 every package \verb|p| mentioned in \verb|build-depends|
@@ -594,14 +594,21 @@ we pick out the most-defined
 declaration from each signature.  In this example, the choice is easy:
 \verb|type T = Int| is more defined than the abstract \verb|data T|,
 so we pick it for the merged signature.
-If there is not a unique choice, we pick an arbitrary one.
+If there is not a unique choice, we pick an arbitrary one; we will
+subsequently check that all of the entities are equivalent.\footnote{You might
+wonder why we cannot designate a specific entity to use.  Because
+signature merging is unordered, the only way to treat signatures equally
+would be to define some merging operation on them.  However, this is
+technically challenging to do, as we do not yet know what the refined
+types of the entities are.  Picking an arbitrary entity cuts the
+gordian knot, while only introducing nondeterminism in a benign way.}
 
 Then, we check if each of the original declarations are compatible with
 the merged declaration.  The important twist is that whenever we
 see a name in one of the original declarations, we must resolve it
 to its definition in the \emph{merged} signature: in the diagram above,
 this is depicted by pointing the enboxed references to the central
-declarations.  Now we can see that both instance of \verb|f| have a type that
+declarations.  Now we can see that both instances of \verb|f| have a type that
 is definitionally equal to \verb|Int -> U|.
 
 %   \paragraph{Signature merging}
@@ -684,11 +691,12 @@ the package manager computes the
 \emph{instantiated component graph}, reflecting all of the
 concrete code dependencies of the component.  Specifically, given a closed instantiated component identity $p[S]$, for every
 \textsf{dependency} $P$ of $p$'s mixed component, recursively
-instantiate $\substw{P}{S}$.  Furthermore, for every $\substMod{m}{P}{m'} \in S$,
+instantiate $\substw{P}{S}$ ($P$ after applying the $S$
+substitution).  Furthermore, for every $\substMod{m}{P}{m'} \in S$,
 recursively instantiate $P$.  Then, we compile each instantiated component
 in topological order.  This compilation is exactly like ordinary
 compilation without \Backpack. The only new feature is that signatures
-compile into trivial module which reexport entities from
+compile into trivial modules which reexport entities from
 the backing implementation; otherwise, modules that imported the signature might see
 entities from the backing implementation that were not exported by the
 signature.
