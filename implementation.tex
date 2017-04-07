@@ -17,7 +17,7 @@ Fortunately, in some cases, the structure of a \uid{} is not necessary;
 for example, when a unit identifier has no module holes, it is
 invariant under substitution.  A useful optimization in this case
 is to represent the structure opaquely with a \emph{definite unit
-identifiers}.
+identifier}.
 
 GHC and Cabal implement this optimization, changing the
 abstract structure of a \uid{} to look like this:
@@ -67,7 +67,7 @@ patches, as well as some preliminary support for signatures that we had
 committed previously), we modified 40 files in the compiler (out of 513
 source files in the \verb|compiler| directory), adding 4375 lines and
 deleting 588 lines.  In this respect, we think that our \Backpack{}
-patch is quite well-contained: by in large, we were able to implement
+patch is quite well-contained: by and large, we were able to implement
 \Backpack{} with minimal changes to the renamer and typechecker.
 However, there is one major complication, related to GHC's lack
 of \emph{symbol tables}, which we discuss in the next section.
@@ -256,7 +256,7 @@ and GHC's representation.
     reference to a \emph{dictionary function}, which is just a type of
     term declaration that is never exported.  The two presentations are
     equivalent, but embedding the dictionary function in the instance
-    makes it easier to specify the rules instance checking (indeed,
+    makes it easier to specify the rules for instance checking (indeed,
     refactoring GHC to adopt this representation would substantially
     simplify some aspects of the implementation).  Similarly,
     closed family instances are associated with a coercion axiom, but in
@@ -311,7 +311,7 @@ and GHC's representation.
         in another flag in the interface file.
 
     \item In the abstract grammar for module identifiers ($M$) and original
-        names ($N$), we have separate cases module holes and name
+        names ($N$), we have separate cases for module holes and name
         holes.  In GHC, we avoid defining an extra constructor
         by instead defining a special unit identifier \cidl{hole}, and saying
         that a module hole $\hv{m}$ is represented as \Mod{\cidl{hole}}{m};
@@ -320,7 +320,11 @@ and GHC's representation.
         Internally representing the holes this way was expedient as it
         allowed us to avoid having to add a lot of new pattern matches
         to GHC, but the tradeoff is that we have to be careful about how
-        we go about performing substitutions: for example, we must not apply
+        we go about performing substitutions.  If I have
+        $\Mod{\cidl{hole}}{m}.n$ (i.e., $\nhv{m.n}$) and apply the
+        substitution $m = M$ to it, I better not end up with $M.n$.
+
+        For example, we must not apply
         a module substitution on the module identifier of an original name,
         if its top level module identity is a hole module.
 
@@ -329,8 +333,9 @@ and GHC's representation.
         strings as much as possible; see Section~\ref{sec:opaque-uid} for
         more details.
 
-    \item We applied a slight optimization to dependency type-checking in GHC\@:
-        rather than defer all dependency type checking to the
+    \item We applied a slight optimization when testing that an instantiated
+        dependency is well-typed:
+        rather than defer this type checking to the
         very end of compilation, we incrementally check dependencies for well-typedness
         as we finish typechecking all the local signatures for the dependency's
         requirements.

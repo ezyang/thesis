@@ -96,7 +96,7 @@ signatures, implementations of the signatures and new Cabal files for
 each of the new packages.  However, the signatures and implementations
 can be reused over multiple packages, and the resulting packages are
 \emph{more} flexible, in the sense that they can be instantiated with
-any string implementation and end user wants.
+any string implementation an end user wants.
 
 \subsection{Removing dictionary-passing style from tagstream-conduit}
 
@@ -214,7 +214,8 @@ code and also eliminated the indirection in the implementation
 of \verb|decodeEntities|, making it possible for GHC to inline
 these functions---in the old version of the code, this would only
 be possible if \verb|decodeEntities| was inlined at its call-sites
-in \verb|decodeEntitiesText| and \verb|decodeEntitiesBS|.
+in \verb|decodeEntitiesText| and \verb|decodeEntitiesBS|.  (GHC
+may not do this if \verb|decodeEntities| is a large function.)
 
 \subsection{Removing type class indirection from Reflex}
 
@@ -248,11 +249,14 @@ type class:
       -- 19 more methods
 \end{lstlisting}
 %
-However, historically, Reflex has had trouble with GHC not
-specializing away dictionaries\footnote{\url{https://ghc.haskell.org/trac/ghc/ticket/12791}
-and \url{https://mail.haskell.org/pipermail/ghc-devs/2016-October/013170.html}}
-in all cases, causing a huge slowdown when GHC must pass around
-an extra dictionary parameter.
+Compiled na\"\i{}vely, code that makes use of this type class know nothing
+about the underlying implementation of these methods, thwarting GHC's
+inliner and optimizer. This is a big loss, since most of the time you
+only needed the Spider timeline implementation.  In fact, even when
+the implementation is statically known via the type a method is used
+at, GHC will still occasionally fail to specialize\footnote{\url{https://ghc.haskell.org/trac/ghc/ticket/12791}
+and \url{https://mail.haskell.org/pipermail/ghc-devs/2016-October/013170.html}},
+causing a huge slowdown.
 
 With Reflex, we investigated using \Backpack{} to eliminate all uses of
 the \verb|Reflex| type class, thus eliminating dictionaries altogether.
@@ -351,7 +355,7 @@ There are a number of things to point out about this signature:
         \verb|Dynamic| and the other associated data families,
         we instead require them to be type synonyms of the
         appropriate data family for our abstract type \verb|Timeline|.
-        The benefit of doing things this is way is that we can
+        The benefit of doing things this way is that we can
         reuse the existing \verb|MonadHold| and \verb|MonadSample|
         type classes which don't use the \verb|Reflex|
         type class directly, but do refer to the associated
@@ -444,10 +448,10 @@ Haskell where a type may be defined in an ``internal'' module, and then
 reexported by a more public module.  Consider these two situations:
 
 \begin{itemize}
-    \item The \verb|Map| type is publically exported by \verb|Data.Map|
+    \item The \verb|Map| type is publicly exported by \verb|Data.Map|
     but originally defined in \verb|Data.Map.Internal|.
 
-    \item The strict \verb|ByteString| type is publically exported by
+    \item The strict \verb|ByteString| type is publicly exported by
     \verb|Data.ByteString| but originally defined in
     \verb|Data.ByteString.Internal|.
 \end{itemize}
@@ -455,7 +459,8 @@ reexported by a more public module.  Consider these two situations:
 We ended up placing \verb|Map| in \verb|Data.Map|,
 but \verb|ByteString| in \verb|Data.ByteString.Internal|, as
 \verb|binary| used both \verb|Data.ByteString| and \verb|Data.ByteString.Internal|
-to manipulate \verb|ByteString|s.  In other cases, if a type is exported by
+to manipulate \verb|ByteString|s (we can't define the type in both locations,
+since then they won't be the same type!).  In other cases, if a type is exported by
 many modules, it may make sense to refactor the imports of the modules
 so that we may declare it in a single signature.
 
@@ -491,9 +496,10 @@ Without this synthetic signature, the signatures for \texttt{Id}, \texttt{Name},
 and \texttt{Type} would form a cycle.
 
 We also have a negative result to report: we were unable to parametrize
-the \verb|array| package over \verb|base|.  The primary difficulty is
-that GHC hard-wires references to various types and entities defined in
-\verb|base|, which means that it's not possible to overload their
+the \verb|array| package over \verb|base|.  The difficulty is that
+many language features are implemented by selecting a \emph{specific}
+implementation from \verb|base|, bypassing the import mechanism.
+This means that it's not possible to overload their
 implementation merely by changing what module names are in scope.  This
 affected a number of things:
 
@@ -541,7 +547,7 @@ contains wired-in entities, and one that does not.
 A benefit of having a separation between mixin linking and typechecking
 is that it is a simple matter to swap the frontend language with
 something else.  To assist in testing Backpack, we implemented a simple
-alternate frontend that operates on mixed components (i.e., post mixin
+alternate frontend that operates on mixed components (i.e.\ post mixin
 linking):
 
 \begin{verbatim}
