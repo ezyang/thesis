@@ -64,15 +64,17 @@ The upshot is that, without changing how open type families work, we
 must allow for the possibility that linking can fail, even if the
 components typechecked separately.
 
+% Trouble: declaring a local QuickCheck instances
+
 There is a silver lining: the soundness of
 \emph{compiled} \Backpack{} code reduces to the soundness of GHC
 Haskell.  This is because we retypecheck and compile every instantiation
 of a component, and thus the compilation process reduces to ordinary
 Haskell compilation.  The retypechecking step during compilation is
 where things like incompatible open type family axioms are found.
-In general, if one avoids defining instance declarations for non-locally
-defined types inside parametrized components, the problems with type
-classes and open type families should not arise.  However, one should
+In general, if one avoids defining orphan instance declarations inside parametrized components, the problems with type
+classes and open type families should not arise---in this case,
+we conjecture that \Backpack{} is sound.  However, one should
 still ask tough questions about the soundness of recursive modules;
 and indeed, there is at least one known bug where \verb|hs-boot|
 files can cause unsoundness.\footnote{\url{https://ghc.haskell.org/trac/ghc/ticket/9562}}
