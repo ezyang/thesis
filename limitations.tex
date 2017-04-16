@@ -5,8 +5,8 @@
 \label{sec:metatheory}
 
 We have not rigorously done proofs on \Backpack{}'s metatheory; as such,
-we can only conjecture that in the fragment of Haskell without type
-classes and type families, successful separate typechecking of
+we can only conjecture that in the fragment of Haskell \emph{without type
+classes and type families}, successful separate typechecking of
 components implies successful linking as well.  Conventionally,
 soundness proofs for module systems are done by elaboration to an
 appropriate internal language; however, it is difficult to say what an
@@ -17,9 +17,25 @@ implements.  \OldBackpack{}'s proof
 of soundness gives evidence that \Backpack{} is sound, but we leave
 an actual formalization to future work.
 
+Note that the soundness of \emph{compiled} \Backpack{} code reduces to
+the soundness of GHC Haskell, because we retypecheck and compile every
+instantiation of a component. Thus, at the end of the day, compilation
+of \Backpack{} code reduces to ordinary Haskell
+compilation.\footnote{This is similar to the situation with Java
+generics, where erasure at the JVM level means that an unsound type
+checking algorithm for generics will only result in an invalid cast
+exception at runtime; unlike Java, any errors in \Backpack{} are caught
+at instantiation-time.}  However, one should still ask tough questions
+about the soundness of recursive modules, which is a feature in its own
+right; and indeed, there is at least one known bug where \verb|hs-boot|
+files can cause
+unsoundness.\footnote{\url{https://ghc.haskell.org/trac/ghc/ticket/9562}}
+
+\subsection{Type classes and type families}
+
 Note that we stated that \Backpack{} is sound \emph{without} type classes
 and type families.  The soundness result we desire is not true for full
-Haskell, and in fact, it cannot be made to be true.
+Haskell, and in fact, it cannot be made to be true as Haskell exists today.
 Ordinary proofs of soundness rely on weakening: the ability of a signature
 to hide information about its implementation.
 Open type families~\cite{schrijvers+:typefamilies}
@@ -52,32 +68,103 @@ then \verb|B| is clearly type unsafe, attempting to use an integer
 as a function.
 
 Is this problem fixable?  One ``fix'' is to require signatures to
-specify every type family instance that an implementation could provide:
-but it should be clear that this makes it essentially impossible to
-write instances within a parametrized package.  Another fix is to change the rules for
+specify every type family instance that an implementation could possibly provide:
+but it should be clear that such signatures would contain many ``irrelevant''
+instances to the parametrization at hand.  Another fix is to change the rules for
 permissible type family instances, so that instances defined in separate
 modules are guaranteed not to conflict, no matter what.  But this would
 constitute a fundamental change to how open type families work in
 Haskell and rule out existing Haskell code.
 
-The upshot is that, without changing how open type families work, we
-must allow for the possibility that linking can fail, even if the
-components typechecked separately.
+So, why isn't the lack of modularity with respect to type classes a
+total disaster for \Backpack{}?  Why won't Haskell programmers riot in
+the streets when their programs typecheck separately, but fail to link
+together?  Based on our experiences writing programs with
+\Backpack{}, there are two reasons:
+
+\begin{itemize}
+    \item By in large, the Haskell ecosystem tries very hard to
+    \emph{not} have conflicting instances in the modules we define,
+    eschewing \emph{orphan instances} which are the primary mechanism
+    by which conflicts can arise.\footnote{A non-orphan instance is one that
+    is defined along side the type or class it corresponds to, and can
+    be thought of as an ``intrinsic'' property of the type/class it was
+    deifned with, making it difficult---though not impossible---to
+    create a conflict.}
+    Generally, instantiating a \Backpack{} package with a module will
+    not result in an instance conflict, in the same way that adding an
+    import to a module will not result in an instance conflict.
+
+    \item Assuming that there are no conflicting instances (a \emph{big}
+    assumption, but one that seems to be true in practice), the only thing
+    that a parametrized package must do is ensure that it is indifferent
+    to the addition of new instances (rather than assert that we can thin
+    them out.)  In practice, these means following the same best practices
+    which prevent conflicts from occurring---e.g., avoiding orphan
+    instances:
+
+\begin{lstlisting}
+    signature A where
+        data T
+    module B where
+        import A
+        instance Show T where ... -- bad!
+\end{lstlisting}
+%
+    This is not difficult to do!
+\end{itemize}
+%
+Thus, while we cannot give \emph{technical} rules which ensure the modularity
+of \Backpack{}, the \emph{social} rules of Haskell allow us to maintain
+modularity and separate compilation.
+
+One final word: there is an unrelated gotcha related to type refinement
+and instance declarations:
+
+\begin{lstlisting}
+    signature A where
+        data T
+        data S
+    module B where
+        import A
+        class K a
+        instance K T
+        instance K S
+\end{lstlisting}
+%
+This could fail to typecheck if T and S refine to the same type.  Arguably,
+GHC should be able to tell when an overlap could occur, but it does not today.
+To fix the code, you can either newtype T and S, or hoist K out of the
+parametrized package.
+
+%   The upshot is that, without changing how open type families work, we
+%   must allow for the possibility that linking can fail, even if the
+%   components typechecked separately.
 
 % Trouble: declaring a local QuickCheck instances
 
-There is a silver lining: the soundness of
-\emph{compiled} \Backpack{} code reduces to the soundness of GHC
-Haskell.  This is because we retypecheck and compile every instantiation
-of a component, and thus the compilation process reduces to ordinary
-Haskell compilation.  The retypechecking step during compilation is
-where things like incompatible open type family axioms are found.
-In general, if one avoids defining orphan instance declarations inside parametrized components, the problems with type
-classes and open type families should not arise---in this case,
-we conjecture that \Backpack{} is sound.  However, one should
-still ask tough questions about the soundness of recursive modules;
-and indeed, there is at least one known bug where \verb|hs-boot|
-files can cause unsoundness.\footnote{\url{https://ghc.haskell.org/trac/ghc/ticket/9562}}
+
+% First thrust:
+%   - Define appropriate orphanhoodness check sufficient to
+%     prevent conflicting instances from being defined
+%   - Trouble:
+%       signature A where
+%       module M where
+%           import A
+%           f = show True
+%     Then suppose that A is implemented with a module which has
+%     incoherent instances for Show Bool.  Need to *eagerly*
+%     report conflict. But now you're in the same situation
+%     as applying the eagerness globally (effectively)
+%   - Suppose that "somehow conflicts don't happen" (this is
+%     the case for type families.)  You can still get in trouble
+%     if instantiation causes incompatible universes to collide:
+%       signature A where
+%       module M where
+%           import Inst1
+%           -- ... use instance
+%     if A is filled with something using (incompatible) Inst2,
+%     once again we blow up when we instantiate
 
 \section{Mutually recursive packages}
 
