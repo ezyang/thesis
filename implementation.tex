@@ -340,6 +340,11 @@ and GHC's representation.
         as we finish typechecking all the local signatures for the dependency's
         requirements.
 
+    \item Modules declared in \verb|other-modules| cannot be reexported,
+        as \verb|ghc-pkg| verifies that a module is truly exposed
+        (\verb|other-modules| are truly implementation details of the
+        packages in question.)
+
 \end{itemize}
 %
 
