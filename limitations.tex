@@ -303,3 +303,38 @@ when the source language was not designed with the subtyping lattice (grestest
 lower bounds) in mind.  Perhaps there may be more limited fixes which can
 alleviate the annoyance described above (for example, only allow relaxed
 matching when instantiating a signature).
+
+\label{sec:beyond-haskell}
+\section{Beyond Haskell}
+
+The defining characteristic of \Backpack{} is the abstraction barrier
+between the package manager and the compiler; in particular, we have
+stated that \emph{mixin linking}, which occurs in the package manager,
+is indifferent to Haskell source code.  This raises the question: what
+do we \emph{really} need from a programming language to implement
+a system like \Backpack{}?
+
+The most instructive comparison you can make here is to apply the
+Backpack design to ML, which already has a module system and is
+thus very close to supporting a Backpack-like design.  For example,
+unit identifiers translate directly into functor applications in
+ML's module system; furthermore, the applicative nature of
+Backpack packages can be simulated in a generative module system
+by having the package manager instantiate any given functor once.
+Hoewever, there is one major feature that \Backpack{} relies
+upon, which traditional ML module systems lack: signature merging.
+While module-to-signature linking translates into functor application,
+signature-to-signature linking requires some extra language support
+which we think would be useful even in a traditional, non-mixin-linked
+module language.
+
+Moving beyond ML, it is clear that to support \Backpack{}, the host
+language must some sort of functor application and type checking
+against interfaces.  These represent new additions to the programming
+language (even if they do not come with any \emph{syntactic} changes),
+but we have seen that, at least for Haskell, we were able to add these
+features as a set of orthogonal extensions to the compiler,
+without needing to make major changes to how GHC was fundamentally
+structured.  Thus, the application of the \Backpack{} design to
+non-Haskell languages is a promising topic, albeit one not explored
+in this thesis.
