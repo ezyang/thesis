@@ -304,6 +304,34 @@ lower bounds) in mind.  Perhaps there may be more limited fixes which can
 alleviate the annoyance described above (for example, only allow relaxed
 matching when instantiating a signature).
 
+\label{sec:sealing}
+\section{Sealing}
+
+In contrast to ML-like module systems, both \Backpack{} and \OldBackpack{} do not
+support \emph{sealing}, the capability of taking a module and making
+types opaque, so that their underlying representation is not visible
+to clients of the module.  If a client wants to treat a module abstractly,
+their only choice is to depend on a signature (unfortunately, there is no
+way to say, ``And also, this signature must be implemented with $M$.'')
+
+An interesting feature which would help Haskell users independently of
+\Backpack{} would be the ability to take a function like:
+
+\begin{lstlisting}
+    f :: (Int -> Int) -> Int
+\end{lstlisting}
+%
+and create a sealed \verb|f| with the following signature:
+
+\begin{lstlisting}
+    newtype T = T Int
+    f :: (T -> T) -> T
+\end{lstlisting}
+%
+implemented as a series of coercions on \verb|f|.  This would help
+eliminate a bit of newtype wrapping and unwrapping boilerplate
+which is required when defining a \verb|newtype| of an existing type.
+
 \label{sec:beyond-haskell}
 \section{Beyond Haskell}
 
