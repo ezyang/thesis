@@ -200,23 +200,629 @@ describing the same types and functions.
 %   \verb|with type t = X.t| which declares the equality between \verb|X.t|
 %   and \verb|Y.t|.
 
-\iffalse%
+\chapter{Recursive linking}
+\label{sec:recursive-linking}
 
-\chapter{The Double Vision Problem}
-\label{sec:double-vision}
+In this section, we sketch how to add support for recursive linking to
+\Backpack{}, allowing us to mix-in link libraries which recursively
+depend on each other.  Even though \Backpack{} as described in this
+thesis does not support recursive linking, many aspects of its design
+(e.g., mix-ins) were inherited from systems which did support recursive
+linking (notably, \OldBackpack{} and MixML).
 
-First coined by Dreyer in his thesis~\cite{dreyer:thesis}, the
-\emph{double vision problem} refers to technical difficulty that arises
-when attempting to define the typing rules for recursive modules.
-Informally, the double vision problem occurs when the things an implementing
-module knows about a type does not coincide with the things they know about the
-recursive occurrence of that very same type.
+%   We will first informally describe how to make use of recursive
+%   linking in \Backpack{}, pointing out some subtleties that arise
+%   in the presence of recursive linking.  Then we will sketch semantics
+%   for recursive linking, and 
 
-There is no formal definition of ``double vision'', which at times makes it
-difficult to characterize, because module systems can solve double vision
-to varying degrees.  It will be
-helpful to explain the double vision problem as a series of litmus tests,
-which will help characterize the various facets of this problem.
+\section{A simple example}
+
+Suppose that you have modules implementing logging and database access,
+with the following interfaces:
+
+\begin{lstlisting}
+    signature Logging where
+        data LogHandle
+        log :: LogHandle -> String -> IO ()
+
+    signature Database where
+        data DbHandle
+        data Query a
+        query :: DbHandle -> Query a -> IO a
+\end{lstlisting}
+%
+A cyclic dependency may arise if the database service logs queries with
+the logging API, but you have a database-backed logger which is
+implemented using the database API\@.\footnote{Let us not consider the
+wisdom of logging to a database or structuring the API this way.}  In
+conventional Haskell, we can place these in separate modules and break
+the cyclic imports with an \verb|hs-boot| file:
+
+\begin{lstlisting}
+    -- Database.hs-boot
+    module Database where
+        data DbHandle
+        data Query a
+        query :: DbHandle -> Query a -> IO a
+
+    -- Logging.hs
+    module Logging where
+        import {-# SOURCE #-} Database
+        data LogHandle = ...
+        log :: LogHandle -> String -> IO ()
+        log = ...
+
+    -- Database.hs
+    module Database where
+        import Logging
+        data DbHandle = ...
+        data Query a = ...
+        query :: DbHandle -> Query a -> IO a
+        query = ...
+\end{lstlisting}
+%
+If you want to place \verb|Database| and \verb|Logging| in separate
+packages, \verb|hs-boot| files are insufficient---\Backpack{} with
+recursive linking, however, will get the job done:
+
+\begin{lstlisting}[language=Cabal]
+    -- database.cabal
+    name: database
+    library
+      exposed-modules: Database
+      signatures: Logging
+
+    -- logging.cabal
+    name: logging
+    library
+      exposed-modules: Logging
+      signatures: Database
+\end{lstlisting}
+%
+If a package depends on both \verb|database| and \verb|logging|,
+\verb|database|'s \verb|Logging| requirement will be filled with \verb|logging|,
+and vice versa.  Alternately, \verb|database| can have a direct
+dependency on \verb|logging|, filling \verb|logging|'s requirement with a module
+it defines locally.
+
+\begin{lstlisting}[language=Cabal]
+    -- logging.cabal as before
+
+    -- database.cabal
+    name: database
+    library
+      build-depends: logging
+      exposed-modules: Database
+\end{lstlisting}
+
+\paragraph{Comparison with \OldBackpack{}}
+In \OldBackpack{}, signatures subsume \verb|hs-boot| files, because a signature
+and a module can be defined in the same package:
+
+\begin{lstlisting}
+    package p where
+        Database :: [ ... ]
+        Logging  = [ import Database; ... ]
+        Database = [ import Logging; ... ]
+\end{lstlisting}
+%
+Although we briefly attempted to implement this design, we eventually
+decided to keep \verb|hs-boot| and \verb|hsig| files as distinct
+concepts.  The big problem is that \OldBackpack{} assumes an explicit
+user-specified ordering on the modules and signatures in a package,
+while Haskell code written in the wild today assumes an implicit
+ordering specified by the import statements in modules.  There is no
+convenient way to specify how a module and its signature should be
+ordered relative to other modules, without adopting an \verb|hs-boot|
+style \verb|{-# SOURCE #-}| import syntax.
+
+\section{Challenges}
+
+The presence of recursive linking introduces new complications for
+type checking.
+
+\paragraph{Cyclic exports}  Consider the following recursive module
+definition:
+
+\begin{lstlisting}
+    -- package b
+    signature A where
+        x :: Int
+    module B(x) where
+        import A(x)
+    -- package a, which depends on b
+    module A(x) where
+        import B(x)
+\end{lstlisting}
+
+In Haskell, an implementation cycle isn't necessarily a problem,
+because a binding like \verb|x = x| can simply be compiled into a thunk
+which infinite loops when forced.  However, what should be the original
+name of this \verb|x|?  There is no appropriate name, because there
+isn't any module (not signature) which ever defines \verb|x|.  Thus,
+recursive \Backpack{} must reject this implementation.
+
+(\verb|hs-boot| files do not suffer from this problem, because GHC
+Haskell does not permit entities in an \verb|hs-boot| file to be implemented
+using a reexport.)
+
+\paragraph{No backwards propagation}
+GHC is an incremental compiler: if you edit a module of a previously
+compiled project, only modules which transitively import it need to be
+recompiled.  For this strategy to be correct, it must not be the case
+that a downstream module can affect the compilation of an upstream one.
+Unfortunately, the \emph{shaping pass} of \OldBackpack{} is a pre-pass
+which can cause information to propagate backwards.  Consider the
+following example:
+
+\begin{lstlisting}[escapechar=@]
+    package p where
+        A :: [ data T ]
+        B = [ import A; f (x :: T) = x ]
+    package q where
+        include p
+        I = [ data T = MkT ]
+        C = [ import B; import I; y = @\fbox{f MkT}@ ]
+        A = [ exports (T); import C; import I(T) ]
+\end{lstlisting}
+%
+Here, the shaping pass determines that the abstract \verb|T| from
+\verb|A| and the concrete \verb|T| from \verb|I| coincide, ensuring that
+the enboxed \verb|f MkT| will typecheck.  We can see that if we
+modify the implementation of \verb|A| (last line) to define a different
+\verb|T|, this equality would no longer hold, and \verb|C| would
+fail to typecheck.  Thus, information propagates backwards from
+the implementation of \verb|A| to \verb|C|.
+
+In \Backpack{}, we propose that \verb|f MkT| should \emph{not}
+typecheck, in order to preserve incremental compilation.  By changing
+the semantics, we enable an implementation of typechecking which
+does not require a shaping pass.  There is a downside: less programs
+typecheck under these semantics---however, we had no way of incrementally
+typechecking them in the first place.  As a final note, it is worth
+noting that even \OldBackpack{} imperfectly solves the double vision
+problem:
+
+\begin{lstlisting}[escapechar=@]
+    package p where
+        A :: [ data T ]
+        B = [ exports (T); import A ]
+    package q where
+        include p
+        I = [ data T = MkT ]
+        C = [ @\fbox{exports (T)}@; import B; import I ]
+        A = [ exports (T); import I(T) ]
+\end{lstlisting}
+
+When considering \verb|q| in its totality,
+\verb|C|'s export of \verb|T| is unambiguous; however, \OldBackpack{} will
+reject \verb|C| during shaping, because at the time of shaping
+it is not known that \verb|I.T| and \verb|B.T| coincide (that's
+what shaping is trying to figure out!)
+
+Lack of backwards propagation also causes a technical difficulty in
+implementation: after type checking modules, we may need to write out
+references to as yet to be resolved hole variables (which will later be
+recursively defined), on faith that they will be backpatched to the
+correctly values later.
+
+\paragraph{Translucency}
+
+  It's worth
+pointing out that if we were to move the definition of \verb|y| to
+\verb|A| (or any module that imports \verb|A|) it should typecheck in
+all cases, since no backwards propagation in this case.
+
+
+If there is a pre-pass, we \emph{also} would need to
+recompile any module which transitively imported its forward
+declaration: a stiff price to pay, as it effectively means incremental
+compilation is not possible within a recursive import loop.  In \Backpack{},
+we propose that identities and types only be refined \emph{in the module
+that defines them}.
+
+
+the \emph{double vision} problem,
+
+where things an implementing module knows about a type do not coincide
+with the things they know about the recursive occurrence of that very
+same type.  Even \OldBackpack{} must tackle with this problem, as the
+ability to reexport functions and types introduces a limited form
+of translucency.
+
+Conventionally, double vision is solved by introducing a pre-pass which
+computes the true identities (in the case of \OldBackpack{}) or types
+(in the case of RMC and MixML) prior to typechecking, so that when we
+typecheck, the forward declaration already has the correct
+identity/type.  However, there is a major downside to this approach.
+
+As another point of comparison, \OldBackpack{} did not support
+implementing abstract data types with type synonyms, but they
+did support this using reexports, which exhibit the same issues:
+
+
+\paragraph{Translucency}  A feature not supported in \OldBackpack{}
+but supported in \Backpack{} is
+the ability to use a type synonym to implement an abstract data type.
+This introduces a form of ``translucency'', where the abstract data type
+is opaque while the implementation is unknown, and transparent afterwards.
+For example, in Section~\ref{sec:instantiating-the-matcher}, we demonstrated
+how we could instantiate a generic regular expression matcher to match on strings.
+Inside the implementation of the matcher, we knew nothing about the abstract
+type \verb|Str|; after instantiating it, the \verb|accept| function
+transparently accepts \verb|String| arguments.
+
+Traditionally, translucency poses a problem for recursive linking
+because it can easily give rise to 
+
+We can illustrate the difference between these two strategies with
+the following example:
+
+\begin{lstlisting}[escapechar=@]
+    -- package p
+    signature A where
+        data T
+    module B where
+        import A
+        f (x :: T) = x
+    -- package q, which depends on p
+    module C where
+        import B
+        y = @\fbox{f 2}@
+    module A where
+        import C
+        type T = Int
+\end{lstlisting}
+%
+Here, we provide a forward declaration of \verb|A| which
+declares \verb|T| abstractly, which is eventually declared to be
+a type synonym of \verb|Int|.  The key expression is boxed: does \verb|f 2|
+in module \verb|C| typecheck?  If it does, it means that type information
+about \verb|T| propagates backwards.  In \Backpack{}, we propose
+that \verb|f 2| should \emph{not} typecheck, since there isn't really
+any reason \verb|C| should know about how \verb|T| will eventually
+be defined.  It's worth pointing out that if we were to move the
+definition of \verb|y| to \verb|A| (or any module that imports \verb|A|)
+it should typecheck in all cases.
+
+As a point of comparison, MixML chose the opposite behavior:
+
+\begin{figure}[H]
+\begin{tabular}{p{0.40\textwidth} p{0.50\textwidth}}
+\begin{lstlisting}[language=ML,escapechar=@]
+link X = { type t }
+with ( { val f (x : X.t) = x,
+         val y = @\fbox{f 2}@ }
+           with
+       { type t = int } )
+\end{lstlisting}
+&
+\begin{verbatim}
+(* mixml 0.2.1 passes with type: *)
+it : {f : [int -> int]+,
+      t : [= int : #],
+      y : [int]+}
+\end{verbatim}
+\end{tabular}
+\caption{Backwards propagating type information in MixML}
+\label{fig:double-vision-backwards-propagating-mixml}
+\end{figure}
+
+\noindent
+Although we have very loosely translated the example (a more
+faithful example would actually construct \verb|f|, \verb|y| and
+\verb|t| in substructures representing each Haskell level
+module), the same basic pattern holds: when typechecking \verb|f 2|,
+\verb|X.t| is already known to be equal to \verb|int|.
+
+\section{Semantics sketch}
+
+Broadly speaking, we support recursive modules in the same way
+we support recursive type definitions within a module: 
+
+
+In Section~\ref{sec:recursive-uids}, we described the semantics of
+recursive unit identifiers.  Mix-in linking can be easily adjusted
+to produce recursive unit identifiers simply by removing the
+occurs check from unification, allowing our unification algorithm
+to generate infinite trees.  So the primary complexity is adjusting
+type checking to handle recursive libraries.  Here are the primary
+changes necessary:
+
+\begin{itemize}
+    \item Dependency typing needs to stop testing once we reach
+        recursion. Intuitively, you only have to check the
+        LINKAGES for well-typedness, and there are finitely
+        many of them.
+    \item Type lookup needs bottom out when applying substitution.
+        (Decidability of substitution, since we have mutually
+        recursive substitution and typing.)  Assuming no
+        cycles we will bottom out.
+\end{itemize}
+
+
+typecheck signatures in the local import order
+    when they reach for types that are not locally defined, grab them
+    from merged environment (merged on the fly ugh)
+
+    problem: outer signature T imported S, but you have S import T.
+    Your S refines a type so that T will typecheck. T is not allowed
+    to see it. RIGHTLY SO.
+
+SIGNATURES D: D: D: D:
+
+Complication: handling hole variables that are going to be filled
+by another module in the same package.
+
+Typechecking-compilation works as a pre-pass to allow you to
+get the export information.  (But wait! We assume that if you have
+no holes we can skip typechecking. Ouch.)  Alternate strategy:
+point these at specially munged forward decls, then add the
+correct names afterward.  Precedent: dictionaries.
+
+Difference between exports and type synonyms. Exports is harder
+in some sense.
+
+
+
+STOP STOP STOP
+
+The basis for supporting recursive typechecking follows the same
+machinery which allows Haskell to support recursive type definitions
+inside of a module without any trouble: the basic principle is to
+
+\section{Double vision}
+
+
+OUTLINE
+
+How can Backpack support recursive linking?
+What do we mean by recursive linking?
+    Standard set by MixML / Backpack'14
+    Principle of ``no backwards flow''
+How does GHC handle recursive definitions?
+    Relationship with type computation pass
+Laying down the semantics
+    Renaming
+    Typechecking
+In what sense do we solve double vision?
+    The easy sense
+    NOT with sealing
+
+
+
+\Backpack{}'s mix-in based design means that it is easy to express
+build recursively linked components
+
+
+
+
+
+Let's start by talking about recursive definitions within a single
+module.  Within a single module, Haskell type and value declarations
+are permitted to rely on each other arbitrarily, without forward
+declarations.  How does the compiler untangle this mess?  It computes
+a dependency graph of strongly connected components, and then kind-checks/type-checks
+the components all at once.  Importantly, there never is a dependency
+from a value to a type (modulo Dependent Haskell; but even then, if
+you don't have induction-recursion you can't end up in a situation where
+a value and a type have a recursive dependency.)  This means we can go ahead
+and kind check all type declarations before doing any value-level type
+checking.
+
+This strategy for typechecking recursive declarations closely mirrors
+proposals for handling recursive modules, i.e., in RMC and MixML\@; however,
+instead of posing the problem as a ``staging'' (process types, the process
+values), the problem is posed more as ``pre-pass'' (run the typing rules in
+type computation mode, skipping values, and then run the full typing
+rules with everything.)  This is one of those cases assuming your language
+can do some sort of dependency analysis comes quite in handy (and prevents
+you from making decisions in your design that would rely on ordering).
+
+So, assuming you have a compiler that knows how to deal with recursive
+definitions in one module, this gives you a basis for how any sort
+of recursive linking should work, which is that you should be able to,
+in principle, copy paste everything into a single module and typecheck it.
+Obviously, you need name everything appropriately (identities, ding ding)
+but this should give you an idea for what should work, and what shouldn't work.
+
+When people say that double-vision is difficult, they are working in the
+context of the ML module system, which has far more sophisticated \emph{sealing}
+mechanism, which makes things more complicated.  Think about this:
+
+\begin{verbatim}
+seal T where
+    type T = Int
+    f :: T -> (U, T)
+    f x = let (y, z) = g (x + 3)
+          in (y, z + 3)
+
+seal U where
+    type U = Bool
+    g :: T -> (U, T)
+    g x = ... f ...
+\end{verbatim}
+
+How would you go about typechecking things?  The obvious strategy was to typecheck
+each seal individually, and then generate the abstract types and apply coercions.
+But now there's a recursion so you can't do that.  Another idea is to typecheck
+the types first, and then handle the values.  But what are you going to put into
+the context: the sealed version or the unsealed version? You need different things
+in each case. Well, you can make it work and then it looks like MixML\@.
+
+If you don't care about data abstraction, recursive linking is easy, because you
+setup all the types first, and then you typecheck everything else.  There is one
+further complication, which is that you may have forward declared things, you might
+have a pile of stuff in the context which was typechecked relative to an abstract
+type.  But that's not a problem either, because you can arrange to only ever look at
+the KINDs of the forward declarations (which are perfectly well declared) until
+you've setup your context.  This is literally how GHC does it.  I don't think the
+algorithm is written down anywhere but that's how it is.
+
+
+So, hypothetically, if we wanted to support recursive linking in Backpack,
+here's how we'd do it.
+
+First, we'd bring back recursive module identities, so that we can actually
+give names to these things.
+
+Now let's talk about how we instantiate in the presence of recursion.
+Ordinarily, when we want to instantiate an interface, we look at the
+module that instantiated it to figure out how to apply a name substitution.
+Whatever we do, it has to bottom out; if we get to the point where we need
+to lookup the same interface to determine the identity of the thing, that means
+we are recursively reexporting ourselve (and not going to get anywhere), so
+bail out.  Just cycle check.
+
+The crux of the matter is whether or not a module from the package I'm currently
+INDEFNITE typechecking, FURTHER DOWNSTREAM, can show up in dependency.
+Yes it can, if we allow arbitrary mix-in linking.
+
+\begin{verbatim}
+package q where
+    signature B where
+        f :: Int
+    module S(f) where
+        import B
+package p where
+    include q
+    module P where
+        f :: Int
+        f = 3
+    module A(f) where
+        import S
+        import P
+    -- CUT
+    module B(f) where
+        import A ()
+        import P
+        -- versus f :: Int; f = 2
+\end{verbatim}
+
+Essentially, we can construct situations where it is impossible to
+know whether or not A should typecheck without having renamed B.
+\OldBackpack{} said, ``OK, so clearly, we should run a shaping pre-pass
+to solve this problem.''  But this is awful from a recompilation perspective;
+we really don't want to be in the business of having to recompile when B
+changes.  (By the way, how bad is recompilation with recursive linking
+acros packages? Let's not talk about that for now\ldots)
+
+So, the claim is \OldBackpack{}, with its shaping pass, is solving a
+problem that people didn't really want solved in any case.  But the crux
+of the matter is how to setup a reasonable restriction which will rule
+out these shenanigans.  One answer is to disallow instantiating
+dependencies with modules that you are defining in this package, but
+this may require annoying gyrations moving modules out to separate
+libraries and creating new signatures for their missing deps (it's
+always possible, but not always pleasant).  Another compromise is
+hs-boot assumptions about where a recursively defined entity is going to
+be imported from.  Yet another compromise is to NOT make assumptions
+about the true name of f (but that is irritating because you have to
+backpatch in the hole instantiation on the interface when loading. But
+it's doable.)
+
+OK, so supposing you set this up correctly, when it comes to typechecking,
+you have a similar problem which is whether or not you should ``see backwards''.
+We argue you shouldn't, it should be opaque until you're actually at the
+module.  Now there is something very lovely, which is that a type synonym
+never actually gets replaced with the actual thing, so there's always a marker
+we can look at which forwards us to the correct definition later (that's why
+context improvement works.)
+
+And finally, when we define a type within a module itself, does it get updated
+throughout the context before we handle types within the same module? Sure
+why not; because we have STAGING (this is how hs-boot knot-tying works.)
+
+A key limitation of \Backpack{} as described in this thesis is its
+lack of support for recursively linked modules.  Recursive modules
+are generally thought to be difficult to typecheck due to the
+\emph{double vision} problem, which occurs when the things an
+implementing module knows about a type do not coincide with the
+things they know about the recursive occurrence of that very same
+type.
+
+
+Compilers like GHC are able to handle recursive type and value
+definitions within a single module without any trouble.
+
+
+Prior literature suggests that a type computation \emph{pre-pass}
+is necessary to get everything in order before performing type
+checking proper.
+
+
+
+It's just a simple matter of 
+
+
+tl;dr The Haskell typechecker supports typechecking recursively
+defined types and functions without trouble, in part because it
+does not seek to support some of the features which recursive
+modules in ML want to support (sealing).  Recursive modules in Haskell
+should be understood in terms of this existing recursive support; indeed,
+the existing \verb|hs-boot| mechanism (which \OldBackpack{} relies critically
+upon in order to implement recursive linking) is achieved this way.
+
+
+How does hs-boot work?  Like most ``simple'' formulations of the
+recursive module rule, an hs-boot file initially operates by placing
+some (to-be-defined) types and functions in the environment, which
+modules can use.  Eventually, we typecheck the module which implements
+the signature.
+
+
+
+
+\Backpack{} as described in this thesis does not support recursive
+linking. This is despite the fact that its predecessors, \OldBackpack{}
+and MixML, held up the ability to handle recursive modules as one of
+their chief technical achievements.  This raises the question: can
+\Backpack{} be extended to support recursive linking?  Can the solutions
+from \OldBackpack{} and MixML be directly applied with \Backpack{}?  If
+not, what would the design of a recursive \Backpack{} be?
+
+
+One decision we made when embarking on the design of \Backpack{}
+was to \emph{not} handle the problem of recursive linking.  Initially,
+\Backpack{} was not too different from \OldBackpack{} (which did
+support recursive linking)
+
+A big limitation of \Backpack{} is the fact that it does not support
+recursive linking.  
+
+The purpose of this section is to sketch a design for an extension to
+\Backpack{} which supports recursive linking.  This is not a trivial
+application of ideas from \OldBackpack{} (which did support recursive linking)
+because \Backpack{} also introduces translucency (the ability to define
+an abstract data type using a transparent type synonym), which \OldBackpack{}
+did not support.  Nor is it a trivial application of ideas from MixML
+(which did support translucency), as we seek to support type checking
+in a \emph{single} pass over modules, as this property is essential
+to usable recompilation avoidance in a real compiler.
+
+Any semantics of recursive modules must grapple with the \emph{double
+vision problem}.  First coined by Dreyer in his
+thesis~\cite{dreyer:thesis}, the double vision problem refers to
+technical difficulty that arises when attempting to define the typing
+rules for recursive modules.  Informally, the double vision problem
+occurs when the things an implementing module knows about a type does
+not coincide with the things they know about the recursive occurrence of
+that very same type.
+
+There is no formal definition of ``double vision'', which at times makes
+it difficult to characterize, because module systems can solve double
+vision to varying degrees---arguably, even \Backpack{}, which has no
+recursive linking, solves a variant of the double vision problem when
+performing signature merging.  We will see that MixML and \OldBackpack{}
+solve \emph{stronger} versions of the double vision problem, necessitating
+a type/shape-computation prepass.  If one weakens the problem, the
+need for a prepass vanishes.
+
+This section is structured as follows.  First, we will characterize the
+double-vision problem by giving a number of litmus tests which
+demonstrate the problem in existing module systems; then, we'll describe
+precisely in what sense can the double-vision problem be solved in
+\Backpack{} without a prepass.
 
 \section{Simple recursion}
 
@@ -253,7 +859,7 @@ Error: This expression has type t = int
 OCaml has determined the type of \verb|A.f| to be \verb|A.t -> A.t|,
 while the boxed \verb|x| has type \verb|t|.  This example exhibits
 ``double vision'' because OCaml is unable to tell that \verb|A.t| and
-\verb|t| are equal, despite the fact that, intuitively, both identifiers refer to
+\verb|t| are equal, despite the fact that, ``intuitively'', both identifiers refer to
 the same type.
 
 A slight variation on the above litmus test is one which utilizes a generative type
@@ -283,13 +889,14 @@ module A : sig type t val f : t -> t end
 
 \noindent
 Interestingly, OCaml is able to compile this example, because the type-checker
-adds an equality \verb|t = A.t| when typechecking the structure; something that
-is not possible when there is already a type equality \verb|t = int|.\footnote{\url{http://caml.inria.fr/pub/ml-archives/caml-list/2007/06/0d23465b5b04f72fedecdd3bbf2c9d72.en.html}}
+adds an equality \verb|t = A.t| when typechecking the structure.
+According to Xavier Leroy, the transparent case doesn't work because
+the current implementation of the type checker is not able to
+record and maintain multiple type equalities.\footnote{\url{http://caml.inria.fr/pub/ml-archives/caml-list/2007/06/0d23465b5b04f72fedecdd3bbf2c9d72.en.html}}
 
 \paragraph{Simple recursion in MixML}
 Both RMC~\cite{dreyer:recursive} and MixML~\cite{rossberg+:mixml} are
-both systems which solve the double vision problem.  As RMC was never
-implemented, we ported our
+both systems which solve the double vision problem.  We ported our
 litmus test to the MixML prototype interpreter 0.2.1, using the
 desugaring of recursive modules described in the paper.
 
@@ -341,8 +948,9 @@ it : {f : [it.t%2 -> it.t%2]+,
 \end{figure}
 
 \noindent
-MixML does not natively support generative data declarations, since they can be
-encoded using modules and sealing.
+MixML is able to handle both cases of mutual recursion.  MixML does not
+natively support generative data declarations, since they can be encoded
+using modules and sealing.
 
 \paragraph{Simple recursion in GHC Haskell} Recursive modules
 with generative data can be directly ported to Haskell using \verb|hs-boot| files:
@@ -375,18 +983,18 @@ module A(T, f) where
 
 \noindent
 There is some nuance in the above translation, since GHC Haskell's module
-system is substantially less expressive than ML's.  First, in most
-presentations of recursive modules, the defined module is implicitly
+system is substantially less expressive than ML's.  Recall that in most
+presentations of recursive modules in ML, the defined module is implicitly
 \emph{sealed} by the signature that serves as the forward reference.
 In GHC Haskell, no such sealing takes place: if a module directly
 imports the implementing module, they will see all the entities it
-exports.  Data abstraction in Haskell is achieved by \emph{hiding}
+exports.  In general, data abstraction in Haskell is achieved by \emph{hiding}
 constructors of generative type definitions from the exports of a module, as we
 have done here. If we were to implement \verb|T| using a type synonym
 (not currently allowed by GHC), there is no way to seal it after-the-fact
 so that it is opaque.
 
-Second, when the abstract type declaration \verb|data T| is specified in
+Furthermore, when the abstract type declaration \verb|data T| is specified in
 \verb|A.hs-boot| file, we are \emph{committing} to there being a
 generative data declaration of \verb|T| in the implementation \verb|A|.
 In particular, \verb|A| is not allowed to reexport a definition of
@@ -449,7 +1057,72 @@ only ``accidentally'', because when we typecheck, \texttt{B.f} takes
 on the type of the local definition of \texttt{f}, \emph{not} the
 forward declaration.}
 
+\paragraph{GHC Haskell without the type synonym restriction}
+In GHC Haskell today, abstract type definitions defined in
+\verb|hs-boot| files may not be implemented with a type synonym.
+However, a close inspection of the typing rules GHC implements
+reveals that GHC could relax this restriction without needing
+any algorithmic changes.
+
+\begin{figure}[H]
+\begin{tabular}{p{0.35\textwidth} p{0.55\textwidth}}
+\begin{lstlisting}[language=Haskell,escapechar=@]
+-- A.hs-boot
+module A where
+  data T
+  f :: T -> T
+-- B.hs
+module B(f) where
+  import {-# SOURCE #-} A
+-- A.hs
+module A(T, f) where
+  import qualified B
+  type T = Int
+  f :: Int -> Int
+  f x = B.f x
+\end{lstlisting}
+&
+\begin{verbatim}
+{- GHC 8.0.2 without synonym restriction succeeds -}
+\end{verbatim}
+\end{tabular}
+\caption{Simple recursion with type synonyms in Haskell with \texttt{hs-boot} files}
+\label{fig:double-vision-simple-recursion-with-type-synonyms-haskell-hs-boot}
+\end{figure}
+
+\noindent
+The reason GHC Haskell succeeds in this case is because prior to typechecking
+any value-level declarations (e.g., the application \verb|B.f x|), GHC refines
+its context with the updated declaration \verb|type T = Int|, so that all
+previous references to an abstract \verb|T| now refer to a \verb|T| which
+is transparently equal to \verb|Int|.
+
+\section{How to do it}
+
+Key ideas:
+
+The basic premise is that GHC Haskell (the language) understands how to
+typecheck recursively defined types.  The point is to bootstrap recursive
+module support on-top of this understanding.
+
+
+
+No backwards propagating information.  MixML with atomic modules cannot support
+an idea like this, but in Haskell it's pretty natural idea. In fact, this phenomenon
+occurs when considering SCCs in type declarations.
+
+Things we don't support: sealing.  This means visibility is very clear:
+if you import transitively the full def, you see it, otherwise you don't.
+
+You have some existing context, and you're ready to tc module.
+First rename the exports. Then apply the shaping to occurrences
+of that hole variable to refine them.  Then typecheck the declarations,
+rolling them into the context.
+
+
 \section{Backwards propagating type information}
+
+TODO: This is not what the actual rules ended up doing.
 
 Both MixML and \OldBackpack{} avoid double-vision by way of a
 type-computation/shaping pass, which computes the types/original names
@@ -648,5 +1321,3 @@ signature A where
     data U = MkU T
 \end{verbatim}
 \end{tabular}
-
-\fi
