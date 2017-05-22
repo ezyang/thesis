@@ -351,7 +351,8 @@ GHC is an incremental compiler: if you edit a module of a previously
 compiled project, only modules which transitively import it need to be
 recompiled.  For this strategy to be correct, it must not be the case
 that a downstream module can affect the compilation of an upstream one.
-Unfortunately, the \emph{shaping pass} of \OldBackpack{} is a pre-pass
+Unfortunately, the \emph{shaping pass} of \OldBackpack{}---used to
+prevent the double vision problem---is a pre-pass
 which can cause information to propagate backwards.  Consider the
 following example:
 
@@ -375,71 +376,43 @@ fail to typecheck.  Thus, information propagates backwards from
 the implementation of \verb|A| to \verb|C|.
 
 In \Backpack{}, we propose that \verb|f MkT| should \emph{not}
-typecheck, in order to preserve incremental compilation.  By changing
-the semantics, we enable an implementation of typechecking which
-does not require a shaping pass.  There is a downside: less programs
-typecheck under these semantics---however, we had no way of incrementally
-typechecking them in the first place.  As a final note, it is worth
-noting that even \OldBackpack{} imperfectly solves the double vision
-problem:
+typecheck, in order to preserve incremental compilation.  More
+generally, only the implementor of a module and any modules which
+transitively import it should be affected by any refinements to original
+names that occur due to exports in the implementation of a module.
+Consequently, we refine the original names of a forward reference only
+immediately before we typecheck the implementation of this forward
+reference.
 
-\begin{lstlisting}[escapechar=@]
-    package p where
-        A :: [ data T ]
-        B = [ exports (T); import A ]
-    package q where
-        include p
-        I = [ data T = MkT ]
-        C = [ @\fbox{exports (T)}@; import B; import I ]
-        A = [ exports (T); import I(T) ]
-\end{lstlisting}
+%   Lack of backwards propagation also causes a technical difficulty in
+%   implementation: after type checking modules, we may need to write out
+%   references to as yet to be resolved hole variables (which will later be
+%   recursively defined), on faith that they will be backpatched to the
+%   correctly values later.
 
-When considering \verb|q| in its totality,
-\verb|C|'s export of \verb|T| is unambiguous; however, \OldBackpack{} will
-reject \verb|C| during shaping, because at the time of shaping
-it is not known that \verb|I.T| and \verb|B.T| coincide (that's
-what shaping is trying to figure out!)
+%   This change also allows us to sidestep some infelicities with
+%   \OldBackpack{}'s shaping pass:
 
-Lack of backwards propagation also causes a technical difficulty in
-implementation: after type checking modules, we may need to write out
-references to as yet to be resolved hole variables (which will later be
-recursively defined), on faith that they will be backpatched to the
-correctly values later.
+%   \begin{lstlisting}[escapechar=@]
+%       package p where
+%           A :: [ data T ]
+%           B = [ exports (T); import A ]
+%       package q where
+%           include p
+%           I = [ data T = MkT ]
+%           C = [ @\fbox{exports (T)}@; import B; import I ]
+%           A = [ exports (T); import I(T) ]
+%   \end{lstlisting}
 
-\paragraph{Translucency}
-
-  It's worth
-pointing out that if we were to move the definition of \verb|y| to
-\verb|A| (or any module that imports \verb|A|) it should typecheck in
-all cases, since no backwards propagation in this case.
-
-
-If there is a pre-pass, we \emph{also} would need to
-recompile any module which transitively imported its forward
-declaration: a stiff price to pay, as it effectively means incremental
-compilation is not possible within a recursive import loop.  In \Backpack{},
-we propose that identities and types only be refined \emph{in the module
-that defines them}.
-
-
-the \emph{double vision} problem,
-
-where things an implementing module knows about a type do not coincide
-with the things they know about the recursive occurrence of that very
-same type.  Even \OldBackpack{} must tackle with this problem, as the
-ability to reexport functions and types introduces a limited form
-of translucency.
-
-Conventionally, double vision is solved by introducing a pre-pass which
-computes the true identities (in the case of \OldBackpack{}) or types
-(in the case of RMC and MixML) prior to typechecking, so that when we
-typecheck, the forward declaration already has the correct
-identity/type.  However, there is a major downside to this approach.
-
-As another point of comparison, \OldBackpack{} did not support
-implementing abstract data types with type synonyms, but they
-did support this using reexports, which exhibit the same issues:
-
+%   Under \OldBackpack{}'s backwards propagating semantics,
+%   we might say that \verb|C|'s export of \verb|T|
+%   is unambiguous (because of the implementation of \verb|A|).
+%   However, \OldBackpack{} will reject \verb|C| during
+%   shaping, because at the time of shaping, we must resolve the export of
+%   \verb|T|, but it is not known that \verb|I.T| and \verb|B.T| coincide
+%   (that's what shaping is trying to figure out!)  In principle, this
+%   problem could be solved by a more sophisticated shaping algorithm,
+%   but this is 
 
 \paragraph{Translucency}  A feature not supported in \OldBackpack{}
 but supported in \Backpack{} is
@@ -452,11 +425,12 @@ Inside the implementation of the matcher, we knew nothing about the abstract
 type \verb|Str|; after instantiating it, the \verb|accept| function
 transparently accepts \verb|String| arguments.
 
-Traditionally, translucency poses a problem for recursive linking
-because it can easily give rise to 
-
-We can illustrate the difference between these two strategies with
-the following example:
+Translucency introduces yet another variant of the \emph{double vision}
+problem.  In systems like RMC and MixML, double vision is solved by
+introducing a type precomputation pass, which means that we end up
+with same kind of backwards propagation we described in \OldBackpack{}.
+Here is the analogous example, rewritten to use translucency rather than
+exports:
 
 \begin{lstlisting}[escapechar=@]
     -- package p
@@ -477,15 +451,12 @@ the following example:
 Here, we provide a forward declaration of \verb|A| which
 declares \verb|T| abstractly, which is eventually declared to be
 a type synonym of \verb|Int|.  The key expression is boxed: does \verb|f 2|
-in module \verb|C| typecheck?  If it does, it means that type information
-about \verb|T| propagates backwards.  In \Backpack{}, we propose
-that \verb|f 2| should \emph{not} typecheck, since there isn't really
-any reason \verb|C| should know about how \verb|T| will eventually
-be defined.  It's worth pointing out that if we were to move the
-definition of \verb|y| to \verb|A| (or any module that imports \verb|A|)
-it should typecheck in all cases.
+in module \verb|C| typecheck?
 
-As a point of comparison, MixML chose the opposite behavior:
+Just as we argued previously, we think \verb|f 2| should \emph{not}
+typecheck.  If we were to move the definition of \verb|y| to \verb|A|
+(or any module that imports \verb|A|) it should typecheck in all cases.
+This is in contrast to the behavior of MixML\@:
 
 \begin{figure}[H]
 \begin{tabular}{p{0.40\textwidth} p{0.50\textwidth}}
@@ -515,30 +486,162 @@ faithful example would actually construct \verb|f|, \verb|y| and
 module), the same basic pattern holds: when typechecking \verb|f 2|,
 \verb|X.t| is already known to be equal to \verb|int|.
 
-\section{Semantics sketch}
+\section{Recursive \uid{}s}
+\label{sec:recursive-uids}
 
-Broadly speaking, we support recursive modules in the same way
-we support recursive type definitions within a module: 
+%   **Warning:** The extension described in this section is not implemented
+%   in GHC 8.2.  It can be skipped upon a first reading.
 
+\Backpack{} with recursive linking requires generalizing unit
+identifiers to be infinite regular trees.  As was the case
+in \OldBackpack{}, these trees can be
+represently finitely using $\mu$-binders (ala recursive types),
+with the following abstract syntax (where $\alpha$ ranges over
+unit identity variables):
 
-In Section~\ref{sec:recursive-uids}, we described the semantics of
-recursive unit identifiers.  Mix-in linking can be easily adjusted
-to produce recursive unit identifiers simply by removing the
-occurs check from unification, allowing our unification algorithm
-to generate infinite trees.  So the primary complexity is adjusting
-type checking to handle recursive libraries.  Here are the primary
-changes necessary:
+\[
+\begin{array}{rcll}
+  \UP &::=& \mu\alpha.\, \icid{\Up}{S} & \text{\Uid} \\
+      & | & \alpha \\
+\end{array}
+\]
 
-\begin{itemize}
-    \item Dependency typing needs to stop testing once we reach
-        recursion. Intuitively, you only have to check the
-        LINKAGES for well-typedness, and there are finitely
-        many of them.
-    \item Type lookup needs bottom out when applying substitution.
-        (Decidability of substitution, since we have mutually
-        recursive substitution and typing.)  Assuming no
-        cycles we will bottom out.
-\end{itemize}
+%   A more parsimonious extension to the concrete syntax is to
+%   have every ``ComponentId`` "constructor" implicitly introduce
+%   a μ-binding, and represent the variables with de Bruijn indexes.
+%   Let ``UnitIdVar`` range over natural numbers, then:
+
+%   ::
+
+%       UnitId ::= ComponentId "[" ModuleSubst "]"
+%                | UnitIdVar
+
+Pictorially, recursive components simply relax the acyclicity restriction on
+the component graph:
+
+\begin{figure}[H]
+\center\includegraphics{figures/recursive-unit-identifier.pdf}
+\end{figure}
+
+These graphs are equivalent up to unfoldings (i.e., unrolling the
+cycles).
+As observed in \OldBackpack{}, infinite trees of this form
+can be tested for equivalence using Huet's unification algorithm.
+However, for an implementation, it is more convenient to compute the canonical form
+of a \uid{}, so equality can be checked syntactically.  This can be
+computed by Moore machine minimization.  Canonicalization can be achieved
+in three steps:
+
+\begin{enumerate}
+\item Convert the unit identifier into a Moore machine,
+\item Minimize the Moore machine (the procedure is similar to DFA
+   minimization, except that states with differing outputs are
+   initialized to be in separate equivalence classes initially), and
+\item Convert the Moore machine back into a unit identifier.
+\end{enumerate}
+%
+Intuitively, the Moore machine of a unit identifier recognizes paths
+(from right to left) through the component graph, outputting the
+component identifiers of the component boxes it traverses.
+
+\begin{figure}[H]
+\center\includegraphics{figures/moore-description.pdf}
+\end{figure}
+
+\noindent
+Formally, we define the partial Moore machine corresponding to a unit
+identifier as follows:
+
+\begin{enumerate}
+\item The state set ranges over component boxes and hole modules in the
+   graph (in the diagram above, we simply assigned a number to each
+   box/hole).
+\item The input alphabet is the Cartesian product of output module names
+   and input module names.  Intuitively, each member of the alphabet
+   corresponds to a wire labeled with the name of the input and output
+   ports it is wired to.
+\item The output alphabet is the set of component identifiers, as well
+   as a distinguished element \verb|HOLE| for hole modules.
+\item The inital state is the state corresponding to the component box of
+   the unit identifier we want to denote.
+\item A transition from $q$ to $q'$ on the input $(m, m')$ exists
+   if there is a wire from the input port $m'$ of $q$ to the output
+   port $m$ of $q'$ (or a hole module $\hv{m}$, if $q'$ corresponds to a hole
+   module).
+\item The output of a state is the component identifier of its component
+   box, or \verb|HOLE| if it is a hole module.
+\end{enumerate}
+%
+We can complete the partial Moore machine into a total Moore machine by
+adding a new sink state \verb|SINK|, which outputs a new output value
+\verb|SINK|, and directing all undefined transitions to it (not depicted on
+the diagram).
+
+Here are two examples of recursive components expressed as Moore
+machines:
+
+\begin{figure}[H]
+\center\includegraphics{figures/moore-p.pdf}
+\hspace{3em}
+\includegraphics{figures/moore-pq.pdf}
+\end{figure}
+
+\noindent
+The \uid{} corresponding to a Moore machine is defined by
+recursively traversing the Moore machine, creating unit identifiers
+whose component identifier is the output at a state, and module
+substitution is all of the outgoing transitions to non-sink states. During
+this traversal, we maintain a stack of seen states:  when we reach a
+state that is already on our stack, we emit a variable bound
+for that state on the stack.  This traversal
+is guaranteed to terminate as the size of the state set is finite.
+
+\section{Mix-in linking}
+
+Mix-in linking can be straightforwardly adapted to a recursive
+setting: the algorithm proceeds as before, but we remove the
+occurs check from unification, allowing our unification to
+produce infinite trees (as describe above.)  Pictorially,
+this simply corresponds to allowing loops when we wire up provisions
+to requirements in our component shapes.
+
+\section{Type checking}
+
+The primary complexity in handling recursive linking comes in adapting
+typechecking in GHC to operate in this new regime and correctly
+handle double vision.
+
+For example, consider renaming.  Ordinarily, renaming of a module
+proceeds by looking up the exports of each module, and then computing
+the original names of reexports using the subsequent environment.
+To lookup the export of a module, we first need to instantiate it.
+The crux of the matter is that if the module occurs recursively
+within the module identifier, then we need the exports of our module:
+but we cannot provide them, because we are still in the process
+of computing them.  A partial solution is to treat these abstractly,
+and then refine them afterwards (shaping pass), but there is one
+more detail, which is that we have to defer concluding that exports
+are ambiguous due to the abstract types, because they may not be
+ambiguous after refinement.  (Also, necessity to bottom out if an
+instantiation cuases a loop.)
+
+Now consider typechecking.  Here, the issue is a bit easier, because
+there is already a built-in type computation pass in GHC already,
+where we first handle all type declarations, before handling anything
+else.  There is one technical obstacle, which is that we have to make
+sure that the merged types of this module pass through this mechanism.
+Blah blah blah.
+
+So the crux of the matter is handling lookup.  Another problem is
+when you hit a lookup for something that hasn't been locally handled
+yet.  On the fly UN-CHECKED merge necessary.  (When things get refined to other
+things.)
+
+Dependency typing needs to stop testing once we reach
+recursion. Intuitively, you only have to check the
+LINKAGES for well-typedness, and there are finitely
+many of them.
+
 
 
 typecheck signatures in the local import order
