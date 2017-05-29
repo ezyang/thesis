@@ -85,10 +85,10 @@ corresponding module type:
 \begin{tabular}{p{0.30\textwidth} p{0.30\textwidth}}
 \begin{lstlisting}
 module A where
-    data T = MkT
-    f = MkT
-    instance Eq T where
-        MkT == MkT = True
+  data T = MkT
+  f = MkT
+  instance Eq T where
+    MkT == MkT = True
 \end{lstlisting}
 &
 \vspace{-12pt}
@@ -111,9 +111,10 @@ being typechecked as a part of (for example, if \verb|module A| was
 in the component \verb|p| with no holes, then $P_0 = \uidl{p}{}$),
 and $N_\texttt{Eq}$ is the original name of the equality type
 class (not shown, but part of Haskell's Prelude, a set of declarations
-which are always in scope).
+which are always in scope).  Even though the original module left its
+exports implicit, in the interface each export is explicitly specified.
 
-There are some slight differences with the module type of a signature:
+The module type of a signature is quite similar, though with a few differences:
 
 \vspace{-1em}
 \begin{figure}[H]
@@ -124,13 +125,15 @@ There are some slight differences with the module type of a signature:
 signature A where
     data T
     f :: T
+    instance Eq T
 \end{lstlisting}
 &
 \[
 \begin{array}{l}
     \UobjIface\: (\nhv{A.T}, \nhv{A.f}) \\
     \qquad\texttt{data T} \\
-    \qquad\texttt{f} :: \nhv{A.T}
+    \qquad\texttt{f} :: \nhv{A.T} \\
+    \qquad\texttt{instance} :: N_{Eq}~\nhv{A.T}
 \end{array}
 \]
 \end{tabular}
@@ -188,13 +191,30 @@ Most typing rules require the following three pieces of context:
     \item The external component type context $\Gamma ::= \overline{p : \Xi}$,
         which records the types of all components we have previously
         typechecked.  These components are typed but not instantiated.
+        For example, the context
+        $\Gamma = \mathtt{base} : \Xi_b, \mathtt{containers} : \Xi_c$
+        would be one where the components \verb|base| and \verb|containers| (with
+        component types $\Xi_b$ and $\Xi_c$ respectively) were in the context.
+        A component with holes, e.g., \verb|regex-indef| (Section~\ref{sec:functorizing-the-matcher}),
+        would occur only \emph{once} in this context (even if it has been
+        instantiated.)
+
     \item The local type context $\Delta :: \overline{m : T^s}$,
         which records the types of the modules and signatures we have typechecked
-        from the current package.
+        from the current package.  The polarity $s$ distinguishes between a
+        module and a signature.  For example, if we typechecked a component
+        consisting of a signature \verb|Str| and a module \verb|Regex|,
+        the final local type context would be $\Delta = \texttt{Str} : T_S^-, \texttt{Regex} : T_R^+$,
+        where $T_S$ and $T_R$ are the respective module types.
+
     \item The current unit identifier $P_0$, which identifies the component
         we are typechecking. It is used to generate the original names
         of declarations in modules and determine when a lookup should be
-        done in the local type environment.
+        done in the local type environment.  For a component with no holes,
+        e.g., \verb|str-string|, this unit identifier will have an
+        empty substitution, e.g.,
+        $\uidl{str-string}{}$; otherwise, each of the holes is
+        uninstantiated, e.g., $\uidl{regex-indef}{\subst{Str}{\hv{Str}}}$.
 \end{itemize}
 Some rules require some extra context:
 
@@ -202,11 +222,17 @@ Some rules require some extra context:
     \item The logical context $\mathcal{L} ::= \overline{m \mapsto M}$ specifies
         which module identity is brought into scope when a module name is imported.
         It is needed when typechecking unrenamed Haskell source code, but is
-        otherwise not needed for typechecking.
+        otherwise not needed for typechecking.  For example, if the logical context
+        is $\mathcal{L} = \texttt{Data.Map} \mapsto \MOD{containers}{}{Data.Map}$,
+        it means that if you write \verb|import Data.Map| in your Haskell source code,
+        the exports of $\MOD{containers}{}{Data.Map}$ are brought into scope.
 
     \item The shape context $\shctx ::= \overline{p : \lctx}$ specifies what
         module identities are provided by a package; this is used to resolve
         a list of \texttt{dependency} declarations into the logical context $\mathcal{L}$.
+        For example, given the shape context $\shctx = \cidl{containers} : \{ \texttt{Data.Map} \mapsto \MOD{containers}{}{Data.Map} \}$, adding a dependency on \verb|containers|
+        would result in \verb|Data.Map| being brought into scope for import
+        (in the logical context.)
 \end{itemize}
 
 \subsection{Assumed Haskell judgments}
@@ -215,46 +241,152 @@ Some rules require some extra context:
 \input{typing/haskell}
 
 We assume some judgments for various operations on
-Haskell, which we do not formalize:
+Haskell, which we do not formalize.
+
+\paragraph{Module and signature typechecking}
+Module and signature typechecking are judgments which typecheck module
+(\I{hsmod}) and signature (\I{hssig}) source into module types.
+Alongside the usual context, these judgments also require the logical
+context $\mathcal{L}$ so that they can resolve imports, and the name $m$
+of the module they are typechecking (along with $P_0$, this will
+determine what original names of the declarations in the module and
+signatures will be: $\Mod{P_0}{m}.n$ in the case of a module, and
+$\nhv{m.n}$ in the case of a signature.)
+
+\emph{Example.} Recall the following source module (left) and its module type (right).
+
+\vspace{-1em}
+\begin{figure}[H]
+\centering
+\begin{shortmath}
+\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth}}
+\begin{lstlisting}
+module A where
+  data T = MkT
+  f = MkT
+  instance Eq T where
+    MkT == MkT = True
+\end{lstlisting}
+&
+\vspace{-12pt}
+\[
+\begin{array}{l}
+    \UobjIface\: (\Mod{P_0}{A}.\texttt{T}, \Mod{P_0}{A}.\texttt{f}) \\
+    \qquad\texttt{data T where MkT} :: \Mod{P_0}{A}.\texttt{T} \\
+    \qquad\texttt{f} :: \Mod{P_0}{A}.\texttt{T} \\
+    \qquad\texttt{instance} :: N_{Eq}~\Mod{P_0}{A}.\texttt{T} \\
+\end{array}
+\]
+\end{tabular}
+\end{shortmath}
+\end{figure}
+
+\vspace{-1em}
+\noindent
+To illustrate all of the contextual information needed to typecheck
+this source module, we give one example context which would successfully
+typecheck this module:
 
 \begin{itemize}
-    \item Module and signature typechecking are judgments which typecheck
-    module (\I{hsmod}) and signature (\I{hssig}) source into module
-    types.  Alongside the usual context, these judgments also require
-    the logical context $\mathcal{L}$ so that they can resolve imports,
-    and the name $m$ of the module they are typechecking (along with $P_0$,
-    this will determine what original names of the declarations in
-    the module and signatures will be: $\Mod{P_0}{m}.n$ in the case
-    of a module, and $\nhv{m.n}$ in the case of a signature.)
-
-    \item We also need judgments for testing type and kind equality.
-    These require a context, because type synonyms and type families
-    can introduce nontrivial definitional equalities between types that
-    are syntactically dissimilar.
-
-    \item Finally, we need a judgment for testing if a type class
-    instance is derivable from the instances available in the context,
-    plus some set of orphan instances (indicated by \I{orphs}).  Informally,
-    this judgment collects all instances which are transitively reachable
-    from \I{orphs}, as well as the modules which define all of the types
-    mentioned in \I{inst}, and then runs the instance constraint solver
-    to see if \I{inst} is implied by these instances.
+    \item $\Gamma = \cidl{base} : \{ \modname{Prelude} : T_P^+, \modname{GHC.Classes} : T_C^+ \}$.
+        Although there are no imports, this source module implicitly makes
+        use of types from the Haskell Prelude (a module which is implicitly
+        imported); the module type of this module and any it transitively
+        imports are recorded in the context.
+        $T_P$ may contain many exports, but for this particular module
+        it must export \verb|Eq| and \verb|True| (identifiers which are used
+        inside \verb|A|).  Let us suppose
+        $\mathsf{exports}(T_P)(\mathtt{Eq}) = \MOD{base}{}{GHC.Classes}.\mathtt{Eq}$;
+        this means the declaration of the type class \verb|Eq|
+        is in $T_C$: $\mathsf{decls}(T_C)(\mathtt{Eq}) =
+        \mathtt{class}~\mathtt{Eq}~(a ::
+        \star)~\mathtt{where}~\I{clinfo}$ (we leave $\I{clinfo}$
+        unspecified, but it would contain information about the methods and
+        default implementations of the \verb|Eq| type class.)  This declaration
+        would be used when ensuring that the \verb|Eq T| instance in \verb|A|
+        is well-typed and implements all necessary methods.
+    \item $\Delta$ is empty; \verb|A| has no local imports.
+    \item $P_0$ as itself.  Module typechecking is indifferent to the choice
+    of current unit identifier, so in the example above we've kept it a
+    metavariable.
+    \item $\mathcal{L} = \modname{Prelude} \mapsto \MOD{base}{}{Prelude},
+    \modname{GHC.Classes} \mapsto \MOD{base}{}{GHC.Classes}$.  Given a
+    dependency on \verb|base|, this means that all the modules that are
+    publically exported (this includes the internal-looking \verb|GHC.Classes|)
+    are in scope for import.  The implicit \modname{Prelude} import will
+    be resolved using this context.
+    \item $m = \modname{A}$.  The current module that is being typechecked
+    is \verb|A|; in the output module type, we can see that this module
+    name is used to form the original names of entities declared in this
+    module.
 \end{itemize}
-%
-%   We need these judgments to uphold some properties;
-%   in particular, we require type and kind equality to be \emph{substitutable}:
 
-%   \begin{axiom}[Type equality substitutability]
-%   If $\ctx; \vdash \tau =_\textsf{hs} \tau'$,
-%   then for any $\USn$, $\ctx; \vdash \substw{\tau}{\USn} =_\textsf{hs} \substw{\tau'}{\USn}$.
-%   \end{axiom}
+\paragraph{Type and kind equality}
+We need judgments for testing type and kind equality.
+These require a context, because type synonyms and type families
+can introduce nontrivial definitional equalities between types that
+are syntactically dissimilar.
 
-%   \begin{axiom}[Kind equality substitutability]
-%   If $\ctx; \vdash \kappa =_\textsf{hs} \kappa'$,
-%   then for any $\USn$, $\ctx; \vdash \substw{\kappa}{\USn} =_\textsf{hs} \substw{\kappa'}{\USn}$.
-%   \end{axiom}
+\emph{Example.}  Obviously, type equality is reflexive.  It's an easy
+matter to determine equality without consulting the context
+(here, $M_T$ is the module identity of the module which originally
+defines \verb|Int|):
 
-%   See Section~\ref{sec:substitutability} for more discussion on substitutability.
+\[ \ctx \vdash M_T.\mathtt{Int} =_\textsf{hs} M_T.\mathtt{Int} \]
+
+To give an example of a nontrivial type equality, suppose that we have \verb|type A = Int|, e.g.,
+$\mathsf{decls}(T_M)(\mathtt{A}) = \mathtt{type}~\mathtt{A} = M_T.\mathtt{Int}$,
+where $T_M$ is the module type for $\Mod{P_0}{M}$.  Then the following type equality
+also holds:
+
+\[ \Gamma; \modname{M} : T_M, \Delta; P_0 \vdash \Mod{P_0}{M}.\mathtt{A} =_\textsf{hs} M_T.\mathtt{Int} \]
+
+\paragraph{Instance resolution} Finally, we need a judgment for testing
+if a type class instance is derivable from the instances available in
+the context, plus some set of orphan instances (indicated by \I{orphs}).
+Informally, this judgment collects all instances defined in \I{orphs},
+as well as the modules which define all of the
+types mentioned in \I{inst}, and then runs the instance constraint
+solver to see if \I{inst} is implied by these instances.
+
+\emph{Example.}  Suppose that we would like to show that there is an
+instance of \verb|Show| for \verb|Maybe Int|, and there are no orphan
+instances in scope.  Then we would have the following
+judgment:
+
+\[
+\ctx \vdash \cdot~\textsf{solves}~\mathtt{instance} :: M_C.\mathtt{Eq}~(M_B.\mathtt{Maybe}~M_T.\mathtt{Int})
+\]
+
+where $M_C$, $M_B$ and $M_T$ are the modules which define \verb|Eq|,
+\verb|Maybe| and \verb|Int|, respectively.  One situation we would
+expect this judgment to hold is if $M_B$ has the instance
+\verb|Eq a => Eq (Maybe a)| and $M_T$ has the instance \verb|Eq Int| (none of these
+instances are orphans, since they are defined in the same module which
+defines a type in the instance itself).  In more formal terms, the
+judgment would hold if:
+\[
+\mathtt{instance}~::~\forall a.\, M_C.\mathtt{Eq}~a \Rightarrow
+M_C.\mathtt{Eq}~(M_B.\mathtt{Maybe}~a) \in \mathsf{insts}(T_B)
+\]
+and
+\[
+\mathtt{instance}~::~
+M_C.\mathtt{Eq}~M_T.\mathtt{Int} \in \mathsf{insts}(T_T)
+\]
+where $T_B$ and $T_T$ are the module types of $M_B$ and $M_T$.
+
+Orphan instances are relevant when some of the needed instances
+in the context are orphans: that is, they are defined in a different
+module than the classes/types it mentions.  For example, suppose
+we moved \verb|Eq Int| from $M_T$ to some alternate module called
+$M_X$.  Then the above judgment would not hold, but this
+judgment (which includes $M_X$ as an orphan instance module in scope)
+would:
+
+\[
+\ctx \vdash M_X~\textsf{solves}~\mathtt{instance} :: M_C.\mathtt{Eq}~(M_B.\mathtt{Maybe}~M_T.\mathtt{Int})
+\]
 
 \subsection{Top-level typing rules}
 \label{sec:typing/main}
