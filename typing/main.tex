@@ -6,14 +6,14 @@
 \frac{
 \begin{array}{c}
 %\shctx \vdash \overline{\I{dep_i}} \leadsto (\mathcal{L}, \mathcal{D}) \qquad
-\mathcal{L} = \bigoplus_i \textsf{exposes}(\shctx, P, r) \qquad
-\mathcal{D} = \bigoplus_i \textsf{inherits}(P) \qquad
-P_0 = p[\overline{m_i=\hv{m_i}}] \\
+\mathcal{L} = \bigoplus_i \textsf{exposes}(\shctx, P_i, r_i) \qquad
+\mathcal{D} = \bigoplus_i \textsf{inherits}(P_i) \qquad
+P_0 = p[\overline{m_j=\hv{m_j}}] \\
 \Gamma; P_0; \mathcal{L}; \mathcal{D} \vdash \overline{\I{decl}} : \Xi \qquad
 \forall i.~ \Gamma; \Xi; P_0 \vdash P_i ~\textsf{well-typed}
 \end{array}
 }{
-\shctx; \Gamma \vdash \UsynUnit{p}{\overline{\hv{m_i}}}{\overline{\I{\UsynDep{P_i}{r_i}}}; \overline{\I{decl}}} : \{ p : \Xi \}
+\shctx; \Gamma \vdash \UsynUnit{p}{\overline{\hv{m_j}}}{\overline{\I{\UsynDep{P_i}{r_i}}}; \overline{\I{decl}}} : \{ p : \Xi \}
 }
 \quad(\textsc{TComp})
 \]
