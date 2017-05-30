@@ -181,12 +181,12 @@ bring modules of packages into scope.
       %           \Mod{\icid{\cidl{p}}{\substHole{A}, \subst{B}{\ldots}}}{A} \\
       \qquad \UsynDep{\icid{\cidl{q}}{\substHole{A}}}{ \rename{X}{B} } \\
       \qquad \UsynDep{\icid{\cidl{p}}{\substHole{A}, \substMod{B}{\icid{\cidl{q}}{\substHole{A}}}{X}}}{ \rename{Y}{Y} } \\
-      \qquad \mathsf{signature}~\modname{A}~(\texttt{I}(..))~\{~\texttt{import W(I(..))}~\} \\
+      \qquad \texttt{signature}~\modname{A}~(\texttt{I}(..))~\{~\texttt{import W(I(..))}~\} \\
     \end{array}
     \]
 
   \caption{\Unit{}s. Each component is annotated with its provided modules, as
-    $\textsf{component}~p~\overline{\protect\hv{m}}\haspr\{\provs\}$.}\label{fig:linked-example}
+    $\texttt{component}~p~\overline{\protect\hv{m}}\haspr\{\provs\}$.}\label{fig:linked-example}
 \end{figure}
 
 
@@ -213,7 +213,7 @@ Figure~\ref{fig:lcomponents}:
 \end{itemize}
 %
 The most important part of mixin linking is the computation of \uid{}s in
-\textsf{dependency} declarations.  While a syntactic semantics
+\texttt{dependency} declarations.  While a syntactic semantics
 for mixin linking is given in Section~\ref{sec:mix-in},
 the mixin linking algorithm
 can actually be understood entirely pictorially:
@@ -485,7 +485,7 @@ name of their source.
 Now we can define the key operation for typechecking in \Backpack{}:
 how to compute the type of \cidl{q} instantiated with an implementation
 for its requirements.  These instantiations are specified to the
-compiler via \textsf{dependency} declarations.
+compiler via \texttt{dependency} declarations.
 Let's first consider a simple one: filling \cidl{q}'s
 requirement with \modname{W} from \cidl{base}, i.e., $\UsynDepEmpty{\cidl{q}[\subst{A}{\Mod{\cidl{base}[]}{W}}]}$.
 
@@ -690,7 +690,7 @@ When we have a \unit{} which has no unfilled requirements,
 the package manager computes the
 \emph{instantiated component graph}, reflecting all of the
 concrete code dependencies of the component.  Specifically, given a closed instantiated component identity $p[S]$, for every
-\textsf{dependency} $P$ of $p$'s mixed component, recursively
+\texttt{dependency} $P$ of $p$'s mixed component, recursively
 instantiate $\substw{P}{S}$ ($P$ after applying the $S$
 substitution).  Furthermore, for every $\substMod{m}{P}{m'} \in S$,
 recursively instantiate $P$.  Then, we compile each instantiated component

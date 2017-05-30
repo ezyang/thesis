@@ -411,6 +411,110 @@ type for the \emph{local} signature is computed, we must \emph{merge} it
 with all of the inherited signatures (computed by \textsf{inherits} and
 recorded in $\mathcal{D} ::= \overline{m \mapsto \overline{M}}$).
 
+\emph{Example.}  To make things more concrete, we'll work through
+the typechecking process for package \verb|r| from Figure~\ref{fig:linked-example}.
+For your convenience, we've reproduced the \unit{} below:
+
+\[
+    \begin{array}{l}
+      \UsynUnitH{\cidl{r}}{\hv{\modname{A}}}
+        \\
+      \qquad \UsynDep{\icid{base}{}}{ \rename{W}{W} } \\
+      %\qquad\qquad \textsf{with}~\Mod{\icid{\cidl{q}}{\substHole{A}}}{A},
+      %           \Mod{\icid{\cidl{p}}{\substHole{A}, \subst{B}{\ldots}}}{A} \\
+      \qquad \UsynDep{\icid{\cidl{q}}{\substHole{A}}}{ \rename{X}{B} } \\
+      \qquad \UsynDep{\icid{\cidl{p}}{\substHole{A}, \substMod{B}{\icid{\cidl{q}}{\substHole{A}}}{X}}}{ \rename{Y}{Y} } \\
+      \qquad \texttt{signature}~\modname{A}~(\texttt{I}(..))~\{~\texttt{import W(I(..))}~\} \\
+    \end{array}
+    \]
+
+Type-checking begins in the top-level judgment:
+
+\begin{enumerate}
+    \item \emph{Compute the logical context} ($\mathcal{L} = \bigoplus_i \textsf{exposes}(\shctx, P_i, r_i) $).  There shouldn't be much surprise here: we take each of the dependencies and brings the appropriate modules into scope according to the shape context and the renamings on the dependencies.  In this case, given the following shape context:
+    \[
+      \begin{array}{rcl}
+      \shctx &=& \cidl{base}{} \haspr \{\provMod{W}{\icid{base}{}}{W}\}, \\
+             && \cidl{p} \haspr \forall \hv{\modname{A}}\, \hv{\modname{B}}.\,
+                            \{
+                            \provMod{Y}{%
+                                \icid{\cidl{p}}{ \subst{A}{\holevar{A}}, \subst{B}{\holevar{B}}  }%
+                            }{Y} \}, \\
+            && \cidl{q} \haspr \forall \hv{\modname{A}}.\,
+                            \{ \provMod{X}{\icid{\cidl{q}}{\subst{A}{\holevar{A}}}}{X} \}
+                \\
+      \end{array}
+    \]
+    We will compute that:
+    \[
+    \begin{array}{rcl}
+    \mathcal{L} &=& \modname{W} \mapsto \Mod{\icid{base}{}}{W}, \\
+                && \modname{B} \mapsto \Mod{\icid{\cidl{q}}{\substHole{A}}}{X}, \\
+                && \modname{Y} \mapsto \Mod{\icid{\cidl{p}}{\substHole{A}, \substMod{B}{\icid{\cidl{q}}{\substHole{A}}}{X}}}{Y}
+    \end{array}
+    \]
+
+    \item \emph{Compute the inherited requirements} ($\mathcal{D} =
+    \bigoplus_i \textsf{inherits}(P_i)$).  The requirements of a package
+    consist of any signatures they locally defined, as well as the set
+    of requirements inherited from dependencies.  For example, the
+    dependency on $\icid{\cidl{q}}{\substHole{A}}$ means we are
+    obligated to merge in the requirement from
+    $\Mod{\icid{\cidl{q}}{\substHole{A}}}{A}$, so that \verb|r|
+    accurately reflects the requirements of all of its dependencies.
+    It's worth noting that \textsf{inherits} is recursive: if a
+    component is instantiated with a component that itself has a
+    requirement, we still must inherit it!  For \verb|r|, we will compute that
+    the signature \verb|A| will inherit requirements from \verb|q| and \verb|p|:
+
+    \[
+    \mathcal{D} = \modname{A} \mapsto (\Mod{\icid{\cidl{q}}{\substHole{A}}}{A}, \Mod{\icid{\cidl{p}}{\substHole{A}, \substMod{B}{\icid{\cidl{q}}{\substHole{A}}}{X}}}{A})
+    \]
+
+    \item \emph{Compute the current unit identifier.} ($P_0 = p[\overline{m_j=\hv{m_j}}]$)
+    This is pretty straightforward: $P_0 = \icid{r}{\substHole{A}}$.
+
+    \item \emph{Typecheck the declarations.} ($\Gamma; P_0; \mathcal{L}; \mathcal{D} \vdash \overline{\I{decl}} : \Xi$)  Ordinarily, this would involve successively typechecking each declaration
+    and adding it to the local context $\Delta$; eventually returning $\Delta$ as the final
+    component type. In this case, there is only one declaration, a signature.  After typechecking
+    the signature, we take the types of each requirement in $\mathcal{D}(\modname{A})$
+    ($\Mod{\icid{\cidl{q}}{\substHole{A}}}{A}, \Mod{\icid{\cidl{p}}{\substHole{A}, \substMod{B}{\icid{\cidl{q}}{\substHole{A}}}{X}}}{A}$) and merge these types all together.  We'll discuss
+    the merging process in more detail later.
+
+    \item \emph{Typecheck the dependencies.} ($\forall i.~ \Gamma; \Xi; P_0 \vdash P_i ~\textsf{well-typed}$)  Finally, we have to recursively check that each of the dependency is instantiated in a
+    well-typed fashion (since mix-in linking may have instantiated a
+    component in an ill-typed way).  In the case of \verb|r|, we have to
+    check that $\icid{\cidl{q}}{\substHole{A}}$ fills \verb|B| of
+    \verb|p|, and $\hv{A}$ fills \verb|A| of \verb|p| and \verb|q| (the
+    type of $\hv{A}$ is the result of signature merging, which motivates
+    why dependency typechecking must be delayed to the very end).
+    Well-typed instantiations are checked by testing if the type of
+    the instantiating module (e.g., $\hv{A}$) is a subtype of
+    the required module (e.g., \Mod{\icid{\cidl{q}}{\substHole{A}}}{A}).
+    We'll describe \Backpack{}'s subtyping relation in more detail later.
+\end{enumerate}
+
+%   \[
+%   \frac{
+%   \begin{array}{c}
+%   %\shctx \vdash \overline{\I{dep_i}} \leadsto (\mathcal{L}, \mathcal{D}) \qquad
+%   \mathcal{L} = \textsf{exposes}(\shctx, \icid{base}{}, \rename{W}{W})
+%          \oplus \textsf{exposes}(\shctx, \icid{\cidl{q}}{\substHole{A}}, \rename{X}{B} )
+%          \oplus \textsf{exposes}(\shctx, \icid{\cidl{p}}{\substHole{A}, \substMod{B}{\icid{\cidl{q}}{\substHole{A}}}{X}}, \rename{Y}{Y} ) \\
+%   \mathcal{D} = \textsf{inherits}(\icid{base}{})
+%          \oplus \textsf{inherits}(\icid{\cidl{q}}{\substHole{A}})
+%          \oplus \textsf{inherits}(\icid{\cidl{p}}{\substHole{A}, \substMod{B}{\icid{\cidl{q}}{\substHole{A}}}{X}})\\
+%   P_0 = p[\substHole{A}] \\
+%   \Gamma; P_0; \mathcal{L}; \mathcal{D} \vdash \overline{\I{decl}} : \Xi \\
+%   \Gamma; \Xi; P_0 \vdash  ~\textsf{well-typed} \\
+%   \Gamma; \Xi; P_0 \vdash  ~\textsf{well-typed} \\
+%   \Gamma; \Xi; P_0 \vdash  ~\textsf{well-typed}
+%   \end{array}
+%   }{
+%   \shctx; \Gamma \vdash \UsynUnit{p}{\overline{\hv{m_j}}}{\overline{\I{\UsynDep{P_i}{r_i}}}; \overline{\I{decl}}} : \{ p : \Xi \}
+%   }
+%   \]
+
 \subsection{Type lookup rules}
 \label{sec:typing/lookup}
 
