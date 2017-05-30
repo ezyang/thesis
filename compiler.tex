@@ -569,8 +569,82 @@ final identities.  Orphans are handled similarly.
 %   - Thinning has a relationship with explicit signature exports
 
 
-% TODO: Need to also update transitively reachable modules when this
-% occurs
+\emph{Example}. Before looking in detail in the complex case when there
+is a module substitution, we give three examples of type lookup when
+things are simple:
+
+\begin{itemize}
+    \item \emph{Lookup of a local module}
+        ($\Gamma; \modname{M} : T_M^+, \Delta; P_0 \vdash \Mod{P_0}{M} : T_M$).
+        To lookup the type of a module from $P_0$, we read it off directly
+        from the local type context.  In the absence of mutual recursion,
+        it's impossible for $P_0$ to be instantiated in any way.
+
+    \item \emph{Lookup of a hole}
+        ($\Gamma; \modname{A} : T_A^-, \Delta; P_0 \vdash \hv{A} : T_A$).
+        To lookup the type of a hole variable (e.g., \hv{A}), we look up
+        the type from the local type context.  This implies an ordering constraint
+        on the order we process local declarations: we must process a
+        signature before any other signature or module which could
+        possibly reference an entity from that signature (this includes
+        references from \emph{inherited} requirements.)
+
+    \item \emph{Lookup of external type with empty module substitution}
+        ($\cidl{p} : \{ \modname{M} : T_M^+ \}, \Gamma ; \Delta; P_0 \vdash \MOD{p}{}{M} : T_M$).
+        If we are looking up the type of a module from a component with no
+        hole substitution, things are easy: just take the type directly out
+        from the context.
+\end{itemize}
+
+Type lookup with a nontrivial module substitution is more involved.
+For the purposes of this example, suppose that in our context, we have the type
+$\Gamma(\cidl{p})(\modname{B}) = T_B$ for the uninstantiated module
+$\MOD{p}{\substHole{A}}{B}$, where:
+
+\[
+\begin{array}{rcl}
+    T_{B} &=& \begin{array}{l}
+                \UobjIface\: (\nhv{\texttt{A.T}}, \MOD{p}{\substHole{A}}{B}.\texttt{S}) \\
+                \qquad\texttt{data S = MkS}\ \nhv{\texttt{A.T}} \\
+                \qquad\texttt{orphan}~\hv{A}
+            \end{array} \\
+            \end{array}
+        \]
+
+Let's suppose we need to lookup the module type for $\MOD{p}{\substMod{A}{\icid{\cidl{q}}{}}{A}}{B}$,
+where $\MOD{q}{}{A}$, has this type:
+
+\[
+\begin{array}{rcl}
+    T_{A} &=& \begin{array}{l}
+                \UobjIface\: (\MOD{q}{}{A}.\texttt{T}) \\
+                \qquad\texttt{data T = MkT} \\
+                \qquad\texttt{orphan}~\MOD{q}{}{X} \\
+                \qquad\texttt{orphan}~\MOD{q}{}{Y}
+            \end{array} \\
+            \end{array}
+        \]
+
+We apply a substitution on $T_B$, proceeding functorial until we encounter a name.
+When we encounter $\nhv{\texttt{A.T}}$, the exports of $T_A$ tells us to substitute
+this name hole with $\MOD{q}{}{A}.\texttt{T}$.  In contrast, when we
+encounter $\MOD{p}{\substHole{A}}{B}.\texttt{S}$, we simply apply the module
+substitution $\substMod{A}{\icid{q}{}}{A}$ to the unit identifier.  Finally,
+$\texttt{orphan}~\hv{A}$ must be replaced with all the orphans from $T_A$,
+so that we continue to accurately record all transitively reachable orphan modules.
+
+After these substitutions, the final type is:
+
+\[
+\begin{array}{rcl}
+    T_{BS} &=& \begin{array}{l}
+                \UobjIface\: (\MOD{q}{}{A}.\texttt{T}, \MOD{p}{\substMod{A}{\icid{\cidl{q}}{}}{A}}{B}.\texttt{S}) \\
+                \qquad\texttt{data S = MkS}\ \MOD{q}{}{A}.\texttt{T} \\
+                \qquad\texttt{orphan}~\MOD{q}{}{X} \\
+                \qquad\texttt{orphan}~\MOD{q}{}{Y}
+            \end{array} \\
+            \end{array}
+        \]
 
 \subsection{Subtyping rules}
 \label{sec:subtyping}
