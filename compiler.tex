@@ -569,7 +569,7 @@ final identities.  Orphans are handled similarly.
 %   - Thinning has a relationship with explicit signature exports
 
 
-\emph{Example}. Before looking in detail in the complex case when there
+\paragraph{Simple examples} Before looking in detail in the complex case when there
 is a module substitution, we give three examples of type lookup when
 things are simple:
 
@@ -577,8 +577,9 @@ things are simple:
     \item \emph{Lookup of a local module}
         ($\Gamma; \modname{M} : T_M^+, \Delta; P_0 \vdash \Mod{P_0}{M} : T_M$).
         To lookup the type of a module from $P_0$, we read it off directly
-        from the local type context.  In the absence of mutual recursion,
-        it's impossible for $P_0$ to be instantiated in any way.
+        from the local type context.  It's impossible for $P_0$ to be instantiated
+        in any way, since that would require a self-referential \texttt{dependency}
+        declaration, which is always illegal.
 
     \item \emph{Lookup of a hole}
         ($\Gamma; \modname{A} : T_A^-, \Delta; P_0 \vdash \hv{A} : T_A$).
@@ -595,6 +596,8 @@ things are simple:
         hole substitution, things are easy: just take the type directly out
         from the context.
 \end{itemize}
+
+\paragraph{Example with substitution}
 
 Type lookup with a nontrivial module substitution is more involved.
 For the purposes of this example, suppose that in our context, we have the type
@@ -646,11 +649,38 @@ After these substitutions, the final type is:
             \end{array}
         \]
 
+\paragraph{Example with signature merging}  Ordinarily, we only need to lookup
+module types when renaming and typechecking a Haskell module.  However,
+there is one more situation when type lookup occurs: signature merging.
+Suppose that we have a \texttt{dependency} declaration on
+$\icid{\cidl{p}}{\modname{A}=\hv{A}}$:  this dependency means that we
+inherit the requirement $\Mod{\icid{\cidl{p}}{\modname{A}=\hv{A}}}{A}$.
+Before signature merging, we must look up the type of this requirement
+so that it can be merged with the other requirements at this name.
+
+Although type lookup for signature merging bears many similarities
+to regular type lookup (and we have formalized it with the same set
+of rules), there is an important case where the usual rules do not
+work.  In the previous example, what should the substitution for $\nhv{A.T}$ be?
+Ordinarily, we would lookup the exports of $\hv{A}$ to determine
+what the original name is.  But at this point, no local type for $\hv{A}$
+is available (that's what we are trying to compute!)  Nor is the
+substitution necessary: signature merging is responsible for
+working out what the final exports of the merged export are (refining
+$\nhv{A.T}$ in the process.)
+
+To work around this, \textsc{SRnNameHole} says that if the type $\hv{A}$
+is not available, we simply leave $\nhv{A.T}$ unsubstituted.
+(Actually, the full rule is more nuanced: if
+the requirement is $\Mod{\icid{\cidl{p}}{\modname{A}=\hv{B}}}{A}$,
+we must rename $\nhv{A.T}$ to $\nhv{B.T}$ to maintain the invariant
+that $\nhv{B.T}$ is defined in the module $\hv{B}$.)  A similar case
+applies to orphans as well.
+
 \subsection{Subtyping rules}
 \label{sec:subtyping}
 
 \input{typing/subtyping}
-\input{typing/kinding}
 
 The subtyping judgment specifies when one module type
 is a subtype of another under some context (\textsc{SubMod}).
@@ -663,6 +693,99 @@ refined the identities of hole names.  We apply the resulting
 name substitution to all other parts of the module type before
 checking for subtyping.
 
+\paragraph{Example}  Here is an example of two module types
+which, given an appropriate context, are subtypes of each other:
+
+\[
+\MOD{q}{}{M}~~:
+\begin{array}{rcl}
+\begin{array}{l}
+    \UobjIface\: (\MOD{q}{}{M}.\texttt{T}, \MOD{r}{}{N}.\mathtt{U}, \MOD{q}{}{M}.\texttt{f}) \\
+    \qquad\texttt{type T} = N_{Int} \\
+    \qquad\texttt{f} :: \MOD{q}{}{M}.\texttt{T} \rightarrow \MOD{q}{}{M}.\texttt{T} \\
+\end{array}
+&
+\le_\modname{A}%
+&
+\begin{array}{l}
+    \UobjIface\: (\nhv{A.T}, \MOD{r}{}{N}.\mathtt{U}) \\
+    \qquad\texttt{data T} \\
+    \qquad\texttt{instance} :: N_{Eq}~\nhv{A.T} \\
+\end{array}
+\end{array}
+\]
+
+A subtyping rule like this might arise when checking that $\modname{A}=\MOD{q}{}{M}$
+is a valid instantiation of some component (whose requirement is depicted
+on the right hand side).
+
+Subtyping proceeds as follows:
+
+\begin{itemize}
+    \item \emph{Implementation (left-hand side) type lookup.} ($\ctx \vdash M : \UobjTau{\UNs'}{\Utys'~\Uinsts'~\Uimps'}$)
+        For technical reasons, we've written our subtyping rule so that the ``implementor''
+        is specified as a module identifier $M$ rather than a type; thus, we must lookup $\MOD{q}{}{M}$
+        from the context.  The rule
+        is written in this ``asymmetric'' way to emphasize that $\MOD{q}{}{M}$ must
+        be contained \emph{in the context}; this is important, because $\MOD{q}{}{M}$
+        may define extra type equalities that are necessary for the rest of the subtyping
+        tests to succeed.  We'll see this later in this example.
+
+    \item \emph{Export matching}. ($\UNs' \le_m \UNs \leadsto \USn'$)
+        Compare the exports the implementation and the requirement,
+        unifying any name holes of the form $\nhv{\modname{A}.n}$ with
+        the identities specified in the implementation ($\UNs'$),
+        giving us a name substitution ($\USn'$).  In this case,
+        the resulting name substitution is just $\nhv{A.T} \mapsto
+        \MOD{q}{}{M}.\texttt{T}$.  Obviously, the implementation can
+        export more entities than the requirement, but not vice-versa.
+        We apply the resulting name substitution to all of the other
+        semantic objects we subsequently test for subtyping.
+
+    \item \emph{Declaration subtyping}. ($\forall \I{decl} \in \I{decls}.\, \Gamma; \Delta; P_0 \vdash \UNs'(\textsf{occname}(\Uty)) \le \substw{\Uty}{\USn'}$)  The most
+        obvious subtyping test we have to do is ensuring each declaration
+        in the requirement is adequately implemented on the implementation
+        side.  In this case, we need to test that \verb|type T = Int| is
+        an adequate implementation of the abstract \verb|data T|; in particular,
+        that they have compatible kinds and type synonyms are valid
+        implementations of abstract data (they are, if the right-hand side of
+        the type synonym has no type applications; see \textsc{SubTypeAbsData}).  Notice
+        that, like the module subtyping judgment, the declaration subtyping
+        judgment is also asymmetric.  This is helpful, because the original
+        definition of an export from an implementing module may not reside
+        in that module at all; in this case, we have to look it up again
+        (which is exactly what \textsc{SubDecl} does first before the other tests).
+        Ignore the conditions about roles for now; we will discuss them later.
+
+    \item \emph{Instance subtyping}. ($\forall \I{inst} \in \I{insts}.\, \Gamma; \Delta; P_0 \vdash \Uimps' \cup \{ M \} ~\textsf{solves}~ \substw{\I{inst}}{\USn'}$)  For each instance
+        in the requirement, we have to check that the instance is solvable in
+        the context of the implementing module.  There is some nuance to this:
+        it's not simply a matter of checking that the implementing module
+        provides each instance word-for-word, since (1) the instance may not
+        be defined in the implementing module (as is the case here), and
+        (2) the instance may only be solvable by composing multiple instances
+        from the environment (e.g., \verb|Show [Char]|).  The other subtlety
+        is that this instance resolution needs to take orphans into account:
+        we must consider exactly the orphans transitively imported by the
+        implementing module, as well as the module itself.
+
+        Returning to the example,
+        suppose that in the implementing module of \verb|Int|
+        the instance \verb|Eq Int| is defined (this is a non-orphan instance).
+        After the name substitution, we must show that the instance $N_{Eq}~\MOD{q}{}{M}.\texttt{T}$
+        is solvable.  Because $\MOD{q}{}{M}.\texttt{T}$ is recorded in the
+        context (remember our asymmetric rule?) as being a type synonym of
+        $N_{Int}$, the instance solver treats this as equivalent to \verb|Eq Int|
+        and solves it accordingly.
+
+    \item \emph{Orphan subtyping}. ($\Uimps' \supseteq \Uimps$)  The set of orphan
+    modules a module transitively imports is an important part of its interface,
+    as it affects the interfaces in scope.  Thus, we require that the implementing module
+    import a superset of the orphan modules the
+    signature transitively imports.  In this example, there aren't any orphans, so
+    this test trivially passes.
+\end{itemize}
+
 \paragraph{Declaration subtyping and pre-subtyping}
 In our presentation, declaration subtyping is organized in a subtyping
 relation (\textsc{SubDecl}) and a pre-subtyping relation: the subtyping
@@ -671,6 +794,8 @@ are compatible, and then defers to the pre-subtyping relation for
 case-by-case subtyping on each different type of declaration.  The
 non-reflexive rules are boxed, and specify which declarations can
 validly implement abstract data, classes and closed type families.
+
+\input{typing/kinding}
 
 \paragraph{Subroling, subtyping and representational injectivity}
 The condition on roles in \textsc{SubDecl} is quite interesting:
@@ -791,43 +916,118 @@ synonyms.
 
 Finally, \emph{merging} finds the greatest lower bound on our subtyping relation,
 finding a signature which is a subtype of all the original signatures (or failing
-if no such signature exists).  The key rule is \textsc{MSigType}, which performs
-the following operations:
+if no such signature exists).  Let's recall our example from Section~\ref{sec:signature-merging}
+(now written as module types), extended slightly with some instances:
+
+\[
+\begin{array}{rcl}
+\begin{array}{l}
+    \UobjIface\: (\nhv{A.T}, \nhv{A.U}, \nhv{A.f}) \\
+    \qquad\texttt{type T} = N_{Int} \\
+    \qquad\texttt{data U} \\
+    \qquad\texttt{f} :: N_{Int} \rightarrow \nhv{A.U} \\
+    \qquad\texttt{instance} :: N_{Eq}~\nhv{A.U} \\
+\end{array}
+&
+\oplus%
+&
+\begin{array}{l}
+    \UobjIface\: (\nhv{A.T}, \nhv{A.U}, \nhv{A.f}) \\
+    \qquad\texttt{data T} \\
+    \qquad\texttt{type U} = N_{Int} \\
+    \qquad\texttt{f} :: \nhv{A.T} \rightarrow N_{Int} \\
+    \qquad\texttt{instance} :: N_{Eq}~\nhv{A.T} \\
+\end{array}
+\end{array}
+\]
+
+\textsc{MSigType} specifies how to merge these two signatures:
 
 \begin{enumerate}
     \item We perform \emph{export matching}, computing the merged
     export list, where name holes are subsumed by reexported original
     names. The new export list induces a name substitution.
+    In the example above, the export matching and resulting name
+    substitution is trivial; but if, for example, we merged in
+    another signature which exported $\MOD{p}{}{M}.\mathtt{f}$,
+    we would have the substitution $\nhv{A.f} \mapsto \MOD{p}{}{M}.\mathtt{f}$.
 
     \item We merge the declarations of the interface together,
     producing a temporary signature $T_P$ which doesn't contain
-    any instances.
+    any instances.  This merging operation prefers non-abstract versions
+    of declarations over abstract ones, but otherwise picks a declaration
+    arbitrarily.  In the example above, we get:
+\[
+\begin{array}{l}
+    \UobjIface\: (\nhv{A.T}, \nhv{A.U}, \nhv{A.f}) \\
+    \qquad\texttt{data T} = N_{Int} \\
+    \qquad\texttt{type U} = N_{Int} \\
+    \qquad\texttt{f} :: \nhv{A.T} \rightarrow N_{Int} \\
+\end{array}
+\]
 
     \item With this temporary signature in the context, we
     merge instances, deduplicating them based on type equality.
+    In our example, we are able to see $\nhv{A.T} =_\textsf{hs} \nhv{A.U} =_\textsf{hs} N_{Int}$,
+    so we keep only one copy of the two instances from the
+    original modules.
 
-    \item We now can merge the rest of the elements, giving us
+    \item We now extend our temporary signature with the merged
+    instances and orphans, giving us
     a candidate merged signature $T_M$; it is a candidate signature
     because during this step because we do not yet know if the
     declaration merge was successful or not.
+\[
+\begin{array}{l}
+    \UobjIface\: (\nhv{A.T}, \nhv{A.U}, \nhv{A.f}) \\
+    \qquad\texttt{data T} = N_{Int} \\
+    \qquad\texttt{type U} = N_{Int} \\
+    \qquad\texttt{f} :: \nhv{A.T} \rightarrow N_{Int} \\
+    \qquad\texttt{instance} :: N_{Eq}~N_{Int} \\
+\end{array}
+\]
 
     \item Finally, we check that the merged type is a subtype of each of the
-    (substituted) input signature types.
+    (substituted) input signature types, with the merged type added to the
+    context.
+
+    Why is it necessary to add the merged type to context?  This is perfectly
+    illustrated by our example.  Consider one of the two subtyping tests
+    we must carry out:
+
+\[
+\begin{array}{rcl}
+\begin{array}{l}
+    \UobjIface\: (\nhv{A.T}, \nhv{A.U}, \nhv{A.f}) \\
+    \qquad\texttt{data T} = N_{Int} \\
+    \qquad\texttt{type U} = N_{Int} \\
+    \qquad\texttt{f} :: \nhv{A.T} \rightarrow N_{Int} \\
+    \qquad\texttt{instance} :: N_{Eq}~N_{Int} \\
+\end{array}
+&
+\le_\modname{A}%
+&
+\begin{array}{l}
+    \UobjIface\: (\nhv{A.T}, \nhv{A.U}, \nhv{A.f}) \\
+    \qquad\texttt{type T} = N_{Int} \\
+    \qquad\texttt{data U} \\
+    \qquad\texttt{f} :: N_{Int} \rightarrow \nhv{A.U} \\
+    \qquad\texttt{instance} :: N_{Eq}~\nhv{A.U} \\
+\end{array}
+\end{array}
+\]
+
+When we check \verb|f| for compatible, we must show
+$\nhv{A.T} \rightarrow N_{Int} =_\textsf{hs} N_{Int} \rightarrow \nhv{A.U}$.
+This is only true if $\texttt{type U} = N_{Int}$ is in the context!
+The presence of the merged type is also important when testing if instances
+are solvable.
 \end{enumerate}
 %   Both module
 %   types are assumed to have had a name substitution applied to them, so that
 %   subtyping on exports can be checked using a simple superset operation.
-Unusually, when we check for subtyping of declarations, we add $T_M$ (the subtype)
-to the context.  To see why this is necessary, consider if we were
-checking that \verb|type T = Int; f :: Int| was a subtype of \verb|data T; f :: T|.
-When checking that \verb|f :: Int| is a subtype of \verb|f :: T|, we must lookup
-the declaration of \verb|T| in the context: $m : T_M^-$ precisely provides
-information that \verb|T| is a type synonym \verb|type T = Int|.  If
-instead the lookup gave us the abstract definition of \verb|T|, we would conclude
-that \verb|Int| and \verb|T| were not equal.  We similarly add $T_M$ to
-the context and the set of transitively imported modules when testing if instances are solvable.
 
-
+\paragraph{A little metatheory}
 We would like it if our merging operation were both sound (if it
 succeeds, the new module type is the greatest lower bound of the two
 types under the name substitution induced by the exports of the merged

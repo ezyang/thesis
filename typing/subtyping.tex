@@ -1,19 +1,19 @@
 \begin{figure}
 
-\fbox{\textbf{Module subtyping:} $\ctx \vdash M \le T$}
+\fbox{\textbf{Module subtyping:} $\ctx \vdash M \le_m T$}
 
 \[
 \frac{
 \begin{array}{c}
-\ctx \vdash M : \UobjTau{\UNs'}{\Utys'~\Uinsts'~\Uimps'} \qquad
+\ctx \vdash M : \UobjTau{\UNs'}{\Utys'~\Uinsts'~\Uimps'} \\
 \UNs' \le_m \UNs \leadsto \USn' \qquad \\
 \forall \I{decl} \in \I{decls}.\quad \Gamma; \Delta; P_0 \vdash \UNs'(\textsf{occname}(\Uty)) \le \substw{\Uty}{\USn'} \\
-\Uimps' \supseteq \Uimps \qquad
-\forall \I{inst} \in \I{insts}.\quad \Gamma; \Delta; P_0 \vdash \Uimps' \cup \{ M \} ~\textsf{solves}~ \substw{\I{inst}}{\USn'}
+\forall \I{inst} \in \I{insts}.\quad \Gamma; \Delta; P_0 \vdash \Uimps' \cup \{ M \} ~\textsf{solves}~ \substw{\I{inst}}{\USn'} \\
+\Uimps' \supseteq \Uimps \\
 \end{array}
 }{
 %\ctx \vdash \UobjTau{\overline{N_i}\, \overline{N_j}}{\Utys\, \Uinsts} \le \UobjTau{\overline{N_i}}{\overline{\Uty'}\, \overline{\Uinst'}}
-\ctx; m \vdash M \le \UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps}
+\ctx \vdash M \le_m \UobjTau{\UNs}{\Utys\, \Uinsts\, \Uimps}
 }
 \quad(\textsc{SubMod})
 \]
