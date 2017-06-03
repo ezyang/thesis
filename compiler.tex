@@ -4,23 +4,10 @@
 
 We now give a formal model of the type checking process on mixed
 units.  This is challenging, as GHC Haskell's type system is quite
-complex, and a full formalization of all aspects of GHC Haskell is
-beyond the scope of this thesis.
-
-Here is a summary of what will be covered in this chapter:
-
-\begin{itemize}
-\item We will specify a language of semantic
-objects (Section~\ref{sec:semantic-objects}) that covers the most
-important source level constructs supported by Haskell today (including
-type families and type classes) but leave some aspects of the semantic
-objects unspecified when \Backpack{} does not rely on them in an important
-way.
-\item We'll formalize how type lookup operates during type checking (Section~\ref{sec:typing/lookup}),
-but not specify the overall process of typechecking modules and signatures are actually typechecked. (Section~\ref{sec:typing-haskell})
-\item We describe the top-level process of typechecking a mixed component (Section~\ref{sec:typing/main}), which extends GHC Haskell's existing typechecking process with checks for dependency well-typedness and signature typechecking.
-\item Finally, we describe the subtyping (Section~\ref{sec:subtyping}) and merging (Section~\ref{sec:typing/merging}) relations, which specify precisely under what situations does a module implement a signature and the semantics of signature merging.  We will also develop some basic metatheory relating subtyping and merging (merging is the greatest lower bound on the subtyping relation).
-\end{itemize}
+complex; a full formalization of all aspects of GHC Haskell is
+beyond the scope of this thesis.  Still, we must capture enough
+of GHC Haskell's type system to demonstrate how \Backpack{}
+interacts with features like type classes and type synonyms.
 
 %   It's not possible to
 %   give a full semantics, since that would involve formalizing all of
@@ -47,7 +34,8 @@ roles ($\rho$).\footnote{Type families are not annotated with roles, because the
 type parameters are always at nominal role.}  If the kinds or roles are not
 relevant to a judgment, we may elide them.
 
-The most important semantic object is the module type ($T$).  A module
+The most important semantic object is the module type ($T$; also referred
+to as an \emph{interface} in GHC).  A module
 type consists of four components:
 
 \begin{enumerate}
@@ -112,9 +100,9 @@ in the component \verb|p| with no holes, then $P_0 = \uidl{p}{}$),
 and $N_\texttt{Eq}$ is the original name of the equality type
 class (not shown, but part of Haskell's Prelude, a set of declarations
 which are always in scope).  Even though the original module left its
-exports implicit, in the interface each export is explicitly specified.
+exports implicit, the module type explicitly specifies each export.
 
-The module type of a signature is quite similar, though with a few differences:
+The module type of a signature is quite similar, although there are few differences:
 
 \vspace{-1em}
 \begin{figure}[H]
@@ -154,9 +142,10 @@ type can be put into the context at any name, a particular module
 identity is baked into the module type (as can seen in the example
 above); a module type must be placed in the context consistently with
 the module identifier it was typechecked with.  (We could have avoided
-this by applying a ``selfification'' step prior to adding
-modules to the context, but the current presentation is more direct and
-accurately describes how GHC is implemented.)
+this constraint by using name holes for all self-references and
+applying a ``selfification'' step prior to adding modules to the
+context, but the current presentation is more direct and accurately
+describes how GHC is implemented.)
 
 \section{Typing rules}
 
@@ -196,8 +185,8 @@ Most typing rules require the following three pieces of context:
         would be one where the components \verb|base| and \verb|containers| (with
         component types $\Xi_b$ and $\Xi_c$ respectively) were in the context.
         A component with holes, e.g., \verb|regex-indef| (Section~\ref{sec:functorizing-the-matcher}),
-        would occur only \emph{once} in this context (even if it has been
-        instantiated.)
+        would occur only \emph{once} in this context (even if we have a dependency
+        on an instantiated version of it.)
 
     \item The local type context $\Delta :: \overline{m : T^s}$,
         which records the types of the modules and signatures we have typechecked
@@ -205,7 +194,7 @@ Most typing rules require the following three pieces of context:
         module and a signature.  For example, if we typechecked a component
         consisting of a signature \verb|Str| and a module \verb|Regex|,
         the final local type context would be $\Delta = \texttt{Str} : T_S^-, \texttt{Regex} : T_R^+$,
-        where $T_S$ and $T_R$ are the respective module types.
+        where $T_S$ and $T_R$ are the types of the signature and module (respectively).
 
     \item The current unit identifier $P_0$, which identifies the component
         we are typechecking. It is used to generate the original names
@@ -779,8 +768,8 @@ Subtyping proceeds as follows:
         and solves it accordingly.
 
     \item \emph{Orphan subtyping}. ($\Uimps' \supseteq \Uimps$)  The set of orphan
-    modules a module transitively imports is an important part of its interface,
-    as it affects the interfaces in scope.  Thus, we require that the implementing module
+    modules a module transitively imports is an important part of its type,
+    as it affects the instances in scope.  Thus, we require that the implementing module
     import a superset of the orphan modules the
     signature transitively imports.  In this example, there aren't any orphans, so
     this test trivially passes.
@@ -952,7 +941,7 @@ if no such signature exists).  Let's recall our example from Section~\ref{sec:si
     another signature which exported $\MOD{p}{}{M}.\mathtt{f}$,
     we would have the substitution $\nhv{A.f} \mapsto \MOD{p}{}{M}.\mathtt{f}$.
 
-    \item We merge the declarations of the interface together,
+    \item We merge the declarations of the module type together,
     producing a temporary signature $T_P$ which doesn't contain
     any instances.  This merging operation prefers non-abstract versions
     of declarations over abstract ones, but otherwise picks a declaration
