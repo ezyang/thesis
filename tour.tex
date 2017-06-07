@@ -640,6 +640,18 @@ expressions (e.g., \verb|Rep (Alt (Sym 'a') (Sym 'b'))|) from
 Previously, this would not have been possible, because the
 abstract type \verb|Chr| was considered distinct from \verb|Char|.
 
+Similarly, you could refine an abstract data type with a concrete
+data declaration, like below:
+
+\begin{lstlisting}
+    signature Str where
+        data Chr = Zero | One
+\end{lstlisting}
+
+\noindent
+This \verb|Chr| doesn't define a data type per se, but it can only
+be implemented by a data type with exactly the same constructors.
+
 \section{Reusing and thinning signatures}
 
 For applications more complex than a regular expression matcher, the set
@@ -657,7 +669,6 @@ We call such packages \emph{signature packages}:
     version: 1.0
     library
         signatures: Str
-        build-depends: base
 \end{lstlisting}
 
 \noindent

@@ -60,7 +60,7 @@ We can restate these rules syntactically:
 \begin{definition}[Well-formedness of component shapes] \normalfont{}
 A shape $\lctxpair{\provs}{\reqs}$ is \emph{well-formed} if:
 \begin{enumerate}
-\item It does not provide a module variables
+\item It does not provide module variables
 (there is no $m$ such that $\hv{m} \in \textsf{range}(\provs)$),
 e.g., $\lctxpair{\{\prov{B}{\hv{A}}\}}{\hv{A}}$ is ill-formed,
 \item It does not require what it provides (no $m$

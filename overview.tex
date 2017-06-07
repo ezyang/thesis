@@ -205,6 +205,9 @@ Figure~\ref{fig:lcomponents}:
     renaming $r$.  $P$ is an \uid{}; a \cid{} augmented with a
     \emph{module substitution} $S ::= \overline{\subst{m}{M}}$
     specifying how every requirement of the component is instantiated.
+    A \uid{} need not be fully instantiated: we can also leave some
+    requirements uninstantiated by recording a \emph{module hole}
+    ($\hv{m}$) in the module substitution.
     (Compare to the \texttt{mixin} in a \ccomp{}, which only gives a \cid{}).
     \item \UsynMod{m}{\Uhsbody} indicates that this component defines
     a module named $m$ with Haskell source code $\Uhsbody$.
