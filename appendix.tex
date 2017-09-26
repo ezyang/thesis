@@ -7,7 +7,7 @@
 
 The goal of this appendix is to explain why mixins help ``avoid the
 preponderance of sharing constraints that occur with ML functors.''
-(as claimed in Section~\ref{sec:intro})  For concreteness, the ML
+(as claimed in \cref{sec:intro})  For concreteness, the ML
 examples in this section will be written in OCaml.
 
 \paragraph{What is a sharing constraint?}
@@ -419,7 +419,7 @@ but supported in \Backpack{} is
 the ability to use a type synonym to implement an abstract data type.
 This introduces a form of ``translucency'', where the abstract data type
 is opaque while the implementation is unknown, and transparent afterwards.
-For example, in Section~\ref{sec:instantiating-the-matcher}, we demonstrated
+For example, in \cref{sec:instantiating-the-matcher}, we demonstrated
 how we could instantiate a generic regular expression matcher to match on strings.
 Inside the implementation of the matcher, we knew nothing about the abstract
 type \verb|Str|; after instantiating it, the \verb|accept| function

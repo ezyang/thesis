@@ -171,7 +171,7 @@ parametrized package.
 We have not described how to handle mutual recursion in \Backpack{},
 although we believe that \Backpack{} can be extended to accommodate it,
 based off of GHC's existing support for \verb|hs-boot| files.
-Indeed, we showed in Section~\ref{sec:recursive-uids} that recursive
+Indeed, we showed in \cref{sec:recursive-uids} that recursive
 \uid{}s can be handled in the same way as they were done in \OldBackpack{}.
 
 One challenge that we face is how to handle the ``double vision
@@ -290,7 +290,7 @@ How might we go about relaxing this restriction?  One plausible rule is
 that we should accept an implementation with type $\tau$ for a signature
 type $\tau'$, so long as there exists a \emph{coercion} from $\tau$ to
 $\tau'$ and augment our subtyping relation accordingly.  However, this will
-not work with our merging rules as stated in Figure~\ref{typing:merging}.
+not work with our merging rules as stated in \cref{typing:merging}.
 Presently, merging picks an arbitrary type to add to the context; the reasoning
 is that if all the types were actually type equal, it doesn't matter which
 one we pick.  With subtyping on Haskell level type definitions, this no

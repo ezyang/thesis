@@ -21,7 +21,7 @@
         turn identified by a \textbf{source component identitifer}
         consisting of the package identifier with the name of the
         component.
-    \item[\Ccomp{}] ($\Scomp$ in Figure~\ref{fig:rcomponents}) The output of dependency
+    \item[\Ccomp{}] ($\Scomp$ in \cref{fig:rcomponents}) The output of dependency
         resolution on a source component.  A \ccomp{} is the
         input source with direct dependencies resolved to
         other \ccomp{}s, and \Backpack{}-irrelevant Cabal fields dropped.
@@ -31,7 +31,7 @@
         resolved \cid{}s of the direct dependencies.  (Thus, the \cid{}
         identifies the entire transitive source a component depends on.)
         In \Backpack{}, we treat \cid{}s as opaque strings.
-    \item[\Unit{}] ($\Uunit$ in Figure~\ref{fig:lcomponents}) The output
+    \item[\Unit{}] ($\Uunit$ in \cref{fig:lcomponents}) The output
         of mixin linking on a \ccomp{}, where we have computed the ``wiring
         diagram'' for the direct dependencies of the unit, describing how
         requirements of the \ccomp{}'s direct dependencies have been
@@ -62,8 +62,8 @@
 \end{figure}
 
 The implementation and semantics of \Backpack{} is structured as a
-series of passes (Figure~\ref{fig:pipeline}) on several intermediate
-languages (Figure~\ref{fig:glossary}).
+series of passes (\cref{fig:pipeline}) on several intermediate
+languages (\cref{fig:glossary}).
 In this section, we will give a detailed summary of all the phases in
 this pipeline, starting with the source package language described in
 the previous section, and continuing on to two intermediate languages
@@ -118,7 +118,7 @@ the existing Cabal phase that
 selects the versions and conditional flags of all direct dependencies of
 a source component (and their transitive direct dependencies as well).
 The result of dependency resolution is a \emph{\ccomp}
-(Figure~\ref{fig:rcomponents}) which has all conditionals and fields
+(\cref{fig:rcomponents}) which has all conditionals and fields
 irrelevant to \Backpack{} eliminated, and all direct dependencies
 resolved to \cid{}s.  In this thesis, we define a \ccomp{} to be precisely the fragment of the
 Cabal package language which is relevant to \Backpack{}, written in a
@@ -197,7 +197,7 @@ A component shape describes precisely what module identities the
 component requires ($\reqs$) and provides ($\provs$).
 A \unit{} essentially describes the set of command line flags that will
 eventually be passed to GHC\@. The syntax of \unit{}s is given in
-Figure~\ref{fig:lcomponents}:
+\cref{fig:lcomponents}:
 
 \begin{itemize}
     \item $\UsynDep{\UP}{r}$ indicates an external component dependency,
@@ -217,7 +217,7 @@ Figure~\ref{fig:lcomponents}:
 %
 The most important part of mixin linking is the computation of \uid{}s in
 \texttt{dependency} declarations.  While a syntactic semantics
-for mixin linking is given in Section~\ref{sec:mix-in},
+for mixin linking is given in \cref{sec:mix-in},
 the mixin linking algorithm
 can actually be understood entirely pictorially:
 
@@ -262,7 +262,7 @@ We continue computing identities until we know the identity of every exported
 or reexported module in \cidl{r}; in this case, \modname{Y} from \cidl{p}
 (which is reexported as \modname{Z}).  Then the component shape of
 \cidl{r} is $\forall \hv{A}.\, \{ \prov{\modname{Z}}{\Mod{\cidl{p}[\ldots]}{Y}} \}$.
-The elaborated \unit{} for \cidl{r} can be seen in Figure~\ref{fig:linked-example};
+The elaborated \unit{} for \cidl{r} can be seen in \cref{fig:linked-example};
 it too follows straightforwardly from the wiring diagram.
 
 %   \section{Ordering a \unit{}}
@@ -286,7 +286,7 @@ it too follows straightforwardly from the wiring diagram.
 %       \item A dependency declaration $\textsf{dependency}~P$ depends
 %       on the signature declarations for every free module variable
 %       in $P$.  For example, in the definition of component \cidl{r} in
-%       Figure~\ref{fig:linked-example},
+%       \cref{fig:linked-example},
 %       \textsf{signature}~\modname{A} must precede the dependencies
 %       on \cidl{p} and \cidl{q}, because both mention \hv{A}; but
 %       can come after the \cidl{base} dependency which does not
@@ -378,7 +378,7 @@ it too follows straightforwardly from the wiring diagram.
     \end{array}
     \]
 
-\caption{Example types of our running example (Figure~\ref{fig:linked-example}).
+\caption{Example types of our running example (\cref{fig:linked-example}).
 Note that the reexported \texttt{Z} from \texttt{r} is not shown in the type of \texttt{r}, as the \emph{type} of a component encompasses only the modules it defines, not those it reexports.}
 \label{fig:typing-example}
 \end{figure}
@@ -386,7 +386,7 @@ Note that the reexported \texttt{Z} from \texttt{r} is not shown in the type of 
 \begin{figure}
 \center\includegraphics{figures/pqr-type-diagram.pdf}
 \caption{Pictorial depiction of the types in our running example
-(Figure~\ref{fig:linked-example}), with all original names replaced with
+(\cref{fig:linked-example}), with all original names replaced with
 pointers to the declaration of the semantic object.
 Lightened declarations (seen to the left of the holes for \texttt{A} and
 \texttt{B} in \texttt{q} and \texttt{p}) specify requirements which
@@ -404,8 +404,8 @@ first, all declarations have been annotated with full type and kind
 information; second, all identifiers have been renamed into \emph{original
 names} which identify the exact module which originally defined the
 entity.  The types of our running example can be found
-in Figure~\ref{fig:typing-example}; to see the full grammar for module
-types skip ahead to Figure~\ref{fig:semantic-objects}.
+in \cref{fig:typing-example}; to see the full grammar for module
+types skip ahead to \cref{fig:semantic-objects}.
 
 In the rest of this section, we'll describe the interface and semantic
 representations in more detail, and outline how each type of declaration
@@ -424,8 +424,8 @@ you import this module) and a set of \emph{defined entity specifications}
 %   $\UobjTau{\UNs}{\overline{\Uty}}$.
 
 For example, the module
-\modname{W} in \cidl{base} (Figure~\ref{fig:linked-example}) type
-checks to the following module type (see also Figure~\ref{fig:typing-example}):
+\modname{W} in \cidl{base} (\cref{fig:linked-example}) type
+checks to the following module type (see also \cref{fig:typing-example}):
 
 \begin{figure}[H]
 \center\includegraphics{figures/base-types.pdf}
@@ -450,7 +450,7 @@ specification for \texttt{I} within the module type.
 
 \subsection{Typechecking a signature}
 
-Typechecking \cidl{q} (Figure~\ref{fig:linked-example}) from our running example requires
+Typechecking \cidl{q} (\cref{fig:linked-example}) from our running example requires
 us to deal with a signature declaration.  Here is a
 representation of the final type of \cidl{q}:
 
@@ -658,7 +658,7 @@ is definitionally equal to \verb|Int -> U|.
 %   The solution to this problem is to
 %   define \emph{partial instantiation}, which only instantiates a component
 %   type as much as is necessary to determine the type of the requirement in
-%   question.  We give the technical details in Section~\ref{sec:compiler}.
+%   question.  We give the technical details in \cref{sec:compiler}.
 
 %   \paragraph{Compiling instantiated components}
 %   \Red{Need to rewrite this section, motivate why the semantics split
@@ -684,7 +684,7 @@ is definitionally equal to \verb|Int -> U|.
 \label{sec:overview-instantiate}
 
 Typechecking is all very well and good, but what about
-running our programs?  For both soundness reasons (Section~\ref{sec:limitations})
+running our programs?  For both soundness reasons (\cref{sec:limitations})
 and performance reasons, it is desirable to defer compiling
 until we know how all the requirements of a component are to be
 filled.

@@ -24,7 +24,7 @@ interacts with features like type classes and type synonyms.
 \end{figure}
 
 The semantic objects of GHC Haskell, extended with \Backpack{}, are
-given in Figure~\ref{fig:semantic-objects}.  These semantic objects
+given in \cref{fig:semantic-objects}.  These semantic objects
 correspond closely to the top-level declarations supported by
 Haskell's syntax, but with a few key differences: first, every
 identifier is resolved to an \emph{original name} ($N$) which identifies
@@ -48,7 +48,7 @@ type consists of four components:
     \item The type declarations ($\Utys$), which give
     definitions for each entity provided by a module.  Every defined
     entity list defines a particular entity $n$ (shaded in gray
-    in Figure~\ref{fig:semantic-objects}).  Like export lists,
+    in \cref{fig:semantic-objects}).  Like export lists,
     each declaration in a module has a unique occurrence name
     (e.g., $\Utys(n) = \Uty$).
 
@@ -153,15 +153,15 @@ We organize our formalization of \Backpack{} typing into a few
 concerns:
 
 \begin{itemize}
-    \item The assumed Haskell judgments (Figure~\ref{typing:haskell}) are the
+    \item The assumed Haskell judgments (\cref{typing:haskell}) are the
         Haskell type-checking judgments we assume are available, but which
         we do not formalize.
 
-    \item The top-level typing rules (Figure~\ref{typing:main}) tell us
+    \item The top-level typing rules (\cref{typing:main}) tell us
         how to typecheck the declarations of a component and form the final
         component type.
 
-    \item The type lookup and renaming rules (Figure~\ref{typing:lookup}) tell us how to
+    \item The type lookup and renaming rules (\cref{typing:lookup}) tell us how to
         get the type of a module by looking up the original type from
         the context, and then \emph{renaming} it according to the substitution
         recorded in the module identifier.
@@ -170,7 +170,7 @@ concerns:
         specify when one module type is a subtype of another, and is used
         by both signature merging and dependency matching.
 
-    \item The merging rules (Figure~\ref{typing:merging}) specify how the
+    \item The merging rules (\cref{typing:merging}) specify how the
         module types are merged together during signature merging.
 
 \end{itemize}
@@ -184,7 +184,7 @@ Most typing rules require the following three pieces of context:
         $\Gamma = \mathtt{base} : \Xi_b, \mathtt{containers} : \Xi_c$
         would be one where the components \verb|base| and \verb|containers| (with
         component types $\Xi_b$ and $\Xi_c$ respectively) were in the context.
-        A component with holes, e.g., \verb|regex-indef| (Section~\ref{sec:functorizing-the-matcher}),
+        A component with holes, e.g., \verb|regex-indef| (\cref{sec:functorizing-the-matcher}),
         would occur only \emph{once} in this context (even if we have a dependency
         on an instantiated version of it.)
 
@@ -401,7 +401,7 @@ with all of the inherited signatures (computed by \textsf{inherits} and
 recorded in $\mathcal{D} ::= \overline{m \mapsto \overline{M}}$).
 
 \emph{Example.}  To make things more concrete, we'll work through
-the typechecking process for package \verb|r| from Figure~\ref{fig:linked-example}.
+the typechecking process for package \verb|r| from \cref{fig:linked-example}.
 For your convenience, we've reproduced the \unit{} below:
 
 \[
@@ -879,8 +879,8 @@ $\texttt{T}~\tau \sim_\textsf{R} \texttt{T}~\sigma$, we could
 show $\tau \sim_\textsf{N} \sigma$; we could \emph{not} infer
 this under the module.
 Fortunately, abstract data is \emph{not}
-representationally injective (Figure~\ref{fig:representational-injectivity}), as it can be implemented via
-a newtype (\textsc{SubNewtypeAbsData} in Figure~\ref{typing:subtyping}),
+representationally injective (\cref{fig:representational-injectivity}), as it can be implemented via
+a newtype (\textsc{SubNewtypeAbsData} in \cref{typing:subtyping}),
 so this counterexample does not hold.
 
 \paragraph{Subtyping synonyms}
@@ -905,7 +905,7 @@ synonyms.
 
 Finally, \emph{merging} finds the greatest lower bound on our subtyping relation,
 finding a signature which is a subtype of all the original signatures (or failing
-if no such signature exists).  Let's recall our example from Section~\ref{sec:signature-merging}
+if no such signature exists).  Let's recall our example from \cref{sec:signature-merging}
 (now written as module types), extended slightly with some instances:
 
 \[
@@ -1250,7 +1250,7 @@ valid name substitution to the environment, the module must
 continue to typecheck.
 
 In the absence of type classes and type families (see
-Section~\ref{sec:metatheory} for a detailed discussion on these
+\cref{sec:metatheory} for a detailed discussion on these
 features), this property largely holds for Haskell's type system.
 However, we found one subtle case related to GHC's treatment
 of \emph{inaccessible code}.  Inaccessible code occurs when

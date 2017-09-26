@@ -53,13 +53,13 @@ highlighted in blue):
 \section{Modifications to GHC}
 
 As far as possible, the typechecking rules described in
-Section~\ref{sec:compiler} are a faithful rendering of our
+\cref{sec:compiler} are a faithful rendering of our
 actual implementation of \Backpack{} in GHC\@: each rule
 is in direct correspondence to some functionality in
 GHC\@.  To help readers interested in perusing \Backpack{} in GHC's
-source code, Table~\ref{table:semantic-objs} gives a correspondence
+source code, \cref{table:semantic-objs} gives a correspondence
 between a semantic object and its corresponding type name in GHC\@;
-similarly, Table~\ref{table:judgments} gives a correspondence between
+similarly, \cref{table:judgments} gives a correspondence between
 our judgments and their implementations in GHC\@.
 
 In our primary \Backpack{} patch (not counting subsequent bugfix
@@ -92,8 +92,8 @@ Haskell type/kind & $\tau, \kappa$ & \verb|IfaceType|/\verb|Type| & \verb|IfaceT
 External component type context & $\Gamma$ & \verb|ExternalPackageState| & \verb|HscTypes| \\
 Local type context & $\Delta$ & \verb|HomePackageTable| & \verb|HscTypes| \\
 \end{tabular}
-\caption{Mapping from semantic objects in this thesis (Figure~\ref{fig:lcomponents} and Figure~\ref{fig:semantic-objects}) to their definitions
-in GHC\@.  In some cases, a semantic object maps to two types in GHC\@; see Section~\ref{sec:no-symbol-tables} for details.}
+\caption{Mapping from semantic objects in this thesis (\cref{fig:lcomponents} and \cref{fig:semantic-objects}) to their definitions
+in GHC\@.  In some cases, a semantic object maps to two types in GHC\@; see \cref{sec:no-symbol-tables} for details.}
 \label{table:semantic-objs}
 \end{table}
 
@@ -103,30 +103,30 @@ in GHC\@.  In some cases, a semantic object maps to two types in GHC\@; see Sect
 Figure & Judgment & GHC Function & Defined In \\
 \midrule
 
-Fig.~\ref{typing:haskell} & Module/signature typechecking & \verb|tcRnModule| & \verb|TcRnDriver| \\
+\Cref{typing:haskell} & Module/signature typechecking & \verb|tcRnModule| & \verb|TcRnDriver| \\
 & Type/kind equality & \verb|eqType| & \verb|Type| \\
 & Instance resolution & \verb|check_inst| & \verb|TcBackpack| \\
 
-Fig.~\ref{typing:main} & Top-level typing & \verb|load| & \verb|GhcMake| \\
+\Cref{typing:main} & Top-level typing & \verb|load| & \verb|GhcMake| \\
 & \quad\textsf{exposes} & \verb|applyPackageFlag| & \verb|Packages| \\
 & \quad\textsf{inherits} & \verb|collectHoles| & \verb|Packages| \\
 & Declaration typing & \verb|hscTypecheck| & \verb|HscMain| \\
 & Dependency typing & \verb|tcRnCheckUnitId| & \verb|TcBackpack| \\
 & Declaration sequencing & \verb|upsweep| & \verb|GhcMake| \\
 
-Fig.~\ref{typing:lookup} & Original name type lookup & \verb|importDecl| & \verb|LoadIface| \\
+\Cref{typing:lookup} & Original name type lookup & \verb|importDecl| & \verb|LoadIface| \\
 & Module type lookup & \verb|loadInterface| & \verb|LoadIface| \\
 & Substitution & \verb|rnModIface| & \verb|RnModIface| \\
 & Name substitution & \verb|rnIfaceGlobal| & \verb|RnModIface| \\
 %& Orphan substitution & (implicit) & \\
 
-Fig.~\ref{typing:merging} & Signature type merging & \verb|tcRnMergeSignatures| & \verb|TcBackpack| \\
+\Cref{typing:merging} & Signature type merging & \verb|tcRnMergeSignatures| & \verb|TcBackpack| \\
 & Export list merging & \verb|extendNameShape| & \verb|NameShape| \\
 & Declaration list merging & \verb|mergeIfaceDecls| & \verb|TcIface| \\
 
-Fig.~\ref{typing:top-subtyping} & Module subtyping & \verb|checkImplements| & \verb|TcBackpack| \\
+\Cref{typing:top-subtyping} & Module subtyping & \verb|checkImplements| & \verb|TcBackpack| \\
 
-Fig.~\ref{typing:subtyping} & Declaration subtyping & \verb|checkBootDecl| & \verb|TcRnDriver| \\
+\Cref{typing:subtyping} & Declaration subtyping & \verb|checkBootDecl| & \verb|TcRnDriver| \\
 & Declaration pre-subtyping & \verb|checkBootTyCon| & \verb|TcRnDriver| \\
 \end{tabular}
 \caption{Mapping from typing judgments to implementations in GHC.}
@@ -138,7 +138,7 @@ Fig.~\ref{typing:subtyping} & Declaration subtyping & \verb|checkBootDecl| & \ve
 \label{sec:no-symbol-tables}
 
 The most important aspect of the implementation not captured by
-the rules in Section~\ref{sec:compiler} is GHC's lack of traditional
+the rules in \cref{sec:compiler} is GHC's lack of traditional
 symbol tables.
 Traditionally, compilers have one or more data structures known as
 \emph{symbol tables}, which are mappings from symbols to information
@@ -200,7 +200,7 @@ once all of the entities have been added to the environment;
 this is referred to as ``typechecking'' the interface.
 
 \paragraph{Consequences for \Backpack{}}
-In Section~\ref{sec:overview-compiler}, we informally described
+In \cref{sec:overview-compiler}, we informally described
 types as graphs, with original names pointing to the corresponding
 declaration.  In fact, this is an accurate representation of how
 these operations are implemented in GHC\@!
@@ -241,7 +241,7 @@ This means that to perform this subtyping test, GHC first typechecks
 each of the input \verb|ModIface|s for the signatures, wiring any
 local \verb|Name|s to point to the merged signature, and then performs
 the subtyping tests on the resulting graph.  In other words, the
-informal description of signature merging in Section~\ref{sec:signature-merging}
+informal description of signature merging in \cref{sec:signature-merging}
 is actually quite close to what actually occurs in GHC proper!
 
 \subsection{Miscellaneous differences}
@@ -330,7 +330,7 @@ and GHC's representation.
 
     \item Modifications to GHC's \verb|UnitId| data type to support module
         substitutions.  We try to keep \uid{}s represented as plain
-        strings as much as possible; see Section~\ref{sec:opaque-uid} for
+        strings as much as possible; see \cref{sec:opaque-uid} for
         more details.
 
     \item We applied a slight optimization when testing that an instantiated
@@ -352,7 +352,7 @@ and GHC's representation.
 \section{Modifications to Cabal}
 
 Our implementation of \Backpack{} in Cabal also closely follows the description
-from Section~\ref{sec:overview}.  There are three primary phases in our
+from \cref{sec:overview}.  There are three primary phases in our
 implementation:
 
 \begin{enumerate}
@@ -367,7 +367,7 @@ implementation:
     where every \cid{} has been further elaborated into a \uid{}
     representing exactly how the dependencies are instantiated.
     Mixin linking is essentially a direct implementation of the
-    description we gave in Section~\ref{sec:mix-in}.
+    description we gave in \cref{sec:mix-in}.
 
     \item Finally, we zip through all fully instantiated components
     and recursively instantiate their dependencies, producing one or

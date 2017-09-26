@@ -12,7 +12,7 @@ on component shapes: $\textsf{link}()$, which wires up the components in
 two shapes, and $\textsf{rnthin}()$, which thins and renames the input
 and output ports of a shape; then, we say how to mixin link a
 \ccomp{}.  For an informal description of mixin linking refer
-to Section~\ref{sec:overview-mixin}.
+to \cref{sec:overview-mixin}.
 
 \[
 \begin{array}{ll}
@@ -31,7 +31,7 @@ to Section~\ref{sec:overview-mixin}.
 \section{Pictorial interpretation}
 
 We can build upon our graphical language of \uid{}s to specify a graphical
-language of \emph{component shapes}, which we used in Section~\ref{sec:overview-mixin}
+language of \emph{component shapes}, which we used in \cref{sec:overview-mixin}
 to informally describe the mixin linking process.  A component shape is simply
 a ``bigger box'' which contains some number of \uid{}s:
 
@@ -285,7 +285,7 @@ into a substitution $\overline{\protect\subst{m}{\protect\hv{m}}}$.}
 \end{figure}
 
 Given $\textsf{link}()$ and $\textsf{rnthin}()$, we are well equipped to say how to mixin link
-an entire \ccomp{} (Figure~\ref{fig:mix-in}).  Our general strategy will be to compute the
+an entire \ccomp{} (\cref{fig:mix-in}).  Our general strategy will be to compute the
 component shape of every $\I{rdecl}$ (as well as its elaboration to
 $\mdecl$) and link them all together in the component judgment,
 combining all of the $\mdecl$s together to form the final

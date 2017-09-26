@@ -20,7 +20,7 @@ version of this tutorial, please refer to \url{http://blog.ezyang.com/2016/10/tr
 You have been asked to implement a Haskell library that provides a
 regular expression matcher.  Nodding knowingly, you shuffle through your
 copy of Fischer, Huch and Wilke~\cite{Fischer:2010:PRE:1863543.1863594}
-and produce the code listing in Figure~\ref{fig:matcher-haskell98}.  It
+and produce the code listing in \cref{fig:matcher-haskell98}.  It
 is an ordinary matcher on Haskell's \verb|String| data type
 (linked lists of characters), written in vanilla
 Haskell'98; you also write a small test program for it.
@@ -92,7 +92,7 @@ Overjoyed by the elegance of your regular expression matcher, you decide
 to package and upload your code, so that others can install it
 using a package manager like \verb|cabal-install|.  To
 do this, you write a \emph{Cabal file} which records some metadata
-about the package in question, as in Figure~\ref{fig:matcher-packages}.
+about the package in question, as in \cref{fig:matcher-packages}.
 In it, you record:
 
 \begin{figure}
@@ -116,7 +116,7 @@ executable regex-program
 \end{lstlisting}
 \end{tabular}
 \caption{Cabal files for the regex and regex-program packages. The Haskell source code
-of these packages is in Figure~\ref{fig:matcher-haskell98}.}
+of these packages is in \cref{fig:matcher-haskell98}.}
 \label{fig:matcher-packages}
 \end{figure}
 
@@ -174,7 +174,7 @@ case:
 
     \item Another possibility is to abstract over the string type,
     defining a record or type class to parametrize over the implementations
-    of operations you might need.  However, as mentioned in Section~\ref{sec:intro},
+    of operations you might need.  However, as mentioned in \cref{sec:intro},
     this has the downside of requiring you to add extra class constraints
     or dictionary arguments everywhere in your code.
 \end{itemize}
@@ -184,7 +184,7 @@ case:
 create a new signature named \verb|Str|, which provides abstract string
 and element types, and all the string operations our matcher requires,
 and rewrite our module to make use of this module, as seen in
-Figure~\ref{fig:matcher-regex-indef-source}.  We need only to
+\cref{fig:matcher-regex-indef-source}.  We need only to
 treat \verb|Str| abstractly: in the new module, the list operations
 \verb|null| and \verb|[c]| are replaced with abstract variants from the
 signature; furthermore, the implementations of \verb|splits| and
@@ -230,7 +230,7 @@ against the signature, even if you don't have an implementation of
 \verb|Str| available.  To use the package manager to typecheck
 your package, you need only modify your Cabal file so that
 \verb|Str| is specified in the \verb|signatures| field, as in
-Figure~\ref{fig:matcher-regex-indef-cabal}.
+\cref{fig:matcher-regex-indef-cabal}.
 
 \begin{figure}
 \begin{lstlisting}[language=Cabal]
@@ -252,7 +252,7 @@ module parametrized by string implementation.}
 A functorized matcher is great, but to actually run it, we must
 \emph{instantiate} it with an implementation of strings.  Any implementation
 of strings must provide the types and functions specified by the requirement
-of the package in question. For example, Figure~\ref{fig:matcher-str-string-source}
+of the package in question. For example, \cref{fig:matcher-str-string-source}
 gives the implementation of string operations on \verb|String|.
 
 \begin{figure}
@@ -295,7 +295,7 @@ versions of \verb|null| and \verb|singleton|, as Backpack will require
 the type of an implementing function to exactly match the type
 in the signature: the polymorphic function \verb|[a] -> Bool| is not
 considered a valid implementation of \verb|[Char] -> Bool|.  See
-Section~\ref{sec:relaxed-matching} for more about this restriction.
+\cref{sec:relaxed-matching} for more about this restriction.
 
 %   Signatures in Backpack are width-subtyped, so
 %   \verb|Str.String| could also contain more exported functions and still
@@ -322,7 +322,7 @@ A requirement of a package is instantiated when
 another module under the same name is brought into scope---this scoping
 mechanism is handled already by Cabal.
 
-In Figure~\ref{fig:matcher-functorized-packages}, we have Cabal instantiate
+In \cref{fig:matcher-functorized-packages}, we have Cabal instantiate
 \verb|regex-indef| with \verb|str-string|.
 Here, the executable \verb|regex-program| uses the
 \verb|mixins| field to rename the module from \verb|str-string| to the
@@ -352,7 +352,7 @@ Regex into scope instantiated with the \texttt{Str} implementation from \texttt{
 
 The process of wiring up requirements and provisions when they share names
 is called \emph{mix-in linking}.  There are two very useful
-ways to understand the process.  In Figure~\ref{fig:regex-indef-instantiated}, we
+ways to understand the process.  In \cref{fig:regex-indef-instantiated}, we
 \emph{pictorially} represent each depended upon library as a block, with input and output
 ports representing signatures and modules respectively.  Intuitively, the process
 of mix-in linking involves ``wiring up'' these signatures and modules by matching
@@ -371,7 +371,7 @@ and provisions which have the same module name.}
 
 We can also consider an intermediate representation of the package language
 \emph{after} mix-in linking,
-as in Figure~\ref{fig:matcher-bkp}, where every dependency on another library
+as in \cref{fig:matcher-bkp}, where every dependency on another library
 is given an \emph{explicit instantiation} specifying how all of its requirements
 are filled---a \emph{syntactic} interpretation of
 the package description. We can identify a library plus an instantiation by
@@ -392,7 +392,7 @@ unit regex-program where
     dependency regex-indef[Str=str-string:Str.String]
     module Main where ...
 \end{lstlisting}
-\caption{The intermediate representation of the packages from Figure~\ref{fig:matcher-functorized-packages}.
+\caption{The intermediate representation of the packages from \cref{fig:matcher-functorized-packages}.
 The reference to \texttt{regex-indef} in \texttt{regex-program} now consists of an explicit functor application.}
 \label{fig:matcher-bkp}
 \end{figure}
@@ -414,7 +414,7 @@ dependencies that are already installed.
 \section{Reusing libraries with different instantiations}
 
 The reason we parametrized \verb|regex| was so that we could use it
-with another implementation of \verb|Str|.  Figure~\ref{fig:str-bytestring}
+with another implementation of \verb|Str|.  \cref{fig:str-bytestring}
 gives a \verb|bytestring| based implementation of \verb|Str|, which shows
 off another aspect of signature matching with Backpack: declarations from
 a signature do not have to be implemented by the module itself: they can
@@ -464,7 +464,7 @@ of \verb|str-string| when instantiating \verb|regex-indef| by modifying
 all appropriate references in the Cabal file.  However, we can also use
 both instantiations at the same time by specifying \verb|regex-indef|
 twice in \verb|mixins|, as seen in the Cabal file in
-Figure~\ref{fig:regex-program-multi}.
+\cref{fig:regex-program-multi}.
 This example operates a bit differently than our previous examples:
 instead of renaming the module from \verb|str-string| to be \verb|Str|,
 we instead rename the \emph{requirement} from \verb|regex-indef| to
@@ -474,9 +474,9 @@ of \verb|regex-indef|: one with \verb|Str| filled with
 \verb|Str.ByteString|.  To distinguish the provided modules of each
 instance, we rename them to two distinct names which \verb|Main|
 can import independently.  We can visualize these two instantiations
-diagramatically, as in Figure~\ref{fig:regex-indef-twice}, or
+diagramatically, as in \cref{fig:regex-indef-twice}, or
 we can look at the intermediate representation of the package language
-after mixin linking, as in Figure~\ref{fig:matcher-twice-bkp}.
+after mixin linking, as in \cref{fig:matcher-twice-bkp}.
 
 \begin{figure}
 \begin{lstlisting}[language=Cabal]
@@ -498,8 +498,12 @@ Regex into scope instantiated with the \texttt{Str} implementation from \texttt{
 \begin{figure}
 \center\includegraphics{figures/regex-indef-twice.pdf}
 \caption{Two instantiations of \texttt{regex-indef} which each define
+the type
 \texttt{Reg}.  These \texttt{Reg}s are not type equivalent, because
-their respective wiring diagrams are different.}
+their respective wiring diagrams are different.  (This figure is
+a slight abuse of notation, as in our pictorial language, output ports
+denote modules, not types.  However, it is \emph{also} the case that the
+\texttt{Regex} module in both cases is different.)}
 \label{fig:regex-indef-twice}
 \end{figure}
 
@@ -547,10 +551,10 @@ same library are brought into scope under the same name, they will also
 be linked, effectively \emph{merging} the two requirements together.
 For example, suppose that you had two packages \verb|p| and \verb|q|
 which both were parametrized by \verb|Str|, with the first and second
-signatures in Figure~\ref{fig:signature-merging}.  If we were to use
+signatures in \cref{fig:signature-merging}.  If we were to use
 both packages together in the same third package \verb|r| (e.g.,
 \verb|build-depends: p, q|), the two \verb|Str| signatures would merge
-to form the third signature in Figure~\ref{fig:signature-merging}.
+to form the third signature in \cref{fig:signature-merging}.
 
 \begin{figure}
 \begin{tabular}{p{0.30\textwidth} p{0.30\textwidth} p{0.30\textwidth}}
@@ -578,7 +582,7 @@ signature Str where
 \label{fig:signature-merging}
 \end{figure}
 
-As before, Figure~\ref{fig:signature-merging-interp} illustrates the
+As before, \cref{fig:signature-merging-interp} illustrates the
 pictorial and syntactic interpretations of this merging process.  It's
 worth pointing out that in the syntactic interpretation, the first
 occurrence of \verb|<Str>| is a binding occurrence for the subsequent

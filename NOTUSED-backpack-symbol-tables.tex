@@ -30,18 +30,18 @@ The purpose of this paper is to shed some light on how this all works.
 Specifically:
 
 \begin{itemize}
-    \item We describe GHC's \emph{graph representation} (Section~\ref{sec:graph}), in
+    \item We describe GHC's \emph{graph representation} (\cref{sec:graph}), in
     which there are no symbol tables, contrast it with
-    the \emph{interface representation} (Section~\ref{sec:interface}), which utilizes symbol
+    the \emph{interface representation} (\cref{sec:interface}), which utilizes symbol
     tables, is serialized to disk, and describe how we convert
-    between these two representations (Section~\ref{sec:convert}).  Most operations like type
+    between these two representations (\cref{sec:convert}).  Most operations like type
     equality are implemented only for the graph representation, but
     operations which involve \emph{updating} information associated with
     a symbol can only conveniently be done on the interface
     representation.
 
     \item We describe the process for typechecking
-    \verb|hs-boot| files (Section~\ref{sec:boot}). The
+    \verb|hs-boot| files (\cref{sec:boot}). The
     difficulty is that the incomplete symbols supplied
     by the \verb|hs-boot| file must eventually be improved
     with the information from their implementations in the

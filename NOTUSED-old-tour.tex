@@ -33,7 +33,7 @@ by any module implementing this requirement.  For example, the source for
 %
 A client can instantiate a requirement merely by having a module
 in scope with the same module name as the requirement; a process called \emph{mixin linking} instantiates the requirement.  Below, we instantiate \verb|db-dsl| with \verb|mysql| and
-\verb|bytestring| (depicted in Figure~\ref{fig:programming-against-interface}):
+\verb|bytestring| (depicted in \cref{fig:programming-against-interface}):
 
 \begin{verbatim}
   name: mysql-dsl
@@ -78,7 +78,7 @@ wiring diagrams they are associated with are not equal.}
 
 Suppose an application wants to use \verb|db-dsl| with two different databases
 at the same time. It can do so by mentioning \verb|db-dsl| twice in
-\verb|backpack-includes| (depicted in Figure~\ref{fig:reusing-packages-functors}):
+\verb|backpack-includes| (depicted in \cref{fig:reusing-packages-functors}):
 
 \begin{verbatim}
   name: myapp
@@ -148,7 +148,7 @@ be used with any package implemeting the \verb|Data.ByteString| interface.
 We can use this package to create a version of \verb|db-dsl|
 which is partially instantiated: that is, it is instantiated
 with \verb|mysql-indef|, but leaves \verb|Data.ByteString|
-unimplemented (depicted in Figure~\ref{fig:composing-requirements}):
+unimplemented (depicted in \cref{fig:composing-requirements}):
 
 \begin{verbatim}
   name: mysql-dsl-indef

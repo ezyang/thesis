@@ -21,7 +21,7 @@ Because \Backpack{} does not support mutual recursion, it is not
 necessary to perform a shaping pass to precompute the identities of all
 of the exports in a library.  \Backpack{} \emph{does} have a miniature
 shaping step, which occurs during signature merging when we merge export
-lists (\textsc{MExport} in Figure~\ref{typing:merging}), which
+lists (\textsc{MExport} in \cref{typing:merging}), which
 produces a names substitution (the ``shape''); unlike \OldBackpack{},
 however, we can perform this
 shaping process incrementally.  This is good from an implementation
@@ -91,7 +91,7 @@ Without the ability to hide A's declaration of an \verb|Eq| instance
 from \verb|B|, \verb|B| would fail to typecheck due to a duplicate
 instance declaration.
 
-As we observed in Section~\ref{sec:metatheory}, while such instance
+As we observed in \cref{sec:metatheory}, while such instance
 hiding would work for ordinary type class instances, it would not work
 for associated types, as type equality axioms cannot be hidden in any
 meaningful way.  Furthermore, Haskell users generally expect there

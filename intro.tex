@@ -184,14 +184,14 @@ Specifically, the contributions of this thesis are as follows:
 
     \item We describe a package language which can be \emph{mixin
     linked} without knowing anything about the Haskell programming
-    language. (Section~\ref{sec:mix-in})  This gives us a language agnostic mechanism for
+    language. (\cref{sec:mix-in})  This gives us a language agnostic mechanism for
     expressing separate modular development, in contrast to
     \OldBackpack{}, whose semantics critically relies on the import structure
     of Haskell modules.  As a result, \Backpack{}
     employs a far simpler mixin linking procedure essentially equivalent
     to early descriptions of mixin linking in the literature.~\cite{cardelli:linksets}
     In doing so, we adjust \OldBackpack{}'s primary technical device,
-    the \emph{module identity} into a new concept, the \emph{unit identity} (Section~\ref{sec:uid}),
+    the \emph{module identity} into a new concept, the \emph{unit identity} (\cref{sec:uid}),
     which can be computed by language agnostic mixin linking.
     Our new package language is order-independent, which is
     essential for backwards-compatibility with Haskell's existing
@@ -207,7 +207,7 @@ Specifically, the contributions of this thesis are as follows:
     semantics to the ones that were pioneered by \OldBackpack{}.
 
     \item We describe how to typecheck the \emph{\unit{} language} in the
-    real world (Section~\ref{sec:compiler}), typechecking the source into semantic objects that
+    real world (\cref{sec:compiler}), typechecking the source into semantic objects that
     faithfully reflect the full glory of GHC Haskell's type system.
     We give an unsound but pragmatic mechanism for supporting \emph{type classes}
     (it is unsolvable in the presence of open type families), support
@@ -217,18 +217,18 @@ Specifically, the contributions of this thesis are as follows:
     roles annotations.
 
     \item This is not a paper design: Backpack has been fully
-    implemented in the upcoming GHC 8.2 and cabal-install 2.0 releases.
+    implemented GHC 8.2 and cabal-install 2.0.
     We give a tour of the modifications we made to GHC to
     implement the necessary instantiation and merging operations
     required by the \unit{} language, as well as the architectural
     changes that were necessary in Cabal (the package manager)
     to orchestrate the typechecking and building of the mixin
-    packages. (Section~\ref{sec:implementation})
+    packages. (\cref{sec:implementation})
 
     \item Does \Backpack{} work?
     We have done a number of case studies to give evidence
     that \Backpack{} works, including conversions of complex,
-    real-world packages to use \Backpack{}. (Section~\ref{sec:evaluation})
+    real-world packages to use \Backpack{}. (\cref{sec:evaluation})
 
 %   Among other things, these case studies
 %   have motivated the introduction of \emph{signature thinning}

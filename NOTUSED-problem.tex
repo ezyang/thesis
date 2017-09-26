@@ -116,7 +116,7 @@ responsible for building the instantiated version of the code? \Red{Replace me w
 \end{figure}
 
 But there's a problem: \emph{applicative sharing}. Consider the
-situation in Figure~\ref{fig:problem}:  we have two, independently
+situation in \cref{fig:problem}:  we have two, independently
 written packages which both want to instantiate a component (A) in the
 same way (HImpl).  Applicativity demands that both instantiations
 represent precisely the same type, and thus, a very natural thing to
